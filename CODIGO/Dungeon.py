@@ -11,7 +11,7 @@ class Dungeon:
         self.grid_w = grid_w
         self.grid_h = grid_h
         self.rooms: Dict[Tuple[int, int], Room] = {}
-        self.explored: Set[Tuple[int,int]] = set()
+        self.explored = set()
         self.i = grid_w // 2
         self.j = grid_h // 2
         self._ensure_room(self.i, self.j)

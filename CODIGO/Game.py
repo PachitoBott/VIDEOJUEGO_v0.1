@@ -68,12 +68,12 @@ class Game:
                 self.dungeon.explored.add((self.dungeon.i, self.dungeon.j))
                 self.door_cooldown = 0.25
 
-            # ====== RENDER AL WORLD ======
-            room = self.dungeon.current_room
+             # ====== RENDER AL WORLD ======
+             # 1) renderizas TODO al world (tilemap, player, etc.)
             room.draw(self.world, self.tileset)
             self.player.draw(self.world)
 
-            # Escalar world -> screen
+            # 2) escalas world -> screen
             scaled = pygame.transform.scale(
                 self.world,
                 (self.cfg.SCREEN_W * self.cfg.SCREEN_SCALE,
@@ -81,19 +81,15 @@ class Game:
             )
             self.screen.blit(scaled, (0, 0))
 
-            # ====== DEBUG OVERLAY GIGANTE EN SCREEN ======
-            # ¡OJO! fill no acepta keywords; el rect va como 2º parámetro posicional
-            self.screen.fill((255, 0, 255), pygame.Rect(10, 10, 180, 80))  # bloque magenta
-            pygame.draw.rect(self.screen, (0, 255, 0),
-                            pygame.Rect(self.screen.get_width()-200, 10, 190, 120), 6)  # marco verde
 
-            # ====== MINIMAPA ======
+            # 4) minimapa (también en screen)
             mm = self.minimap.render(self.dungeon)
             margin = 16
-            self.screen.blit(mm, (self.screen.get_width() - mm.get_width() - margin, margin))
+            self.screen.blit(mm, (self.screen.get_width() - mm.get_width() - margin, 200))
 
-            # Flip final
+            # 5) flip final (¡una sola vez!)
             pygame.display.flip()
+
 
         pygame.quit()
         sys.exit(0)

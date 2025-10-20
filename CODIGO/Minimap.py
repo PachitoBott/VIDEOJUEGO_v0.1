@@ -1,22 +1,14 @@
 import pygame
 
 class Minimap:
-    """
-    Minimap visible sí o sí:
-    - Panel opaco (no transparente) para evitar problemas de alpha.
-    - Celdas grandes y colores fuertes.
-    - Sin imports del Dungeon para evitar circulares.
-    """
     def __init__(self, cell: int = 20, padding: int = 10) -> None:
         self.cell = cell
         self.padding = padding
-
-        # Colores muy visibles
-        self.bg = (20, 20, 20)            # panel opaco
-        self.border = (255, 255, 255)     # borde blanco
-        self.grid = (120, 120, 140)       # celdas no exploradas
-        self.explored = (180, 180, 200)   # exploradas
-        self.current = (255, 100, 100)    # actual (rojo)
+        self.bg = (20, 20, 20)
+        self.border = (255, 255, 255)
+        self.grid = (120, 120, 140)
+        self.explored = (180, 180, 200)
+        self.current = (255, 100, 100)
 
     def render(self, dungeon) -> pygame.Surface:
         gw = int(getattr(dungeon, "grid_w", 3))
@@ -27,10 +19,9 @@ class Minimap:
         w = gw * self.cell + self.padding * 2
         h = gh * self.cell + self.padding * 2
 
-        # Panel opaco (sin SRCALPHA) para máxima compatibilidad
-        surf = pygame.Surface((w, h))
+        surf = pygame.Surface((w, h))  # opaco
         surf.fill(self.bg)
-        pygame.draw.rect(surf, self.border, (0, 0, w, h), width=2)
+        pygame.draw.rect(surf, self.border, (0, 0, w, h), 2)
 
         for j in range(gh):
             for i in range(gw):
@@ -38,9 +29,7 @@ class Minimap:
                 y = self.padding + j * self.cell
                 rect = pygame.Rect(x, y, self.cell - 2, self.cell - 2)
                 color = self.grid
-                if (i, j) in explored:
-                    color = self.explored
-                if (i, j) == cur:
-                    color = self.current
+                if (i, j) in explored: color = self.explored
+                if (i, j) == cur:      color = self.current
                 pygame.draw.rect(surf, color, rect)
         return surf
