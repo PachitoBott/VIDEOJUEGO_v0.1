@@ -19,7 +19,13 @@ class Game:
         self.world = pygame.Surface((cfg.SCREEN_W, cfg.SCREEN_H))
 
         # ---------- Mundo ----------
-        self.dungeon = Dungeon(grid_w=3, grid_h=3)
+        self.dungeon = Dungeon(
+            grid_w=7, grid_h=7,   # tamaño máximo del “mundo”
+            main_len=8,           # largo del camino principal (siempre conectado)
+            branch_chance=0.45,   # prob. de generar ramas
+            branch_min=2, branch_max=4,
+            seed=None             # pon un int para repetir la misma dungeon
+        )
         self.dungeon.explored.add((self.dungeon.i, self.dungeon.j))  # marca room inicial
         self.tileset = Tileset()
 

@@ -1,79 +1,172 @@
-import pygame
-from typing import Tuple, Dict, Set
+import random
+from typing import Dict, Tuple, Set
 from Config import CFG
 from Room import Room
 
+Vec = Tuple[int, int]
+DIRS: Dict[str, Vec] = {"N": (0, -1), "S": (0, 1), "E": (1, 0), "W": (-1, 0)}
+DIRS_INV: Dict[Vec, str] = {(0, -1): "N", (0, 1): "S", (1, 0): "E", (-1, 0): "W"}
+
 class Dungeon:
     """
-    Grid de rooms (3x3 por defecto). Maneja room actual, transiciones y rooms exploradas.
+    Generador procedural:
+    - Grilla fija (por defecto 7x7) como límites “mundiales”.
+    - Genera un camino principal conectado desde el centro.
+    - Puede añadir ramas cortas con probabilidad.
+    - Marca rooms explorados y define puertas según adyacencia.
     """
-    def __init__(self, grid_w: int = 3, grid_h: int = 3) -> None:
-        self.grid_w = grid_w
-        self.grid_h = grid_h
+    def __init__(self,
+                 grid_w: int = 7,
+                 grid_h: int = 7,
+                 main_len: int = 8,
+                 branch_chance: float = 0.45,
+                 branch_min: int = 2,
+                 branch_max: int = 4,
+                 seed: int | None = None) -> None:
+        if seed is not None:
+            random.seed(seed)
+
+        self.grid_w, self.grid_h = grid_w, grid_h
+        self.i, self.j = grid_w // 2, grid_h // 2  # posición actual (empieza centro)
         self.rooms: Dict[Tuple[int, int], Room] = {}
-        self.explored = set()
-        self.i = grid_w // 2
-        self.j = grid_h // 2
-        self._ensure_room(self.i, self.j)
+        self.explored: Set[Tuple[int, int]] = set()
+
+        # 1) Camino principal
+        self._generate_main_path(length=main_len)
+
+        # 2) Ramas opcionales
+        self._generate_branches(branch_chance, branch_min, branch_max)
+
+        # 3) Definir puertas según vecinos + tallar corredores
+        self._link_neighbors_and_carve()
+
+        # marcar inicial como explorado
         self.explored.add((self.i, self.j))
 
+    # ------------------ API usada por Game ------------------ #
     @property
     def current_room(self) -> Room:
         return self.rooms[(self.i, self.j)]
 
     def can_move(self, direction: str) -> bool:
-        di, dj = self._dir_to_delta(direction)
+        di, dj = DIRS[direction]
         ni, nj = self.i + di, self.j + dj
-        return 0 <= ni < self.grid_w and 0 <= nj < self.grid_h
+        return (ni, nj) in self.rooms
 
     def move(self, direction: str) -> None:
-        di, dj = self._dir_to_delta(direction)
-        self.i += di
-        self.j += dj
-        self._ensure_room(self.i, self.j)
-        self.explored.add((self.i, self.j))
+        di, dj = DIRS[direction]
+        ni, nj = self.i + di, self.j + dj
+        if (ni, nj) in self.rooms:
+            self.i, self.j = ni, nj
+            self.explored.add((self.i, self.j))
 
-    def entry_position(self, came_from: str, pw: int, ph: int) -> Tuple[float, float]:
+    def entry_position(self, came_from: str, pw: int, ph: int) -> tuple[float, float]:
+        # reutiliza tu lógica actual (Dungeon no necesita cambiarla)
         room = self.current_room
         rx, ry, rw, rh = room.bounds
         ts = CFG.TILE_SIZE
         cx_px = (rx + rw // 2) * ts
         cy_px = (ry + rh // 2) * ts
+        margin = 6
+        if came_from == "N":
+            return float(cx_px - pw//2), float((ry + rh) * ts - ph - 2 - margin)
+        if came_from == "S":
+            return float(cx_px - pw//2), float(ry * ts + 2 + margin)
+        if came_from == "E":
+            return float(rx * ts + 2 + margin), float(cy_px - ph//2)
+        return float((rx + rw) * ts - pw - 2 - margin), float(cy_px - ph//2)
 
-        margin = 6  # píxeles hacia adentro
+    # ------------------ Procedural interno ------------------ #
+    def _in_bounds(self, x: int, y: int) -> bool:
+        return 0 <= x < self.grid_w and 0 <= y < self.grid_h
 
-        if came_from == "N":  # Venías desde el sur hacia el norte
-            x = cx_px - pw // 2
-            y = (ry + rh) * ts - ph - 2 - margin
-        elif came_from == "S":
-            x = cx_px - pw // 2
-            y = ry * ts + 2 + margin
-        elif came_from == "E":
-            x = rx * ts + 2 + margin
-            y = cy_px - ph // 2
-        else:  # "W"
-            x = (rx + rw) * ts - pw - 2 - margin
-            y = cy_px - ph // 2
-        return float(x), float(y)
+    def _neighbors(self, x: int, y: int) -> list[Vec]:
+        return [(x+dx, y+dy) for dx,dy in DIRS.values() if self._in_bounds(x+dx, y+dy)]
 
+    def _place_room(self, x: int, y: int) -> None:
+        if (x, y) not in self.rooms:
+            r = Room()
+            r.build_centered(CFG.ROOM_W, CFG.ROOM_H)
+            self.rooms[(x, y)] = r
 
-    def _ensure_room(self, i: int, j: int) -> None:
-        if (i, j) in self.rooms:
-            return
-        room = Room()
-        room.build_centered(CFG.ROOM_W, CFG.ROOM_H)
-        # Puertas según vecinos válidos
-        room.doors["N"] = (j - 1) >= 0
-        room.doors["S"] = (j + 1) < self.grid_h
-        room.doors["W"] = (i - 1) >= 0
-        room.doors["E"] = (i + 1) < self.grid_w
-        # Corredores cortos visuales
-        room.carve_corridors(width_tiles=2, length_tiles=3)
-        self.rooms[(i, j)] = room
+    def _generate_main_path(self, length: int) -> None:
+        x, y = self.i, self.j
+        self._place_room(x, y)
+        last_dir: Vec | None = None
 
-    def _dir_to_delta(self, d: str) -> Tuple[int, int]:
-        if d == "N": return (0, -1)
-        if d == "S": return (0, 1)
-        if d == "E": return (1, 0)
-        if d == "W": return (-1, 0)
-        return (0, 0)
+        for _ in range(max(1, length)):
+            # Evitar retroceder inmediatamente para caminos más “limpios”
+            choices = [d for d in DIRS.values() if last_dir is None or (d[0], d[1]) != (-last_dir[0], -last_dir[1])]
+            random.shuffle(choices)
+            moved = False
+            for dx, dy in choices:
+                nx, ny = x + dx, y + dy
+                if not self._in_bounds(nx, ny):
+                    continue
+                # Evita “amontonarse”: no pises si ya hay 2+ vecinos ocupados (reduce cruces)
+                occ_neighbors = sum((n in self.rooms) for n in self._neighbors(nx, ny))
+                if occ_neighbors >= 3:
+                    continue
+                # Acepta
+                x, y = nx, ny
+                self._place_room(x, y)
+                last_dir = (dx, dy)
+                moved = True
+                break
+            if not moved:
+                # si no pudimos movernos por restricciones, relaja y prueba cualquier vecino válido
+                for dx, dy in DIRS.values():
+                    nx, ny = x + dx, y + dy
+                    if self._in_bounds(nx, ny):
+                        x, y = nx, ny
+                        self._place_room(x, y)
+                        last_dir = (dx, dy)
+                        break
+
+    def _generate_branches(self, chance: float, min_len: int, max_len: int) -> None:
+        # para cada room del camino, hay probabilidad de crear una ramita corta
+        anchors = list(self.rooms.keys())
+        random.shuffle(anchors)
+        for ax, ay in anchors:
+            if random.random() > chance:
+                continue
+            length = random.randint(min_len, max_len)
+            x, y = ax, ay
+            last_dir: Vec | None = None
+            for _ in range(length):
+                # preferir direcciones que se alejen del ancla para “ramificarse”
+                dirs = list(DIRS.values())
+                random.shuffle(dirs)
+                moved = False
+                for dx, dy in dirs:
+                    if last_dir and (dx, dy) == (-last_dir[0], -last_dir[1]):
+                        continue
+                    nx, ny = x + dx, y + dy
+                    if not self._in_bounds(nx, ny):
+                        continue
+                    if (nx, ny) in self.rooms:
+                        # si ya existe, corta la rama aquí para evitar bucles grandes
+                        moved = False
+                        break
+                    # control suave de densidad
+                    occ_neighbors = sum((n in self.rooms) for n in self._neighbors(nx, ny))
+                    if occ_neighbors >= 3:
+                        continue
+                    self._place_room(nx, ny)
+                    x, y = nx, ny
+                    last_dir = (dx, dy)
+                    moved = True
+                    break
+                if not moved:
+                    break  # rama termina si no encuentra expansión segura
+
+    def _link_neighbors_and_carve(self) -> None:
+        # Define puertas según adyacencia real y talla corredores cortos
+        for (x, y), room in self.rooms.items():
+            # Puertas según vecinos existentes
+            room.doors["N"] = (x, y-1) in self.rooms
+            room.doors["S"] = (x, y+1) in self.rooms
+            room.doors["W"] = (x-1, y) in self.rooms
+            room.doors["E"] = (x+1, y) in self.rooms
+            # Corredores visuales
+            room.carve_corridors(width_tiles=2, length_tiles=3)
