@@ -1,34 +1,46 @@
 import pygame
-from typing import Tuple
-from Config import CFG
-from Dungeon import Dungeon
 
 class Minimap:
-    def __init__(self, cell: int = 10, padding: int = 6) -> None:
+    """
+    Minimap visible sí o sí:
+    - Panel opaco (no transparente) para evitar problemas de alpha.
+    - Celdas grandes y colores fuertes.
+    - Sin imports del Dungeon para evitar circulares.
+    """
+    def __init__(self, cell: int = 20, padding: int = 10) -> None:
         self.cell = cell
         self.padding = padding
-        self.bg = (20, 20, 26)
-        self.grid = (60, 60, 80)
-        self.explored = (140, 140, 160)
-        self.current = (240, 220, 120)
 
-    def render(self, dungeon: Dungeon) -> pygame.Surface:
-        w = dungeon.grid_w * self.cell + self.padding * 2
-        h = dungeon.grid_h * self.cell + self.padding * 2
-        surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        surf.fill((0, 0, 0, 0))
-        # Fondo
-        pygame.draw.rect(surf, self.bg, (0, 0, w, h), border_radius=6)
-        # Celdas
-        for j in range(dungeon.grid_h):
-            for i in range(dungeon.grid_w):
+        # Colores muy visibles
+        self.bg = (20, 20, 20)            # panel opaco
+        self.border = (255, 255, 255)     # borde blanco
+        self.grid = (120, 120, 140)       # celdas no exploradas
+        self.explored = (180, 180, 200)   # exploradas
+        self.current = (255, 100, 100)    # actual (rojo)
+
+    def render(self, dungeon) -> pygame.Surface:
+        gw = int(getattr(dungeon, "grid_w", 3))
+        gh = int(getattr(dungeon, "grid_h", 3))
+        explored = getattr(dungeon, "explored", set())
+        cur = (int(getattr(dungeon, "i", 0)), int(getattr(dungeon, "j", 0)))
+
+        w = gw * self.cell + self.padding * 2
+        h = gh * self.cell + self.padding * 2
+
+        # Panel opaco (sin SRCALPHA) para máxima compatibilidad
+        surf = pygame.Surface((w, h))
+        surf.fill(self.bg)
+        pygame.draw.rect(surf, self.border, (0, 0, w, h), width=2)
+
+        for j in range(gh):
+            for i in range(gw):
                 x = self.padding + i * self.cell
                 y = self.padding + j * self.cell
-                rect = pygame.Rect(x, y, self.cell - 1, self.cell - 1)
+                rect = pygame.Rect(x, y, self.cell - 2, self.cell - 2)
                 color = self.grid
-                if (i, j) in dungeon.explored:
+                if (i, j) in explored:
                     color = self.explored
-                if (i, j) == (dungeon.i, dungeon.j):
+                if (i, j) == cur:
                     color = self.current
-                pygame.draw.rect(surf, color, rect, border_radius=2)
+                pygame.draw.rect(surf, color, rect)
         return surf
