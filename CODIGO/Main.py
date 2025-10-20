@@ -1,5 +1,8 @@
 from Config import CFG
-from Game import Game   # ahora sí existe la clase Game dentro de Game.py
+from Game import Game
 
 if __name__ == "__main__":
-    Game(CFG).run()
+    print("[Main] creando Game…")
+    g = Game(CFG)
+    print("[Main] ejecutando run()…")
+    g.run()
