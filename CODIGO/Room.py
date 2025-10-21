@@ -54,11 +54,15 @@ class Room:
 
     # ---------- Corredores cortos ----------
     def carve_corridors(self, width_tiles: int = 2, length_tiles: int = 3) -> None:
-        """Cava un pequeño corredor (piso) que sale desde cada puerta activa."""
         assert self.bounds is not None
         rx, ry, rw, rh = self.bounds
-        cx = rx + rw // 2
-        cy = ry + rh // 2
+
+        # Escalado suave del largo del corredor según el ancho/alto de la sala
+        base_len = max(2, min(5, max(rw // 10, rh // 10)))
+        length_tiles = max(length_tiles, base_len)
+
+        # ... resto igual ...
+
 
         def carve_rect(tx0, ty0, tw, th):
             for ty in range(max(0, ty0), min(self.h, ty0 + th)):

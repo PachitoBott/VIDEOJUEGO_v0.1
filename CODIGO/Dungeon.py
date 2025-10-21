@@ -87,7 +87,17 @@ class Dungeon:
     def _place_room(self, x: int, y: int) -> None:
         if (x, y) not in self.rooms:
             r = Room()
-            r.build_centered(CFG.ROOM_W, CFG.ROOM_H)
+            # Tamaños aleatorios dentro del rango
+            rw = random.randint(CFG.ROOM_W_MIN, CFG.ROOM_W_MAX)
+            rh = random.randint(CFG.ROOM_H_MIN, CFG.ROOM_H_MAX)
+
+            # (Opcional) forzar impares para centrar mejor
+            if rw % 2 == 0: rw += 1
+            if rh % 2 == 0: rh += 1
+
+            r.build_centered(rw, rh)
+
+            # Puertas se setean luego cuando enlaces vecinos (si ya lo haces)
             self.rooms[(x, y)] = r
 
     def _generate_main_path(self, length: int) -> None:

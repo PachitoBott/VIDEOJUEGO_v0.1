@@ -146,7 +146,7 @@ class Game:
 
             mm = self.minimap.render(self.dungeon)
             margin = 16
-            self.screen.blit(mm, (self.screen.get_width() - mm.get_width() - margin, margin))
+            self.screen.blit(mm, (self.screen.get_width() - mm.get_width() - margin, 105))
 
             pygame.display.flip()
 

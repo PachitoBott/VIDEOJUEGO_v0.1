@@ -8,9 +8,11 @@ class Config:
     MAP_H: int = 40
     SCREEN_SCALE: int = 2
     FPS: int = 120
-
-    ROOM_W: int = 22
-    ROOM_H: int = 14
+    
+    ROOM_W_MIN: int = 18
+    ROOM_W_MAX: int = 30
+    ROOM_H_MIN: int = 12
+    ROOM_H_MAX: int = 20
 
     TILESET_PATH: Optional[str] = None  # ej: "assets/tileset.png"
 
