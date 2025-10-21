@@ -1,13 +1,20 @@
 import pygame
 from typing import Optional, Tuple, Dict
 from Config import CFG
+import random
+from Enemy import Enemy
+
 
 class Room:
     def __init__(self) -> None:
+        self.enemies = []        # lista de enemigos del cuarto
+        self._spawn_done = False # para spawnear una sola vez
         self.w, self.h = CFG.MAP_W, CFG.MAP_H
         self.grid = [[CFG.WALL for _ in range(self.w)] for _ in range(self.h)]
         self.bounds: Optional[Tuple[int,int,int,int]] = None  # (rx, ry, rw, rh) en tiles
         self.doors: Dict[str, bool] = {"N": False, "S": False, "E": False, "W": False}
+       
+
 
     def build_centered(self, rw: int, rh: int) -> None:
         rx = (self.w - rw) // 2
@@ -24,6 +31,26 @@ class Room:
         if not self.bounds: return (CFG.SCREEN_W//2, CFG.SCREEN_H//2)
         rx, ry, rw, rh = self.bounds
         return ((rx+rw//2)*CFG.TILE_SIZE, (ry+rh//2)*CFG.TILE_SIZE)
+    def ensure_spawn(self, difficulty: int = 1) -> None:
+        """Crea enemigos si aún no se han generado en este cuarto."""
+        if self._spawn_done or not self.bounds:
+            return
+        rx, ry, rw, rh = self.bounds
+        ts = CFG.TILE_SIZE
+
+        # Número de enemigos según dificultad (cap a 6 por ahora)
+        n = max(1, min(6, 1 + difficulty))
+
+        for _ in range(n):
+            # posición aleatoria dentro de la habitación (con margen de 1 tile)
+            tx = random.randint(rx + 1, rx + rw - 2)
+            ty = random.randint(ry + 1, ry + rh - 2)
+            px = tx * ts + ts // 2 - 6
+            py = ty * ts + ts // 2 - 6
+            self.enemies.append(Enemy(px, py))
+
+        self._spawn_done = True
+
 
     # ---------- Corredores cortos ----------
     def carve_corridors(self, width_tiles: int = 2, length_tiles: int = 3) -> None:

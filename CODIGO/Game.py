@@ -51,33 +51,41 @@ class Game:
             dt = self.clock.tick(self.cfg.FPS) / 1000.0
             self.door_cooldown = max(0.0, self.door_cooldown - dt)
 
-            # ---------- Eventos ----------
+            # -------- Eventos --------
             for e in pygame.event.get():
                 if e.type == pygame.QUIT:
                     self.running = False
 
-            # DEBUG opcional
             frame += 1
             if frame % 60 == 0:
                 print("[RUN] frames:", frame, "cooldown:", self.door_cooldown)
             pygame.display.set_caption(f"Roguelike — FPS {self.clock.get_fps():.1f}")
 
-            # ---------- UPDATE ----------
+            # -------- UPDATE (jugador) --------
             room = self.dungeon.current_room
             self.player.update(dt, room)
 
-            # 1) Disparo hacia el mouse (en coordenadas de MUNDO)
+            # Disparo hacia el mouse (coordenadas de mundo)
             mx, my = pygame.mouse.get_pos()
             mx //= self.cfg.SCREEN_SCALE
             my //= self.cfg.SCREEN_SCALE
             self.player.try_shoot((mx, my), self.projectiles)
 
-            # 2) Actualizar proyectiles y limpiar muertos
+            # -------- SPAWN + UPDATE (enemigos) --------
+            # Dificultad por distancia al centro de la grilla
+            cx, cy = self.dungeon.grid_w // 2, self.dungeon.grid_h // 2
+            dist = abs(self.dungeon.i - cx) + abs(self.dungeon.j - cy)
+            room.ensure_spawn(difficulty=1 + dist)
+
+            # Persecución
+            for en in room.enemies:
+                en.update(dt, self.player, room)
+
+            # -------- UPDATE (proyectiles) --------
             for p in self.projectiles:
                 p.update(dt, room)
-            self.projectiles = [p for p in self.projectiles if p.alive]
 
-            # 3) Transición por puertas (con cooldown)
+            # -------- Transición por puertas --------
             d = None
             if self.door_cooldown <= 0.0:
                 d = room.check_exit(self.player.rect())
@@ -90,15 +98,39 @@ class Game:
                 self.door_cooldown = 0.25
                 # opcional: limpiar balas al cambiar de cuarto
                 self.projectiles.clear()
+                # cambiar referencia de room tras mover
+                room = self.dungeon.current_room
+                room.ensure_spawn(difficulty=1 + dist)
 
-            # ---------- RENDER AL WORLD ----------
+            # -------- COLISIONES (balas ↔ enemigos) --------
+            for p in self.projectiles:
+                if not p.alive:
+                    continue
+                r_p = p.rect()
+                for en in room.enemies:
+                    if r_p.colliderect(en.rect()):
+                        en.hp -= 1
+                        p.alive = False
+                        break  # una bala = un impacto
+
+            # Limpieza de listas
+            room.enemies = [en for en in room.enemies if en.hp > 0]
+            self.projectiles = [p for p in self.projectiles if p.alive]
+
+            # -------- RENDER al world --------
             room = self.dungeon.current_room
             room.draw(self.world, self.tileset)
-            self.player.draw(self.world, CFG.COLOR_PLAYER)
+
+            # enemigos (debajo o arriba del player, como prefieras)
+            for en in room.enemies:
+                en.draw(self.world)
+
+            self.player.draw(self.world)
+
             for p in self.projectiles:
                 p.draw(self.world)
 
-            # ---------- ESCALADO WORLD -> SCREEN ----------
+            # -------- ESCALADO a screen + minimapa --------
             scaled = pygame.transform.scale(
                 self.world,
                 (self.cfg.SCREEN_W * self.cfg.SCREEN_SCALE,
@@ -106,17 +138,11 @@ class Game:
             )
             self.screen.blit(scaled, (0, 0))
 
-            # ---------- MINIMAPA ----------
             mm = self.minimap.render(self.dungeon)
             margin = 16
-            self.screen.blit(
-                mm,
-                (self.screen.get_width() - mm.get_width() - margin, 100)
-            )
+            self.screen.blit(mm, (self.screen.get_width() - mm.get_width() - margin, 105))
 
-            # ---------- FLIP ----------
             pygame.display.flip()
 
         pygame.quit()
         sys.exit(0)
-

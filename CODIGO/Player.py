@@ -44,3 +44,5 @@ class Player(Entity):
         spawn_y = cy + vy * 8
         out_projectiles.append(Projectile(spawn_x, spawn_y, vx, vy, speed=360.0, radius=3))
         self._fire_timer = self.fire_cooldown
+    def draw(self, surf): super().draw(surf, CFG.COLOR_PLAYER)
+
