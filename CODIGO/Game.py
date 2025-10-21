@@ -56,12 +56,13 @@ class Game:
                 if e.type == pygame.QUIT:
                     self.running = False
 
+            # (opcional) debug FPS
             frame += 1
             if frame % 60 == 0:
                 print("[RUN] frames:", frame, "cooldown:", self.door_cooldown)
             pygame.display.set_caption(f"Roguelike — FPS {self.clock.get_fps():.1f}")
 
-            # -------- UPDATE (jugador) --------
+            # -------- UPDATE: jugador --------
             room = self.dungeon.current_room
             self.player.update(dt, room)
 
@@ -71,17 +72,20 @@ class Game:
             my //= self.cfg.SCREEN_SCALE
             self.player.try_shoot((mx, my), self.projectiles)
 
-            # -------- SPAWN + UPDATE (enemigos) --------
+            # -------- SPAWN + UPDATE: enemigos --------
             # Dificultad por distancia al centro de la grilla
             cx, cy = self.dungeon.grid_w // 2, self.dungeon.grid_h // 2
             dist = abs(self.dungeon.i - cx) + abs(self.dungeon.j - cy)
-            room.ensure_spawn(difficulty=1 + dist)
+
+            # 🚫 No spawnear en el cuarto inicial
+            if (self.dungeon.i, self.dungeon.j) != getattr(self.dungeon, "start", (cx, cy)):
+                room.ensure_spawn(difficulty=1 + dist)
 
             # Persecución
             for en in room.enemies:
                 en.update(dt, self.player, room)
 
-            # -------- UPDATE (proyectiles) --------
+            # -------- UPDATE: proyectiles --------
             for p in self.projectiles:
                 p.update(dt, room)
 
@@ -98,11 +102,13 @@ class Game:
                 self.door_cooldown = 0.25
                 # opcional: limpiar balas al cambiar de cuarto
                 self.projectiles.clear()
-                # cambiar referencia de room tras mover
-                room = self.dungeon.current_room
-                room.ensure_spawn(difficulty=1 + dist)
 
-            # -------- COLISIONES (balas ↔ enemigos) --------
+                # actualizar referencias y spawner del nuevo cuarto
+                room = self.dungeon.current_room
+                if (self.dungeon.i, self.dungeon.j) != getattr(self.dungeon, "start", (cx, cy)):
+                    room.ensure_spawn(difficulty=1 + dist)
+
+            # -------- COLISIONES: balas ↔ enemigos --------
             for p in self.projectiles:
                 if not p.alive:
                     continue
@@ -121,7 +127,7 @@ class Game:
             room = self.dungeon.current_room
             room.draw(self.world, self.tileset)
 
-            # enemigos (debajo o arriba del player, como prefieras)
+            # enemigos (puedes dibujarlos antes o después del player)
             for en in room.enemies:
                 en.draw(self.world)
 
@@ -140,7 +146,7 @@ class Game:
 
             mm = self.minimap.render(self.dungeon)
             margin = 16
-            self.screen.blit(mm, (self.screen.get_width() - mm.get_width() - margin, 105))
+            self.screen.blit(mm, (self.screen.get_width() - mm.get_width() - margin, margin))
 
             pygame.display.flip()
 

@@ -28,6 +28,7 @@ class Dungeon:
 
         self.grid_w, self.grid_h = grid_w, grid_h
         self.i, self.j = grid_w // 2, grid_h // 2  # posición actual (empieza centro)
+        self.start = (self.i, self.j)
         self.rooms: Dict[Tuple[int, int], Room] = {}
         self.explored: Set[Tuple[int, int]] = set()
 
