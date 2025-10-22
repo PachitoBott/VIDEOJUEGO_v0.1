@@ -22,6 +22,7 @@ class Room:
         # contenido dinámico
         self.enemies: List[Enemy] = []
         self._spawn_done: bool = False
+        self._door_width_tiles = 2
 
     # ------------------------------------------------------------------ #
     # Construcción de la habitación
@@ -46,39 +47,42 @@ class Room:
     # ------------------------------------------------------------------ #
     def carve_corridors(self, width_tiles: int = 2, length_tiles: int = 3) -> None:
         """
-        Abre pasillos cortos desde los bordes de la sala hacia la dirección de cada puerta.
-        Usa el bounding box de la sala: (rx, ry, rw, rh) en tiles.
+        Talla la abertura/“corredor” exactamente centrado en tiles.
+        Guarda el ancho para que _door_trigger_rects use el mismo valor.
         """
         assert self.bounds is not None
         rx, ry, rw, rh = self.bounds
+        self._door_width_tiles = max(1, int(width_tiles))
 
         def carve_rect(x: int, y: int, w: int, h: int) -> None:
             for yy in range(y, y + h):
-                for xx in range(x, x + w):
-                    if 0 <= xx < CFG.MAP_W and 0 <= yy < CFG.MAP_H:
-                        self.tiles[yy][xx] = 0
+                if 0 <= yy < CFG.MAP_H:
+                    for xx in range(x, x + w):
+                        if 0 <= xx < CFG.MAP_W:
+                            self.tiles[yy][xx] = 0
 
-        half_w = max(1, width_tiles // 2)
+        W = self._door_width_tiles
+        # centro “en medios tiles” (evita perder la mitad cuando rw es par)
+        center_tx2 = rx * 2 + rw   # = 2*(rx + rw/2)
+        center_ty2 = ry * 2 + rh
 
-        # Norte
+        # izquierda superior del hueco (en tiles), usando la misma aritmética para N/S y E/W
+        left_tile   = (center_tx2 - W) // 2  # N y S
+        top_tile    = (center_ty2 - W) // 2  # E y W
+
+        # Norte (arriba)
         if self.doors.get("N"):
-            cx = rx + rw // 2
-            carve_rect(cx - half_w, ry - length_tiles, width_tiles, length_tiles)
-
-        # Sur
+            carve_rect(left_tile, ry - length_tiles, W, length_tiles)
+        # Sur (abajo)
         if self.doors.get("S"):
-            cx = rx + rw // 2
-            carve_rect(cx - half_w, ry + rh, width_tiles, length_tiles)
-
-        # Este
+            carve_rect(left_tile, ry + rh, W, length_tiles)
+        # Este (derecha)
         if self.doors.get("E"):
-            cy = ry + rh // 2
-            carve_rect(rx + rw, cy - half_w, length_tiles, width_tiles)
-
-        # Oeste
+            carve_rect(rx + rw, top_tile, length_tiles, W)
+        # Oeste (izquierda)
         if self.doors.get("W"):
-            cy = ry + rh // 2
-            carve_rect(rx - length_tiles, cy - half_w, length_tiles, width_tiles)
+            carve_rect(rx - length_tiles, top_tile, length_tiles, W)
+
 
     # ------------------------------------------------------------------ #
     # Spawning de enemigos (una sola vez por cuarto)
@@ -108,37 +112,60 @@ class Room:
             return True
         return self.tiles[ty][tx] == CFG.WALL
 
-    def _door_trigger_rects(self) -> Dict[str, pygame.Rect]:
+    def _door_trigger_rects(self) -> dict[str, pygame.Rect]:
         """
-        Rectángulos en píxeles que detectan cuando el jugador pisa una puerta.
+        Triggers centrados con EXACTAMENTE el mismo ancho que la abertura tallada.
         """
         assert self.bounds is not None
         rx, ry, rw, rh = self.bounds
         ts = CFG.TILE_SIZE
 
-        left   = rx * ts
-        right  = (rx + rw) * ts
-        top    = ry * ts
-        bottom = (ry + rh) * ts
-        band   = max(6, ts // 3)  # banda más finita para evitar ping-pong
+        left_px   = rx * ts
+        right_px  = (rx + rw) * ts
+        top_px    = ry * ts
+        bottom_px = (ry + rh) * ts
 
-        rects: Dict[str, pygame.Rect] = {}
+        W = max(1, getattr(self, "_door_width_tiles", 2))
+        opening_px = W * ts
+        thickness  = max(10, ts // 2)  # profundidad del trigger (hacia fuera/dentro del room)
+
+        # mismos centros en “medios tiles” que en carve_corridors
+        center_tx2 = rx * 2 + rw
+        center_ty2 = ry * 2 + rh
+        left_tile  = (center_tx2 - W) // 2
+        top_tile   = (center_ty2 - W) // 2
+
+        # convertir a píxeles esas posiciones de tile
+        left_open_px = left_tile * ts
+        top_open_px  = top_tile * ts
+        cx_px = (left_px + right_px) // 2
+        cy_px = (top_px + bottom_px) // 2
+
+        rects: dict[str, pygame.Rect] = {}
+        # Norte y Sur: horizontal, centrado
         if self.doors.get("N"):
-            rects["N"] = pygame.Rect(left + rw*ts//2 - band//2, top - band, band, band)
+            rects["N"] = pygame.Rect(left_open_px, top_px - thickness // 2, opening_px, thickness)
         if self.doors.get("S"):
-            rects["S"] = pygame.Rect(left + rw*ts//2 - band//2, bottom, band, band)
+            rects["S"] = pygame.Rect(left_open_px, bottom_px - thickness // 2, opening_px, thickness)
+        # Este y Oeste: vertical, centrado
         if self.doors.get("E"):
-            rects["E"] = pygame.Rect(right, top + rh*ts//2 - band//2, band, band)
+            rects["E"] = pygame.Rect(right_px - thickness // 2, top_open_px, thickness, opening_px)
         if self.doors.get("W"):
-            rects["W"] = pygame.Rect(left - band, top + rh*ts//2 - band//2, band, band)
+            rects["W"] = pygame.Rect(left_px - thickness // 2, top_open_px, thickness, opening_px)
         return rects
 
     def check_exit(self, player_rect: pygame.Rect) -> Optional[str]:
-        """Devuelve 'N','S','E','W' si el jugador toca una puerta; en caso contrario None."""
+        """
+        Devuelve 'N','S','E','W' si el jugador toca una puerta; en caso contrario None.
+        """
+        # Inflamos un poco el rect del jugador para evitar errores por 1px
+        pr = player_rect.inflate(4, 4)
         for d, r in self._door_trigger_rects().items():
-            if player_rect.colliderect(r):
+            if pr.colliderect(r):
                 return d
         return None
+
+
 
     # ------------------------------------------------------------------ #
     # Utilidades

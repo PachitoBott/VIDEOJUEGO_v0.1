@@ -135,6 +135,10 @@ class Game:
 
             for p in self.projectiles:
                 p.draw(self.world)
+                
+                # DEBUG: dibuja triggers de puertas en verde
+            for r in room._door_trigger_rects().values():
+                pygame.draw.rect(self.world, (0, 255, 0), r, 1)
 
             # -------- ESCALADO a screen + minimapa --------
             scaled = pygame.transform.scale(
