@@ -1,3 +1,4 @@
+# CODIGO/Enemy.py
 import math, random, pygame
 from Entity import Entity
 from Config import CFG
@@ -15,7 +16,7 @@ class Enemy(Entity):
         self.state = IDLE
         self.detect_radius = 140.0
         self.lose_radius   = 200.0
-        self._los_grace    = 0.35   # “gracia” sin LoS antes de soltar
+        self._los_grace    = 0.35   # “gracia” sin LoS antes de soltar persecución
 
         # Velocidades
         self.chase_speed  = 55.0
@@ -25,7 +26,7 @@ class Enemy(Entity):
         self.wander_time = 0.0
         self.wander_dir  = (0.0, 0.0)
 
-        # timer interno de LoS
+        # timers internos
         self._los_timer = 0.0
 
     def _center(self):
@@ -94,29 +95,56 @@ class Enemy(Entity):
         self.move(dx, dy, dt * (self.chase_speed / max(1e-6, self.speed)), room)
 
     def draw(self, surf: pygame.Surface) -> None:
+        # NO llames a super().draw con color si Entity.draw no acepta color
         color = (170, 75, 75) if self.state == IDLE else \
                 (200, 90, 60)  if self.state == WANDER else \
-                (255, 80, 80)  # CHASE
-        super().draw(surf, color)
-
-
-# =============== Subclases =================
-
-class FastChaserEnemy(Enemy):
-    def draw(self, surf):
-        color = (255, 150, 80) if self.state == CHASE else (230, 130, 80)
+                (255, 80, 80)
         pygame.draw.rect(surf, color, self.rect())
 
-class TankEnemy(Enemy):
+
+# ===== Tipos de enemigo =====
+
+class FastChaserEnemy(Enemy):
+    """Rápido, poca vida."""
+    def __init__(self, x, y):
+        super().__init__(x, y, hp=2)
+        self.chase_speed  = 55.0
+        self.wander_speed = 35.0
+        self.detect_radius = 130.0
+        self.lose_radius   = 210.0
+
     def draw(self, surf):
-        color = (190, 80, 120) if self.state == CHASE else (160, 70, 110)
+        color = (0, 255, 0) if self.state == CHASE else (0, 255, 0)
+        pygame.draw.rect(surf, color, self.rect())
+
+
+class TankEnemy(Enemy):
+    """Lento, mucha vida."""
+    def __init__(self, x, y):
+        super().__init__(x, y, hp=6)
+        self.chase_speed  = 35.0
+        self.wander_speed = 18.0
+        self.detect_radius = 150.0
+        self.lose_radius   = 230.0
+
+    def draw(self, surf):
+        color = (255, 0, 0) if self.state == CHASE else (255, 0, 0)
         pygame.draw.rect(surf, color, self.rect())
 
 
 class ShooterEnemy(Enemy):
-    def draw(self, surf):
-        color = (255, 220, 120) if self.state == CHASE else (230, 200, 110)
-        pygame.draw.rect(surf, color, self.rect())
+    """Dispara si te ve (LoS) y estás en rango."""
+    def __init__(self, x, y):
+        super().__init__(x, y, hp=3)
+        self.chase_speed  = 0.1
+        self.wander_speed = 0.1
+        self.detect_radius = 170.0
+        self.lose_radius   = 240.0
+
+        self.fire_cooldown = 0.9
+        self._fire_timer   = 0.0
+        self.fire_range    = 260.0
+        self.bullet_speed  = 260.0
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
@@ -135,20 +163,17 @@ class ShooterEnemy(Enemy):
         if not room.has_line_of_sight(ex, ey, px, py):
             return
 
-        # Normalize y dispara
+        # Normaliza y dispara
         if dist > 0:
             dx, dy = dx/dist, dy/dist
         spawn_x = ex + dx * 8
         spawn_y = ey + dy * 8
-        out_bullets.append(Projectile(spawn_x, spawn_y, dx, dy,
-                                      speed=self.bullet_speed, radius=3,
-                                      color=(255, 90, 90)))  # rojo
+        out_bullets.append(Projectile(
+            spawn_x, spawn_y, dx, dy,
+            speed=self.bullet_speed, radius=3, color=(255, 90, 90)
+        ))
         self._fire_timer = self.fire_cooldown
 
-    def draw(self, surf: pygame.Surface) -> None:
-        # color según estado
-        color = (170, 75, 75) if self.state == IDLE else \
-                (200, 90, 60)  if self.state == WANDER else \
-                (255, 80, 80)
-        # dibuja directamente el rect del enemigo
+    def draw(self, surf):
+        color = (0, 0, 255) if self.state == CHASE else (0, 0, 255)
         pygame.draw.rect(surf, color, self.rect())

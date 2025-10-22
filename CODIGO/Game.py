@@ -85,18 +85,17 @@ class Game:
             # Persecución
             for en in room.enemies:
                 en.update(dt, self.player, room)
-            # Enemigos con disparo
             for en in room.enemies:
-                en.maybe_shoot(dt, self.player, room, self.enemy_projectiles)    
+                en.maybe_shoot(dt, self.player, room, self.enemy_projectiles) 
 
             # -------- UPDATE: proyectiles --------
             for p in self.projectiles:
                 p.update(dt, room)
             # Update balas del enemigo
             for b in self.enemy_projectiles:
-                b.update(dt, room)
-            # Limpia inactivas
-            self.enemy_projectiles = [b for b in self.enemy_projectiles if b.alive]
+             b.update(dt, room)
+             self.enemy_projectiles = [b for b in self.enemy_projectiles if b.alive]
+
 
             # -------- Transición por puertas --------
             d = None
@@ -139,6 +138,12 @@ class Game:
             # enemigos (puedes dibujarlos antes o después del player)
             for en in room.enemies:
                 en.draw(self.world)
+
+            for p in self.projectiles:          # balas del jugador
+                p.draw(self.world)
+
+            for b in self.enemy_projectiles:    # balas enemigas (rojas)
+                b.draw(self.world)
 
             self.player.draw(self.world)
 

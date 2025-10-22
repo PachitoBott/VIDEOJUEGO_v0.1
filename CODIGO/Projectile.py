@@ -2,8 +2,7 @@ import pygame
 from Config import CFG
 
 class Projectile:
-    def __init__(self, x: float, y: float, dx: float, dy: float,
-                 speed: float = 320.0, radius: int = 3, color=(255, 230, 140)):
+    def __init__(self, x, y, dx, dy, speed=320.0, radius=3, color=(255,230,140)):
         self.x, self.y = x, y
         self.dx, self.dy = dx, dy
         self.speed = speed
@@ -49,5 +48,5 @@ class Projectile:
                     return True
         return False
 
-    def draw(self, surf: pygame.Surface) -> None:
-        pygame.draw.circle(surf, self.color, (int(self.x), int(self.y)), self.radius)
+    def draw(self, surf):
+       pygame.draw.circle(surf, self.color, (int(self.x), int(self.y)), self.radius)

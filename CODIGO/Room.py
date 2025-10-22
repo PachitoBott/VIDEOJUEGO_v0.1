@@ -4,8 +4,9 @@ from Config import CFG
 from Enemy import Enemy
 # arriba de Room.py
 import random
-import Enemy as enemy_mod
 from Enemy import Enemy, FastChaserEnemy, TankEnemy, ShooterEnemy
+import Enemy as enemy_mod  # <- para usar enemy_mod.WANDER
+
 
 class Room:
     """
@@ -112,12 +113,12 @@ class Room:
             elif r < 0.9:
                 e = TankEnemy(px, py)             # tanque
             else:
-                e = ShooterEnemy(px, py)          # a distancia
-
-            # opción: algunos empiezan en wander
+               e = Enemy(px, py)  # o FastChaserEnemy / TankEnemy / ShooterEnemy según prob.
+            # algunos empiezan deambulando
             if random.random() < 0.4:
-             e._pick_wander()
-             e.state = enemy_mod.WANDER
+                e._pick_wander()
+                e.state = enemy_mod.WANDER    # <<< evita NameError
+            self.enemies.append(e)
 
             self.enemies.append(e)
 
