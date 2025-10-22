@@ -19,8 +19,8 @@ class Enemy(Entity):
         self._los_grace    = 0.35   # “gracia” sin LoS antes de soltar persecución
 
         # Velocidades
-        self.chase_speed  = 55.0
-        self.wander_speed = 25.0
+        self.chase_speed  = 70.0
+        self.wander_speed = 50.0
 
         # Wander
         self.wander_time = 0.0
@@ -108,8 +108,8 @@ class FastChaserEnemy(Enemy):
     """Rápido, poca vida."""
     def __init__(self, x, y):
         super().__init__(x, y, hp=2)
-        self.chase_speed  = 70.0
-        self.wander_speed = 35.0
+        self.chase_speed  = 100.0
+        self.wander_speed = 80.0
         self.detect_radius = 130.0
         self.lose_radius   = 150.0
 
