@@ -1,8 +1,11 @@
 import pygame
-import random
 from typing import Dict, Tuple, Optional, List
 from Config import CFG
 from Enemy import Enemy
+# arriba de Room.py
+import random
+import Enemy as enemy_mod
+from Enemy import Enemy, FastChaserEnemy, TankEnemy, ShooterEnemy
 
 class Room:
     """
@@ -93,13 +96,30 @@ class Room:
         rx, ry, rw, rh = self.bounds
         ts = CFG.TILE_SIZE
 
-        n = max(1, min(6, 1 + difficulty))  # cantidad según dificultad (cap 6)
+        n = max(1, min(6, 1 + difficulty))
         for _ in range(n):
             tx = random.randint(rx + 1, rx + rw - 2)
             ty = random.randint(ry + 1, ry + rh - 2)
             px = tx * ts + ts // 2 - 6
             py = ty * ts + ts // 2 - 6
-            self.enemies.append(Enemy(px, py))
+
+            # ---- elige tipo según dificultad/azar ----
+            r = random.random()
+            if r < 0.5:
+                e = Enemy(px, py)                 # estándar
+            elif r < 0.75:
+                e = FastChaserEnemy(px, py)       # rápido
+            elif r < 0.9:
+                e = TankEnemy(px, py)             # tanque
+            else:
+                e = ShooterEnemy(px, py)          # a distancia
+
+            # opción: algunos empiezan en wander
+            if random.random() < 0.4:
+             e._pick_wander()
+             e.state = enemy_mod.WANDER
+
+            self.enemies.append(e)
 
         self._spawn_done = True
 
@@ -111,6 +131,78 @@ class Room:
         if not (0 <= tx < CFG.MAP_W and 0 <= ty < CFG.MAP_H):
             return True
         return self.tiles[ty][tx] == CFG.WALL
+    
+    def has_line_of_sight(self, x0_px: float, y0_px: float, x1_px: float, y1_px: float) -> bool:
+        """
+        Línea de visión en tiles usando DDA (Amanatides & Woo).
+        Devuelve True si NO hay paredes (room.is_blocked) entre origen y destino.
+        x*, y* están en píxeles del mundo.
+        """
+        ts = CFG.TILE_SIZE
+
+        # Convertir a coords de tile
+        x0 = int(x0_px // ts); y0 = int(y0_px // ts)
+        x1 = int(x1_px // ts); y1 = int(y1_px // ts)
+
+        # Si el destino está fuera del mapa, no hay LoS
+        if not (0 <= x1 < CFG.MAP_W and 0 <= y1 < CFG.MAP_H):
+            return False
+
+        # Vector dirección en píxeles
+        dx = x1_px - x0_px
+        dy = y1_px - y0_px
+
+        # Si origen y destino están en el mismo tile, hay LoS
+        if x0 == x1 and y0 == y1:
+            return True
+
+        # Direcciones de paso en la grilla
+        step_x = 1 if dx > 0 else -1
+        step_y = 1 if dy > 0 else -1
+
+        # Evitar divisiones por cero
+        inv_dx = 1.0 / dx if dx != 0 else float('inf')
+        inv_dy = 1.0 / dy if dy != 0 else float('inf')
+
+        # Fronteras del tile actual en píxeles
+        tile_boundary_x = (x0 + (1 if step_x > 0 else 0)) * ts
+        tile_boundary_y = (y0 + (1 if step_y > 0 else 0)) * ts
+
+        # tMax = distancia paramétrica hasta la próxima pared vertical/horizontal
+        t_max_x = (tile_boundary_x - x0_px) * inv_dx
+        t_max_y = (tile_boundary_y - y0_px) * inv_dy
+
+        # tDelta = distancia paramétrica entre paredes consecutivas
+        t_delta_x = abs(ts * inv_dx)
+        t_delta_y = abs(ts * inv_dy)
+
+        tx, ty = x0, y0
+
+        # Seguridad para evitar loops infinitos
+        for _ in range(CFG.MAP_W + CFG.MAP_H + 4):
+            # Si llegamos al tile destino, LoS limpio
+            if tx == x1 and ty == y1:
+                return True
+
+            # Avanza hacia el siguiente cruce de grid
+            if t_max_x < t_max_y:
+                tx += step_x
+                t_max_x += t_delta_x
+            else:
+                ty += step_y
+                t_max_y += t_delta_y
+
+            # Límites
+            if not (0 <= tx < CFG.MAP_W and 0 <= ty < CFG.MAP_H):
+                return False
+
+            # Si el tile atravesado es sólido, se bloquea LoS
+            if self.is_blocked(tx, ty):
+                return False
+
+        # Si por alguna razón salimos del bucle, considera bloqueado
+        return False
+
 
     def _door_trigger_rects(self) -> dict[str, pygame.Rect]:
         """

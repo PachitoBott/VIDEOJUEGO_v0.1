@@ -43,6 +43,7 @@ class Game:
         
         #----------- Proyectiles -------
         self.projectiles = []
+        self.enemy_projectiles = []
 
     # ============================================================
     def run(self) -> None:
@@ -84,10 +85,18 @@ class Game:
             # Persecución
             for en in room.enemies:
                 en.update(dt, self.player, room)
+            # Enemigos con disparo
+            for en in room.enemies:
+                en.maybe_shoot(dt, self.player, room, self.enemy_projectiles)    
 
             # -------- UPDATE: proyectiles --------
             for p in self.projectiles:
                 p.update(dt, room)
+            # Update balas del enemigo
+            for b in self.enemy_projectiles:
+                b.update(dt, room)
+            # Limpia inactivas
+            self.enemy_projectiles = [b for b in self.enemy_projectiles if b.alive]
 
             # -------- Transición por puertas --------
             d = None
@@ -135,6 +144,9 @@ class Game:
 
             for p in self.projectiles:
                 p.draw(self.world)
+            for b in self.enemy_projectiles:
+                b.draw(self.world)
+    
                 
                 # DEBUG: dibuja triggers de puertas en verde
             for r in room._door_trigger_rects().values():

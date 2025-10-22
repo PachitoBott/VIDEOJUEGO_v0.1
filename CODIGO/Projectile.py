@@ -2,19 +2,15 @@ import pygame
 from Config import CFG
 
 class Projectile:
-    def __init__(self, x: float, y: float, dx: float, dy: float, speed: float = 320.0, radius: int = 3):
-        """
-        (x, y)    -> posición inicial (en mundo)
-        (dx, dy)  -> dirección normalizada
-        speed     -> velocidad en px/s
-        radius    -> radio visual y de colisión
-        """
+    def __init__(self, x: float, y: float, dx: float, dy: float,
+                 speed: float = 320.0, radius: int = 3, color=(255, 230, 140)):
         self.x, self.y = x, y
         self.dx, self.dy = dx, dy
         self.speed = speed
         self.radius = radius
         self.alive = True
-        self.ttl = 2.0  # vive 2 segundos máx
+        self.ttl = 2.0
+        self.color = color
 
     def rect(self) -> pygame.Rect:
         r = self.radius
@@ -28,18 +24,15 @@ class Projectile:
             self.alive = False
             return
 
-        # Avanza en ejes separados y resuelve contra muros
         step_x = self.dx * self.speed * dt
         step_y = self.dy * self.speed * dt
 
-        # X
         self.x += step_x
         if self._collides(room):
             self.x -= step_x
             self.alive = False
             return
 
-        # Y
         self.y += step_y
         if self._collides(room):
             self.y -= step_y
@@ -57,4 +50,4 @@ class Projectile:
         return False
 
     def draw(self, surf: pygame.Surface) -> None:
-        pygame.draw.circle(surf, (255, 230, 140), (int(self.x), int(self.y)), self.radius)
+        pygame.draw.circle(surf, self.color, (int(self.x), int(self.y)), self.radius)

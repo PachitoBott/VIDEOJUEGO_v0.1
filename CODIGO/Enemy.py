@@ -1,64 +1,78 @@
-# CODIGO/Enemy.py
 import math, random, pygame
 from Entity import Entity
 from Config import CFG
+from Projectile import Projectile
 
 IDLE, WANDER, CHASE = 0, 1, 2
 
 class Enemy(Entity):
-    def __init__(self, x: float, y: float, hp: int = 3, speed: float = 55.0) -> None:
-        super().__init__(x, y, w=12, h=12, speed=speed)
+    """Base con FSM + LoS. Subclases cambian stats/comportamientos."""
+    def __init__(self, x: float, y: float, hp: int = 3) -> None:
+        super().__init__(x, y, w=12, h=12, speed=50.0)
         self.hp = hp
 
-        # --- comportamiento ---
+        # Estados y radios
         self.state = IDLE
-        self.detect_radius = 80.0   # px: se activa persecución
-        self.lose_radius    = 120.0   # px: suelta la persecución (histéresis)
-        self.wander_speed   = 35.0
-        self.wander_time    = 0.0
-        self.wander_dir     = (0.0, 0.0)
+        self.detect_radius = 140.0
+        self.lose_radius   = 200.0
+        self._los_grace    = 0.35   # “gracia” sin LoS antes de soltar
 
-        # jitters visuales cuando idle (opcional)
-        self._idle_timer = 0.0
-        self._idle_offset = (0, 0)
+        # Velocidades
+        self.chase_speed  = 55.0
+        self.wander_speed = 25.0
 
-    # --------- lógica principal ---------
+        # Wander
+        self.wander_time = 0.0
+        self.wander_dir  = (0.0, 0.0)
+
+        # timer interno de LoS
+        self._los_timer = 0.0
+
+    def _center(self):
+        return (self.x + self.w/2, self.y + self.h/2)
+
+    # ---------- loop ----------
     def update(self, dt: float, player, room) -> None:
-        # Distancia al jugador
-        dx = (player.x - self.x)
-        dy = (player.y - self.y)
-        dist = math.hypot(dx, dy)
+        ex, ey = self._center()
+        px, py = (player.x + player.w/2, player.y + player.h/2)
 
-        # Cambios de estado (con histéresis)
-        if self.state != CHASE and dist <= self.detect_radius:
-            self.state = CHASE
-        elif self.state == CHASE and dist >= self.lose_radius:
-            # al perderte: vuelve a deambular (o idle)
-            self._pick_wander()
-            self.state = WANDER
+        dx, dy = (px - ex), (py - ey)
+        dist   = math.hypot(dx, dy)
+        has_los = room.has_line_of_sight(ex, ey, px, py)
+
+        # Cambios de estado (LoS + histéresis)
+        if self.state != CHASE:
+            if dist <= self.detect_radius and has_los:
+                self.state = CHASE
+                self._los_timer = self._los_grace
+        else:
+            if has_los:
+                self._los_timer = self._los_grace
+            else:
+                self._los_timer = max(0.0, self._los_timer - dt)
+            if dist >= self.lose_radius or self._los_timer <= 0.0:
+                self._pick_wander()
+                self.state = WANDER
 
         # Ejecutar estado
         if self.state == IDLE:
-            self._update_idle(dt, room)
+            self._update_idle(dt)
         elif self.state == WANDER:
             self._update_wander(dt, room)
         elif self.state == CHASE:
             self._update_chase(dt, room, dx, dy)
 
-    # --------- estados ---------
-    def _update_idle(self, dt: float, room) -> None:
-        # pequeño “temblor” visual opcional (no mueve la colisión)
-        self._idle_timer += dt
-        if self._idle_timer > 0.2:
-            self._idle_timer = 0.0
-            self._idle_offset = (random.randint(-1, 1), random.randint(-1, 1))
-        # chance de pasar a wander cada cierto tiempo
+    def maybe_shoot(self, dt: float, player, room, out_bullets: list) -> None:
+        """Por defecto, los enemigos base NO disparan."""
+        return
+
+    # ---------- estados ----------
+    def _update_idle(self, dt: float) -> None:
         if random.random() < 0.005:
             self._pick_wander()
             self.state = WANDER
 
     def _pick_wander(self) -> None:
-        # elige una dirección aleatoria y un tiempo corto
         ang = random.uniform(0, math.tau)
         self.wander_dir = (math.cos(ang), math.sin(ang))
         self.wander_time = random.uniform(0.6, 1.2)
@@ -68,7 +82,6 @@ class Enemy(Entity):
         self.move(vx, vy, dt * (self.wander_speed / max(1e-6, self.speed)), room)
         self.wander_time -= dt
         if self.wander_time <= 0.0 or random.random() < 0.01:
-            # parar o elegir otro paseíto
             if random.random() < 0.5:
                 self.state = IDLE
             else:
@@ -77,23 +90,65 @@ class Enemy(Entity):
     def _update_chase(self, dt: float, room, dx: float, dy: float) -> None:
         mag = math.hypot(dx, dy)
         if mag > 0:
-            dx, dy = dx / mag, dy / mag
-        self.move(dx, dy, dt, room)
+            dx, dy = dx/mag, dy/mag
+        self.move(dx, dy, dt * (self.chase_speed / max(1e-6, self.speed)), room)
 
-    # --------- dibujo ---------
     def draw(self, surf: pygame.Surface) -> None:
-        # color por estado
-        color = (200, 60, 60)   # rojo base
-        if self.state == IDLE:
-            color = (170, 75, 75)
-        elif self.state == WANDER:
-            color = (200, 90, 60)
-        elif self.state == CHASE:
-            color = (255, 80, 80)
-
-        # “blink” mínimo si quieres indicar daño (opcional: manejar en Game al impacto)
+        color = (170, 75, 75) if self.state == IDLE else \
+                (200, 90, 60)  if self.state == WANDER else \
+                (255, 80, 80)  # CHASE
         super().draw(surf, color)
 
-        # DEBUG opcional: radios
-        pygame.draw.circle(surf, (60,200,60), (int(self.x+self.w/2), int(self.y+self.h/2)), int(self.detect_radius), 1)
-        pygame.draw.circle(surf, (60,120,200), (int(self.x+self.w/2), int(self.y+self.h/2)), int(self.lose_radius), 1)
+
+# =============== Subclases =================
+
+class FastChaserEnemy(Enemy):
+    def draw(self, surf):
+        color = (255, 150, 80) if self.state == CHASE else (230, 130, 80)
+        pygame.draw.rect(surf, color, self.rect())
+
+class TankEnemy(Enemy):
+    def draw(self, surf):
+        color = (190, 80, 120) if self.state == CHASE else (160, 70, 110)
+        pygame.draw.rect(surf, color, self.rect())
+
+
+class ShooterEnemy(Enemy):
+    def draw(self, surf):
+        color = (255, 220, 120) if self.state == CHASE else (230, 200, 110)
+        pygame.draw.rect(surf, color, self.rect())
+
+    def update(self, dt, player, room):
+        super().update(dt, player, room)
+        self._fire_timer = max(0.0, self._fire_timer - dt)
+
+    def maybe_shoot(self, dt, player, room, out_bullets: list) -> None:
+        if self._fire_timer > 0.0:
+            return
+        # Solo dispara si está en CHASE, hay LoS y dentro de rango
+        ex, ey = self._center()
+        px, py = (player.x + player.w/2, player.y + player.h/2)
+        dx, dy = (px - ex), (py - ey)
+        dist = math.hypot(dx, dy)
+        if self.state != CHASE or dist > self.fire_range:
+            return
+        if not room.has_line_of_sight(ex, ey, px, py):
+            return
+
+        # Normalize y dispara
+        if dist > 0:
+            dx, dy = dx/dist, dy/dist
+        spawn_x = ex + dx * 8
+        spawn_y = ey + dy * 8
+        out_bullets.append(Projectile(spawn_x, spawn_y, dx, dy,
+                                      speed=self.bullet_speed, radius=3,
+                                      color=(255, 90, 90)))  # rojo
+        self._fire_timer = self.fire_cooldown
+
+    def draw(self, surf: pygame.Surface) -> None:
+        # color según estado
+        color = (170, 75, 75) if self.state == IDLE else \
+                (200, 90, 60)  if self.state == WANDER else \
+                (255, 80, 80)
+        # dibuja directamente el rect del enemigo
+        pygame.draw.rect(surf, color, self.rect())
