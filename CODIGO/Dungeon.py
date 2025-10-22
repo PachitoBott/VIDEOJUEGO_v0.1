@@ -25,6 +25,10 @@ class Dungeon:
                  seed: int | None = None) -> None:
         if seed is not None:
             random.seed(seed)
+        if seed is None:
+            seed = random.randrange(0, 10**9)
+        self.seed = seed
+        random.seed(self.seed)    
 
         self.grid_w, self.grid_h = grid_w, grid_h
         self.i, self.j = grid_w // 2, grid_h // 2  # posición actual (empieza centro)

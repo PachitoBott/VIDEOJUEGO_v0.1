@@ -1,4 +1,7 @@
-import pygame, sys
+# CODIGO/Game.py
+import sys
+import random
+import pygame
 from Config import CFG, Config
 from Tileset import Tileset
 from Player import Player
@@ -18,34 +21,57 @@ class Game:
         self.clock = pygame.time.Clock()
         self.world = pygame.Surface((cfg.SCREEN_W, cfg.SCREEN_H))
 
-        # ---------- Mundo ----------
-        self.dungeon = Dungeon(
-            grid_w=7, grid_h=7,   # tamaño máximo del “mundo”
-            main_len=8,           # largo del camino principal (siempre conectado)
-            branch_chance=0.45,   # prob. de generar ramas
-            branch_min=2, branch_max=4,
-            seed=None             # pon un int para repetir la misma dungeon
-        )
-        self.dungeon.explored.add((self.dungeon.i, self.dungeon.j))  # marca room inicial
+        # ---------- UI ----------
+        self.ui_font = pygame.font.SysFont(None, 18)
+        self.current_seed: int | None = None
+
+        # ---------- Recursos ----------
         self.tileset = Tileset()
-
-        # ---------- Jugador ----------
-        room = self.dungeon.current_room
-        px, py = room.center_px()
-        self.player = Player(px - 6, py - 6)
-
-        # ---------- Minimapa ----------
         self.minimap = Minimap(cell=16, padding=8)
 
-        # ---------- Control ----------
+        # ---------- Estado runtime ----------
+        self.projectiles = []          # balas del jugador
+        self.enemy_projectiles = []    # balas de enemigos
         self.door_cooldown = 0.0
         self.running = True
-        
-        #----------- Proyectiles -------
-        self.projectiles = []
-        self.enemy_projectiles = []
 
-    # ============================================================
+        # ---------- Arranque de run ----------
+        self.start_new_run(seed=None)  # crea dungeon, posiciona player, limpia estado
+
+    # ------------------------------------------------------------------ #
+    # Nueva partida / regenerar dungeon (misma o nueva seed)
+    # ------------------------------------------------------------------ #
+    def start_new_run(self, seed: int | None) -> None:
+        """
+        Crea una nueva dungeon con la seed dada (o aleatoria si None),
+        reubica al jugador y resetea estado de runtime.
+        """
+        params = dict(grid_w=7, grid_h=7, main_len=8, branch_chance=0.45, branch_min=2, branch_max=4)
+
+        self.dungeon = Dungeon(**params, seed=seed)
+        self.current_seed = self.dungeon.seed
+        pygame.display.set_caption(f"Roguelike — Seed {self.current_seed}")
+
+        # marca room inicial como explorado
+        self.dungeon.explored = set()
+        self.dungeon.explored.add((self.dungeon.i, self.dungeon.j))
+
+        # Jugador (crear o reubicar al centro del cuarto actual)
+        room = self.dungeon.current_room
+        px, py = room.center_px()
+        if not hasattr(self, "player"):
+            self.player = Player(px - 6, py - 6)
+        else:
+            self.player.x, self.player.y = px - 6, py - 6
+
+        # Reset de runtime
+        self.projectiles.clear()
+        self.enemy_projectiles.clear()
+        self.door_cooldown = 0.0
+
+    # ------------------------------------------------------------------ #
+    # Bucle principal
+    # ------------------------------------------------------------------ #
     def run(self) -> None:
         frame = 0
         while self.running:
@@ -56,12 +82,20 @@ class Game:
             for e in pygame.event.get():
                 if e.type == pygame.QUIT:
                     self.running = False
+                elif e.type == pygame.KEYDOWN:
+                    if e.key == pygame.K_ESCAPE:
+                        self.running = False
+                    elif e.key == pygame.K_r:
+                        # Rejugar misma seed
+                        self.start_new_run(seed=self.current_seed)
+                    elif e.key == pygame.K_n:
+                        # Nueva seed aleatoria
+                        self.start_new_run(seed=None)
 
             # (opcional) debug FPS
             frame += 1
-            if frame % 60 == 0:
-                print("[RUN] frames:", frame, "cooldown:", self.door_cooldown)
-            pygame.display.set_caption(f"Roguelike — FPS {self.clock.get_fps():.1f}")
+            if frame % 90 == 0:
+                pygame.display.set_caption(f"Roguelike — Seed {self.current_seed} — FPS {self.clock.get_fps():.1f}")
 
             # -------- UPDATE: jugador --------
             room = self.dungeon.current_room
@@ -78,24 +112,27 @@ class Game:
             cx, cy = self.dungeon.grid_w // 2, self.dungeon.grid_h // 2
             dist = abs(self.dungeon.i - cx) + abs(self.dungeon.j - cy)
 
-            # 🚫 No spawnear en el cuarto inicial
+            # No spawnear en el cuarto inicial
             if (self.dungeon.i, self.dungeon.j) != getattr(self.dungeon, "start", (cx, cy)):
                 room.ensure_spawn(difficulty=1 + dist)
 
-            # Persecución
+            # IA de enemigos
             for en in room.enemies:
                 en.update(dt, self.player, room)
+
+            # Disparo de enemigos (shooters, etc.)
             for en in room.enemies:
-                en.maybe_shoot(dt, self.player, room, self.enemy_projectiles) 
+                # Si tu Enemy base no implementa maybe_shoot, simplemente no hará nada
+                en.maybe_shoot(dt, self.player, room, self.enemy_projectiles)
 
             # -------- UPDATE: proyectiles --------
             for p in self.projectiles:
                 p.update(dt, room)
-            # Update balas del enemigo
-            for b in self.enemy_projectiles:
-             b.update(dt, room)
-             self.enemy_projectiles = [b for b in self.enemy_projectiles if b.alive]
+            self.projectiles = [p for p in self.projectiles if p.alive]
 
+            for b in self.enemy_projectiles:
+                b.update(dt, room)
+            self.enemy_projectiles = [b for b in self.enemy_projectiles if b.alive]
 
             # -------- Transición por puertas --------
             d = None
@@ -108,15 +145,16 @@ class Game:
                 )
                 self.dungeon.explored.add((self.dungeon.i, self.dungeon.j))
                 self.door_cooldown = 0.25
-                # opcional: limpiar balas al cambiar de cuarto
+                # limpiar balas al cambiar de cuarto (opcional)
                 self.projectiles.clear()
+                self.enemy_projectiles.clear()
 
-                # actualizar referencias y spawner del nuevo cuarto
+                # actualizar referencia de room y (si no es start) spawnear
                 room = self.dungeon.current_room
                 if (self.dungeon.i, self.dungeon.j) != getattr(self.dungeon, "start", (cx, cy)):
                     room.ensure_spawn(difficulty=1 + dist)
 
-            # -------- COLISIONES: balas ↔ enemigos --------
+            # -------- COLISIONES: balas jugador ↔ enemigos --------
             for p in self.projectiles:
                 if not p.alive:
                     continue
@@ -127,48 +165,51 @@ class Game:
                         p.alive = False
                         break  # una bala = un impacto
 
-            # Limpieza de listas
-            room.enemies = [en for en in room.enemies if en.hp > 0]
-            self.projectiles = [p for p in self.projectiles if p.alive]
+            # Limpiar enemigos muertos
+            room.enemies = [en for en in room.enemies if getattr(en, "hp", 1) > 0]
 
             # -------- RENDER al world --------
+            self.world.fill((0, 0, 0))  # limpia el lienzo del mundo
             room = self.dungeon.current_room
             room.draw(self.world, self.tileset)
 
-            # enemigos (puedes dibujarlos antes o después del player)
+            # enemigos
             for en in room.enemies:
                 en.draw(self.world)
 
-            for p in self.projectiles:          # balas del jugador
-                p.draw(self.world)
-
-            for b in self.enemy_projectiles:    # balas enemigas (rojas)
-                b.draw(self.world)
-
+            # jugador
             self.player.draw(self.world)
 
+            # proyectiles (jugador y enemigos)
             for p in self.projectiles:
                 p.draw(self.world)
             for b in self.enemy_projectiles:
                 b.draw(self.world)
-    
-                
-                # DEBUG: dibuja triggers de puertas en verde
-            for r in room._door_trigger_rects().values():
-                pygame.draw.rect(self.world, (0, 255, 0), r, 1)
 
-            # -------- ESCALADO a screen + minimapa --------
+            # (opcional) DEBUG de triggers de puertas
+            # for r in room._door_trigger_rects().values():
+            #     pygame.draw.rect(self.world, (0, 255, 0), r, 1)
+
+            # -------- ESCALADO world -> screen --------
             scaled = pygame.transform.scale(
                 self.world,
                 (self.cfg.SCREEN_W * self.cfg.SCREEN_SCALE,
-                self.cfg.SCREEN_H * self.cfg.SCREEN_SCALE)
+                 self.cfg.SCREEN_H * self.cfg.SCREEN_SCALE)
             )
             self.screen.blit(scaled, (0, 0))
 
+            # -------- UI: Seed + ayuda --------
+            seed_text = self.ui_font.render(f"Seed: {self.current_seed}", True, (230, 230, 230))
+            help_text = self.ui_font.render("R: rejugar seed  |  N: nueva seed", True, (200, 200, 200))
+            self.screen.blit(seed_text, (200, 100))
+            self.screen.blit(help_text, (0, 100))
+
+            # -------- Minimapa --------
             mm = self.minimap.render(self.dungeon)
             margin = 16
-            self.screen.blit(mm, (self.screen.get_width() - mm.get_width() - margin, 105))
+            self.screen.blit(mm, (self.screen.get_width() - mm.get_width() - margin, 100))
 
+            # -------- Flip --------
             pygame.display.flip()
 
         pygame.quit()
