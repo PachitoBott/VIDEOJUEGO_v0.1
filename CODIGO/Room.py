@@ -97,7 +97,7 @@ class Room:
         rx, ry, rw, rh = self.bounds
         ts = CFG.TILE_SIZE
 
-        n = max(1, min(6, 1 + difficulty))
+        n = max(1, min(4, 1 + difficulty))
         for _ in range(n):
             tx = random.randint(rx + 1, rx + rw - 2)
             ty = random.randint(ry + 1, ry + rh - 2)
@@ -109,11 +109,11 @@ class Room:
             if r < 0.5:
                 e = Enemy(px, py)                 # estándar
             elif r < 0.75:
-                e = FastChaserEnemy(px, py)       # rápido
+                e = ShooterEnemy(px, py) 
             elif r < 0.9:
-                e = TankEnemy(px, py)             # tanque
+               e = TankEnemy(px, py)    # tanque
             else:
-               e = ShooterEnemy(px, py)  # o FastChaserEnemy / TankEnemy / ShooterEnemy según prob.
+                e = FastChaserEnemy(px, py)
             # algunos empiezan deambulando
             if random.random() < 0.4:
                 e._pick_wander()

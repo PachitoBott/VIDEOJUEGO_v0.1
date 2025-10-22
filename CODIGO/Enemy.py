@@ -107,7 +107,7 @@ class Enemy(Entity):
 class FastChaserEnemy(Enemy):
     """Rápido, poca vida."""
     def __init__(self, x, y):
-        super().__init__(x, y, hp=1)
+        super().__init__(x, y, hp=4)
         self.chase_speed  = 55.0
         self.wander_speed = 35.0
         self.detect_radius = 130.0
@@ -124,8 +124,8 @@ class TankEnemy(Enemy):
         super().__init__(x, y, hp=6)
         self.chase_speed  = 35.0
         self.wander_speed = 18.0
-        self.detect_radius = 180.0
-        self.lose_radius   = 230.0
+        self.detect_radius = 240.0
+        self.lose_radius   = 260.0
 
     def draw(self, surf):
         color = (255, 0, 0) if self.state == CHASE else (255, 0, 0)
@@ -138,8 +138,8 @@ class ShooterEnemy(Enemy):
         super().__init__(x, y, hp=3)
         self.chase_speed  = 5
         self.wander_speed = 5
-        self.detect_radius = 180.0
-        self.lose_radius   = 220.0
+        self.detect_radius = 220.0
+        self.lose_radius   = 260.0
 
         self.fire_cooldown = 0.9
         self._fire_timer   = 0.0
