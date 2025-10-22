@@ -113,7 +113,7 @@ class Room:
             elif r < 0.9:
                 e = TankEnemy(px, py)             # tanque
             else:
-               e = Enemy(px, py)  # o FastChaserEnemy / TankEnemy / ShooterEnemy según prob.
+               e = ShooterEnemy(px, py)  # o FastChaserEnemy / TankEnemy / ShooterEnemy según prob.
             # algunos empiezan deambulando
             if random.random() < 0.4:
                 e._pick_wander()

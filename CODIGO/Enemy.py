@@ -9,13 +9,13 @@ IDLE, WANDER, CHASE = 0, 1, 2
 class Enemy(Entity):
     """Base con FSM + LoS. Subclases cambian stats/comportamientos."""
     def __init__(self, x: float, y: float, hp: int = 3) -> None:
-        super().__init__(x, y, w=12, h=12, speed=50.0)
+        super().__init__(x, y, w=12, h=12, speed=40.0)
         self.hp = hp
 
         # Estados y radios
         self.state = IDLE
-        self.detect_radius = 140.0
-        self.lose_radius   = 200.0
+        self.detect_radius = 110.0
+        self.lose_radius   = 130.0
         self._los_grace    = 0.35   # “gracia” sin LoS antes de soltar persecución
 
         # Velocidades
@@ -96,9 +96,9 @@ class Enemy(Entity):
 
     def draw(self, surf: pygame.Surface) -> None:
         # NO llames a super().draw con color si Entity.draw no acepta color
-        color = (170, 75, 75) if self.state == IDLE else \
-                (200, 90, 60)  if self.state == WANDER else \
-                (255, 80, 80)
+        color = (255, 255, 255) if self.state == IDLE else \
+                (255, 255, 255)  if self.state == WANDER else \
+                (255, 255, 255)
         pygame.draw.rect(surf, color, self.rect())
 
 
@@ -107,11 +107,11 @@ class Enemy(Entity):
 class FastChaserEnemy(Enemy):
     """Rápido, poca vida."""
     def __init__(self, x, y):
-        super().__init__(x, y, hp=2)
+        super().__init__(x, y, hp=1)
         self.chase_speed  = 55.0
         self.wander_speed = 35.0
         self.detect_radius = 130.0
-        self.lose_radius   = 210.0
+        self.lose_radius   = 150.0
 
     def draw(self, surf):
         color = (0, 255, 0) if self.state == CHASE else (0, 255, 0)
@@ -124,7 +124,7 @@ class TankEnemy(Enemy):
         super().__init__(x, y, hp=6)
         self.chase_speed  = 35.0
         self.wander_speed = 18.0
-        self.detect_radius = 150.0
+        self.detect_radius = 180.0
         self.lose_radius   = 230.0
 
     def draw(self, surf):
@@ -136,15 +136,15 @@ class ShooterEnemy(Enemy):
     """Dispara si te ve (LoS) y estás en rango."""
     def __init__(self, x, y):
         super().__init__(x, y, hp=3)
-        self.chase_speed  = 0.1
-        self.wander_speed = 0.1
-        self.detect_radius = 170.0
-        self.lose_radius   = 240.0
+        self.chase_speed  = 5
+        self.wander_speed = 5
+        self.detect_radius = 180.0
+        self.lose_radius   = 220.0
 
         self.fire_cooldown = 0.9
         self._fire_timer   = 0.0
         self.fire_range    = 260.0
-        self.bullet_speed  = 260.0
+        self.bullet_speed  = 200.0
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
