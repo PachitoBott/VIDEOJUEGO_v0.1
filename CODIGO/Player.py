@@ -7,7 +7,7 @@ from Projectile import Projectile
 class Player(Entity):
     def __init__(self, x: float, y: float) -> None:
         super().__init__(x, y, w=12, h=12, speed=150.0)
-        self.fire_cooldown = 0.30  # segundos entre disparos
+        self.fire_cooldown = 0.0001  # segundos entre disparos
         self._fire_timer = 0.0
 
     def update(self, dt: float, room) -> None:

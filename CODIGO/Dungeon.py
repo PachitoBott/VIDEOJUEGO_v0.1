@@ -16,9 +16,9 @@ class Dungeon:
     - Marca rooms explorados y define puertas según adyacencia.
     """
     def __init__(self,
-                 grid_w: int = 7,
-                 grid_h: int = 7,
-                 main_len: int = 8,
+                 grid_w: int = 12,
+                 grid_h: int = 12,
+                 main_len: int = 12,
                  branch_chance: float = 0.45,
                  branch_min: int = 2,
                  branch_max: int = 4,
