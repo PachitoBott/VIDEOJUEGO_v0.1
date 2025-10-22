@@ -20,13 +20,18 @@ class Room:
     def __init__(self) -> None:
         # mapa lleno de paredes por defecto
         self.tiles: List[List[int]] = [[CFG.WALL for _ in range(CFG.MAP_W)] for _ in range(CFG.MAP_H)]
-        self.bounds: Optional[Tuple[int, int, int, int]] = None  # (rx, ry, rw, rh) en tiles
+        self.bounds: Optional[Tuple[int, int, int, int]] = None
         self.doors: Dict[str, bool] = {"N": False, "S": False, "E": False, "W": False}
 
         # contenido dinámico
         self.enemies: List[Enemy] = []
         self._spawn_done: bool = False
         self._door_width_tiles = 2
+
+        # 🔒 estado de puertas
+        self.locked: bool = False
+        self.cleared: bool = False
+
 
     # ------------------------------------------------------------------ #
     # Construcción de la habitación
@@ -39,6 +44,8 @@ class Room:
         rx = CFG.MAP_W // 2 - rw // 2
         ry = CFG.MAP_H // 2 - rh // 2
         self.bounds = (rx, ry, rw, rh)
+        
+        
 
         # Suelo dentro de la habitación
         for y in range(ry, ry + rh):
@@ -86,6 +93,43 @@ class Room:
         # Oeste (izquierda)
         if self.doors.get("W"):
             carve_rect(rx - length_tiles, top_tile, length_tiles, W)
+            
+    def _door_opening_rects(self) -> dict[str, pygame.Rect]:
+        """Rectángulos EXACTOS de la abertura de cada puerta (en px)."""
+        assert self.bounds is not None
+        rx, ry, rw, rh = self.bounds
+        ts = CFG.TILE_SIZE
+
+        left_px   = rx * ts
+        right_px  = (rx + rw) * ts
+        top_px    = ry * ts
+        bottom_px = (ry + rh) * ts
+
+        W = max(1, getattr(self, "_door_width_tiles", 2))
+        opening_px = W * ts
+
+        # mismos centros que usaste para tallar
+        center_tx2 = rx * 2 + rw
+        center_ty2 = ry * 2 + rh
+        left_tile  = (center_tx2 - W) // 2
+        top_tile   = (center_ty2 - W) // 2
+
+        left_open_px = left_tile * ts
+        top_open_px  = top_tile * ts
+
+        rects: dict[str, pygame.Rect] = {}
+        if self.doors.get("N"):
+            rects["N"] = pygame.Rect(left_open_px, top_px, opening_px, ts)         # una “faja” de 1 tile
+        if self.doors.get("S"):
+            rects["S"] = pygame.Rect(left_open_px, bottom_px - ts, opening_px, ts)
+        if self.doors.get("E"):
+            rects["E"] = pygame.Rect(right_px - ts, top_open_px, ts, opening_px)
+        if self.doors.get("W"):
+            rects["W"] = pygame.Rect(left_px, top_open_px, ts, opening_px)
+        return rects
+
+            
+            
 
 
     # ------------------------------------------------------------------ #
@@ -104,25 +148,24 @@ class Room:
             px = tx * ts + ts // 2 - 6
             py = ty * ts + ts // 2 - 6
 
-            # ---- elige tipo según dificultad/azar ----
             r = random.random()
             if r < 0.5:
-                e = Enemy(px, py)                 # estándar
+                e = Enemy(px, py)
             elif r < 0.75:
-                e = ShooterEnemy(px, py) 
+                e = ShooterEnemy(px, py)
             elif r < 0.9:
-               e = TankEnemy(px, py)    # tanque
+                e = TankEnemy(px, py)
             else:
                 e = FastChaserEnemy(px, py)
-            # algunos empiezan deambulando
+
             if random.random() < 0.4:
                 e._pick_wander()
-                e.state = enemy_mod.WANDER    # <<< evita NameError
-            self.enemies.append(e)
+                e.state = enemy_mod.WANDER
 
-            self.enemies.append(e)
+            self.enemies.append(e)   # ✅ SOLO UNA VEZ
 
         self._spawn_done = True
+
 
     # ------------------------------------------------------------------ #
     # Colisiones y triggers de puertas
@@ -247,16 +290,22 @@ class Room:
             rects["W"] = pygame.Rect(left_px - thickness // 2, top_open_px, thickness, opening_px)
         return rects
 
-    def check_exit(self, player_rect: pygame.Rect) -> Optional[str]:
-        """
-        Devuelve 'N','S','E','W' si el jugador toca una puerta; en caso contrario None.
-        """
-        # Inflamos un poco el rect del jugador para evitar errores por 1px
-        pr = player_rect.inflate(4, 4)
+    def check_exit(self, player_rect: pygame.Rect) -> str | None:
+        """Devuelve 'N','S','E','W' si el jugador toca una puerta; None si está bloqueada."""
+        if self.locked:
+            return None
+        pr = player_rect.inflate(4, 4)  # pequeña tolerancia
         for d, r in self._door_trigger_rects().items():
             if pr.colliderect(r):
                 return d
         return None
+    
+    def refresh_lock_state(self) -> None:
+        """Si no hay enemigos, se marca cleared y se desbloquea."""
+        if not self.cleared and len(self.enemies) == 0:
+            self.cleared = True
+            self.locked = False
+
 
 
 
@@ -293,3 +342,10 @@ class Room:
             for tx in range(CFG.MAP_W):
                 color = floor if self.tiles[ty][tx] == 0 else wall
                 pygame.draw.rect(surf, color, pygame.Rect(tx*ts, ty*ts, ts, ts))
+        # Puertas bloqueadas: dibuja “rejas” rojas en las aberturas
+        if self.locked:
+            bars = self._door_opening_rects()
+            for d, r in bars.items():
+                pygame.draw.rect(surf, (180, 40, 40), r)         # relleno rojo
+                pygame.draw.rect(surf, (255, 90, 90), r, 1)      # borde claro
+        

@@ -107,8 +107,8 @@ class Enemy(Entity):
 class FastChaserEnemy(Enemy):
     """Rápido, poca vida."""
     def __init__(self, x, y):
-        super().__init__(x, y, hp=4)
-        self.chase_speed  = 55.0
+        super().__init__(x, y, hp=2)
+        self.chase_speed  = 70.0
         self.wander_speed = 35.0
         self.detect_radius = 130.0
         self.lose_radius   = 150.0
@@ -121,8 +121,8 @@ class FastChaserEnemy(Enemy):
 class TankEnemy(Enemy):
     """Lento, mucha vida."""
     def __init__(self, x, y):
-        super().__init__(x, y, hp=6)
-        self.chase_speed  = 35.0
+        super().__init__(x, y, hp=9)
+        self.chase_speed  = 30.0
         self.wander_speed = 18.0
         self.detect_radius = 240.0
         self.lose_radius   = 260.0

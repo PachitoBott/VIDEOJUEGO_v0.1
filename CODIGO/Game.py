@@ -68,6 +68,11 @@ class Game:
         self.projectiles.clear()
         self.enemy_projectiles.clear()
         self.door_cooldown = 0.0
+        
+        
+        self.locked = False
+        self.cleared = False
+
 
     # ------------------------------------------------------------------ #
     # Bucle principal
@@ -138,21 +143,32 @@ class Game:
             d = None
             if self.door_cooldown <= 0.0:
                 d = room.check_exit(self.player.rect())
+
             if d and self.dungeon.can_move(d):
+                # Mover de sala
                 self.dungeon.move(d)
                 self.player.x, self.player.y = self.dungeon.entry_position(
                     d, self.player.w, self.player.h
                 )
                 self.dungeon.explored.add((self.dungeon.i, self.dungeon.j))
                 self.door_cooldown = 0.25
+
                 # limpiar balas al cambiar de cuarto (opcional)
                 self.projectiles.clear()
                 self.enemy_projectiles.clear()
 
-                # actualizar referencia de room y (si no es start) spawnear
+                # Actualizar referencia de room (¡muy importante!)
                 room = self.dungeon.current_room
-                if (self.dungeon.i, self.dungeon.j) != getattr(self.dungeon, "start", (cx, cy)):
+
+                # Spawn si no es el cuarto inicial
+                cx, cy = self.dungeon.grid_w // 2, self.dungeon.grid_h // 2
+                is_start = (self.dungeon.i, self.dungeon.j) == getattr(self.dungeon, "start", (cx, cy))
+                if not is_start:
+                    dist = abs(self.dungeon.i - cx) + abs(self.dungeon.j - cy)
                     room.ensure_spawn(difficulty=1 + dist)
+
+                # 🔒 BLOQUEAR si hay enemigos y no ha sido limpiada (solo si no es start)
+                room.locked = (not is_start) and (len(room.enemies) > 0) and (not room.cleared)
 
             # -------- COLISIONES: balas jugador ↔ enemigos --------
             for p in self.projectiles:
@@ -167,6 +183,10 @@ class Game:
 
             # Limpiar enemigos muertos
             room.enemies = [en for en in room.enemies if getattr(en, "hp", 1) > 0]
+
+            # 🔓 DESBLOQUEAR cuando limpias
+            room.refresh_lock_state()
+
 
             # -------- RENDER al world --------
             self.world.fill((0, 0, 0))  # limpia el lienzo del mundo
@@ -189,6 +209,11 @@ class Game:
             # (opcional) DEBUG de triggers de puertas
             # for r in room._door_trigger_rects().values():
             #     pygame.draw.rect(self.world, (0, 255, 0), r, 1)
+            
+            # antes de escalar al screen
+            for r in room._door_trigger_rects().values():
+                pygame.draw.rect(self.world, (0,255,0), r, 1)
+
 
             # -------- ESCALADO world -> screen --------
             scaled = pygame.transform.scale(
