@@ -163,6 +163,7 @@ class Room:
             self.safe = True
             self.no_spawn = True
             self.no_combat = True
+            self.locked = False
             if ShopkeeperCls:
                 self._ensure_shopkeeper(cfg, ShopkeeperCls)
         else:
@@ -386,13 +387,37 @@ class Room:
             rects["W"] = pygame.Rect(left_px - thickness // 2, top_open_px, thickness, opening_px)
         return rects
 
+    # Room.py — reemplaza check_exit por esta versión
     def check_exit(self, player):
-        pr = player.rect().inflate(4, 4)  # pequeña tolerancia
+        """Devuelve 'N'/'S'/'E'/'W' si el jugador toca el trigger de salida.
+        Si la sala está bloqueada, no permite salir.
+        Acepta player.rect() como método o player.rect como pygame.Rect.
+        """
+        # 1) si está bloqueada, nada que hacer
+        if getattr(self, "locked", False):
+            return None
+
+        # 2) obtener rect del jugador de forma segura
+        prect = None
+        if hasattr(player, "rect"):
+            r = player.rect
+            prect = r() if callable(r) else r
+        if not isinstance(prect, pygame.Rect):
+            # Fallback: construir desde atributos x,y,w,h
+            prect = pygame.Rect(int(getattr(player, "x", 0)),
+                                int(getattr(player, "y", 0)),
+                                int(getattr(player, "w", 12)),
+                                int(getattr(player, "h", 12)))
+
+        pr = prect.inflate(4, 4)  # pequeña tolerancia
+
+        # 3) comprobar triggers
         triggers = self._door_trigger_rects()
         for direction, r in triggers.items():
             if pr.colliderect(r) and self.doors.get(direction, False):
                 return direction
         return None
+
     
     def refresh_lock_state(self) -> None:
         """Si no hay enemigos, se marca cleared y se desbloquea."""
