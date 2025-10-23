@@ -225,4 +225,33 @@ class Dungeon:
         # Marca de tipo (no rompe si Room no define 'type')
         setattr(room, "type", "shop")     # <<< etiqueta directa en Room
         self.shop_pos = (sx, sy)          # <<< guarda la coordenada para otras clases
+    # Dungeon.py (añade estos métodos)
+
+    def move_and_enter(self, direction: str, player, cfg, ShopkeeperCls=None) -> bool:
+        """
+        Mueve si se puede y dispara hooks de rooms.
+        Devuelve True si se movió.
+        """
+        if not self.can_move(direction):
+            return False
+
+        # hook de salida
+        cur_room = self.current_room
+        if hasattr(cur_room, "on_exit"):
+            cur_room.on_exit()
+
+        # mover
+        self.move(direction)
+
+        # hook de entrada
+        new_room = self.current_room
+        if hasattr(new_room, "on_enter"):
+            new_room.on_enter(player, cfg, ShopkeeperCls=ShopkeeperCls)
+
+        return True
+
+    def enter_initial_room(self, player, cfg, ShopkeeperCls=None):
+        """Llama on_enter para la sala inicial (start)."""
+        if hasattr(self.current_room, "on_enter"):
+            self.current_room.on_enter(player, cfg, ShopkeeperCls=ShopkeeperCls)
             

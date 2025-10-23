@@ -31,6 +31,17 @@ class Room:
         # 🔒 estado de puertas
         self.locked: bool = False
         self.cleared: bool = False
+        
+        self.type = getattr(self, "type", "normal")  # "normal" / "shop"
+        self.bounds = getattr(self, "bounds", (0, 0, 9, 9))  # (rx,ry,rw,rh) tiles
+        self.doors = getattr(self, "doors", {"N":False,"S":False,"E":False,"W":False})
+
+        # --- NUEVO ---
+        self.safe = False
+        self.no_spawn = False
+        self.no_combat = False
+        self._populated_once = False
+        self.shopkeeper = None
 
 
     # ------------------------------------------------------------------ #
@@ -52,6 +63,8 @@ class Room:
             for x in range(rx, rx + rw):
                 if 0 <= x < CFG.MAP_W and 0 <= y < CFG.MAP_H:
                     self.tiles[y][x] = 0
+                    
+                    
 
     # ------------------------------------------------------------------ #
     # Corredores cortos (visuales) hacia las puertas
@@ -127,6 +140,89 @@ class Room:
         if self.doors.get("W"):
             rects["W"] = pygame.Rect(left_px, top_open_px, ts, opening_px)
         return rects
+    
+    
+    # ---------- TIENDA ----------
+    def _ensure_shopkeeper(self, cfg, ShopkeeperCls):
+        if self.shopkeeper is not None:
+            return
+        rx, ry, rw, rh = self.bounds
+        ts = cfg.TILE_SIZE
+        cx = (rx + rw // 2) * ts
+        cy = (ry + rh // 2) * ts
+        self.shopkeeper = ShopkeeperCls((cx, cy))
+
+    def on_enter(self, player, cfg, ShopkeeperCls=None):
+        """
+        Llamado cuando entras a la sala.
+        - Marca flags si es 'shop'
+        - Evita spawn de enemigos
+        - Crea Shopkeeper si aplica
+        """
+        if self.type == "shop":
+            self.safe = True
+            self.no_spawn = True
+            self.no_combat = True
+            if ShopkeeperCls:
+                self._ensure_shopkeeper(cfg, ShopkeeperCls)
+        else:
+            # Poblar enemigos SOLO una vez (si no es shop)
+            if not self._populated_once and not self.no_spawn:
+                # TODO: aquí tu lógica real de spawn por sala
+                # e.g., self.enemies = spawn_enemies_for(self)
+                pass
+            self._populated_once = True
+
+    def on_exit(self):
+        """Llamado cuando sales de la sala."""
+        # Nada especial por defecto. Podrías pausar IA/ambiente si quieres.
+        pass
+
+    def handle_events(self, events, player, shop_ui, world_surface, ui_font):
+        """
+        Maneja interacción con la tienda dentro de la sala (si es shop).
+        No lee pygame.event.get() aquí; recibe la lista de events desde Game.
+        """
+        if self.type != "shop" or self.shopkeeper is None:
+            return
+
+        # ¿Jugador cerca? (usa .rect del jugador)
+        can_interact = False
+        if hasattr(player, "rect"):
+            can_interact = self.shopkeeper.can_interact(player.rect())
+        else:
+            can_interact = True  # fallback
+
+        for ev in events:
+            if ev.type != pygame.KEYDOWN:
+                continue
+            if ev.key == pygame.K_e and can_interact:
+                if not shop_ui.active:
+                    shop_ui.open(world_surface.get_width()//2, world_surface.get_height()//2)
+                else:
+                    shop_ui.close()
+            if not shop_ui.active:
+                continue
+
+            if ev.key == pygame.K_UP:
+                shop_ui.move_selection(-1)
+            elif ev.key == pygame.K_DOWN:
+                shop_ui.move_selection(+1)
+            elif ev.key in (pygame.K_RETURN, pygame.K_SPACE):
+                bought, msg = shop_ui.try_buy(player)
+                # TODO: pintar msg en tu HUD si quieres
+            elif ev.key == pygame.K_ESCAPE:
+                shop_ui.close()
+
+    def draw_overlay(self, surface, ui_font, player, shop_ui):
+        """
+        Dibuja elementos propios de la sala por encima del piso (p.ej. el mercader y tooltip).
+        """
+        if self.type == "shop" and self.shopkeeper is not None:
+            self.shopkeeper.draw(surface)
+            if hasattr(player, "rect") and self.shopkeeper.can_interact(player.rect()) and not shop_ui.active:
+                tip = ui_font.render("E - Abrir tienda", True, (255, 255, 255))
+                surface.blit(tip, (self.shopkeeper.rect.x - 12, self.shopkeeper.rect.y - 22))
 
             
             
@@ -290,14 +386,12 @@ class Room:
             rects["W"] = pygame.Rect(left_px - thickness // 2, top_open_px, thickness, opening_px)
         return rects
 
-    def check_exit(self, player_rect: pygame.Rect) -> str | None:
-        """Devuelve 'N','S','E','W' si el jugador toca una puerta; None si está bloqueada."""
-        if self.locked:
-            return None
-        pr = player_rect.inflate(4, 4)  # pequeña tolerancia
-        for d, r in self._door_trigger_rects().items():
-            if pr.colliderect(r):
-                return d
+    def check_exit(self, player):
+        pr = player.rect().inflate(4, 4)  # pequeña tolerancia
+        triggers = self._door_trigger_rects()
+        for direction, r in triggers.items():
+            if pr.colliderect(r) and self.doors.get(direction, False):
+                return direction
         return None
     
     def refresh_lock_state(self) -> None:
