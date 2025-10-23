@@ -35,6 +35,8 @@ class Dungeon:
         self.start = (self.i, self.j)
         self.rooms: Dict[Tuple[int, int], Room] = {}
         self.explored: Set[Tuple[int, int]] = set()
+        self.main_path: list[Tuple[int, int]] = []  # <<< NUEVO: orden del camino principal
+
 
         # 1) Camino principal
         self._generate_main_path(length=main_len)
@@ -44,9 +46,17 @@ class Dungeon:
 
         # 3) Definir puertas según vecinos + tallar corredores
         self._link_neighbors_and_carve()
+        
+        # 3) Definir puertas según vecinos + tallar corredores
+        self._link_neighbors_and_carve()
+
+        # <<< NUEVO: ubicar la tienda en la mitad del camino principal
+        self._place_shop_room()
+
 
         # marcar inicial como explorado
         self.explored.add((self.i, self.j))
+        
 
     # ------------------ API usada por Game ------------------ #
     @property
@@ -107,6 +117,11 @@ class Dungeon:
     def _generate_main_path(self, length: int) -> None:
         x, y = self.i, self.j
         self._place_room(x, y)
+
+        # <<< NUEVO: registra el inicio
+        self.main_path.clear()
+        self.main_path.append((x, y))
+
         last_dir: Vec | None = None
 
         for _ in range(max(1, length)):
@@ -127,7 +142,11 @@ class Dungeon:
                 self._place_room(x, y)
                 last_dir = (dx, dy)
                 moved = True
+
+                # <<< NUEVO: registra el paso aceptado
+                self.main_path.append((x, y))
                 break
+
             if not moved:
                 # si no pudimos movernos por restricciones, relaja y prueba cualquier vecino válido
                 for dx, dy in DIRS.values():
@@ -136,6 +155,9 @@ class Dungeon:
                         x, y = nx, ny
                         self._place_room(x, y)
                         last_dir = (dx, dy)
+
+                        # <<< NUEVO: registra este fallback
+                        self.main_path.append((x, y))
                         break
 
     def _generate_branches(self, chance: float, min_len: int, max_len: int) -> None:
@@ -185,3 +207,51 @@ class Dungeon:
             room.doors["E"] = (x+1, y) in self.rooms
             # Corredores visuales
             room.carve_corridors(width_tiles=2, length_tiles=3)
+    def _place_shop_room(self) -> None:
+        """
+        Marca como 'shop' la sala ubicada aproximadamente a mitad del camino principal.
+        Guarda también la posición en self.shop_pos para fácil acceso desde Game/Minimap.
+        """
+        if not self.main_path:
+            return
+
+        # Evita usar el start si el camino es muy corto
+        mid_idx = max(1, len(self.main_path) // 2)
+        sx, sy = self.main_path[mid_idx]
+        room = self.rooms.get((sx, sy))
+        if not room:
+            return
+
+        # Marca de tipo (no rompe si Room no define 'type')
+        setattr(room, "type", "shop")     # <<< etiqueta directa en Room
+        self.shop_pos = (sx, sy)          # <<< guarda la coordenada para otras clases
+    # Dungeon.py (añade estos métodos)
+
+    def move_and_enter(self, direction: str, player, cfg, ShopkeeperCls=None) -> bool:
+        """
+        Mueve si se puede y dispara hooks de rooms.
+        Devuelve True si se movió.
+        """
+        if not self.can_move(direction):
+            return False
+
+        # hook de salida
+        cur_room = self.current_room
+        if hasattr(cur_room, "on_exit"):
+            cur_room.on_exit()
+
+        # mover
+        self.move(direction)
+
+        # hook de entrada
+        new_room = self.current_room
+        if hasattr(new_room, "on_enter"):
+            new_room.on_enter(player, cfg, ShopkeeperCls=ShopkeeperCls)
+
+        return True
+
+    def enter_initial_room(self, player, cfg, ShopkeeperCls=None):
+        """Llama on_enter para la sala inicial (start)."""
+        if hasattr(self.current_room, "on_enter"):
+            self.current_room.on_enter(player, cfg, ShopkeeperCls=ShopkeeperCls)
+            

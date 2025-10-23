@@ -7,6 +7,9 @@ from Tileset import Tileset
 from Player import Player
 from Dungeon import Dungeon
 from Minimap import Minimap
+from Shop import Shop
+from Shopkeeper import Shopkeeper
+
 
 class Game:
     def __init__(self, cfg: Config) -> None:
@@ -24,6 +27,14 @@ class Game:
         # ---------- UI ----------
         self.ui_font = pygame.font.SysFont(None, 18)
         self.current_seed: int | None = None
+        
+        # --- Tienda ---
+        self.shop = Shop(font=self.ui_font)
+        self.shopkeeper = None
+        self._shop_spawned_seed = None  # para no duplicar spawns por seed/cambio de sala
+
+        # --- Gestión de salas pobladas ---
+        self._room_populated: dict[tuple[int,int], bool] = {}
 
         # ---------- Recursos ----------
         self.tileset = Tileset()
@@ -52,7 +63,7 @@ class Game:
         self.current_seed = self.dungeon.seed
         pygame.display.set_caption(f"Roguelike — Seed {self.current_seed}")
 
-        # marca room inicial como explorado
+        # marcar room inicial como explorado
         self.dungeon.explored = set()
         self.dungeon.explored.add((self.dungeon.i, self.dungeon.j))
 
@@ -68,11 +79,12 @@ class Game:
         self.projectiles.clear()
         self.enemy_projectiles.clear()
         self.door_cooldown = 0.0
-        
-        
         self.locked = False
         self.cleared = False
 
+        # ✅ Entrar “formalmente” a la sala inicial (dispara on_enter/Shop si aplica)
+        if hasattr(self.dungeon, "enter_initial_room"):
+            self.dungeon.enter_initial_room(self.player, self.cfg, ShopkeeperCls=Shopkeeper)
 
     # ------------------------------------------------------------------ #
     # Bucle principal
@@ -84,7 +96,8 @@ class Game:
             self.door_cooldown = max(0.0, self.door_cooldown - dt)
 
             # -------- Eventos --------
-            for e in pygame.event.get():
+            events = pygame.event.get()  # ✅ capturar una vez
+            for e in events:
                 if e.type == pygame.QUIT:
                     self.running = False
                 elif e.type == pygame.KEYDOWN:
@@ -117,18 +130,21 @@ class Game:
             cx, cy = self.dungeon.grid_w // 2, self.dungeon.grid_h // 2
             dist = abs(self.dungeon.i - cx) + abs(self.dungeon.j - cy)
 
-            # No spawnear en el cuarto inicial
-            if (self.dungeon.i, self.dungeon.j) != getattr(self.dungeon, "start", (cx, cy)):
-                room.ensure_spawn(difficulty=1 + dist)
+            # No spawnear en el cuarto inicial NI en salas marcadas como no_spawn (shop)
+            is_start = (self.dungeon.i, self.dungeon.j) == getattr(self.dungeon, "start", (cx, cy))
+            if not is_start and not getattr(room, "no_spawn", False):
+                if hasattr(room, "ensure_spawn"):
+                    room.ensure_spawn(difficulty=1 + dist)
 
             # IA de enemigos
-            for en in room.enemies:
-                en.update(dt, self.player, room)
+            if hasattr(room, "enemies"):
+                for en in room.enemies:
+                    en.update(dt, self.player, room)
 
-            # Disparo de enemigos (shooters, etc.)
-            for en in room.enemies:
-                # Si tu Enemy base no implementa maybe_shoot, simplemente no hará nada
-                en.maybe_shoot(dt, self.player, room, self.enemy_projectiles)
+                # Disparo de enemigos (shooters, etc.)
+                for en in room.enemies:
+                    # Si tu Enemy base no implementa maybe_shoot, simplemente no hará nada
+                    en.maybe_shoot(dt, self.player, room, self.enemy_projectiles)
 
             # -------- UPDATE: proyectiles --------
             for p in self.projectiles:
@@ -141,15 +157,24 @@ class Game:
 
             # -------- Transición por puertas --------
             d = None
-            if self.door_cooldown <= 0.0:
-                d = room.check_exit(self.player.rect())
+            if self.door_cooldown <= 0.0 and hasattr(room, "check_exit"):
+                d = room.check_exit(self.player)
 
             if d and self.dungeon.can_move(d):
-                # Mover de sala
-                self.dungeon.move(d)
+                # Mover de sala (usa hooks enter/exit en Dungeon)
+                if hasattr(self.dungeon, "move_and_enter"):
+                    moved = self.dungeon.move_and_enter(d, self.player, self.cfg, ShopkeeperCls=Shopkeeper)
+                else:
+                    # Fallback: solo moverse
+                    self.dungeon.move(d)
+                    moved = True
+
+                # Reposicionar jugador en la entrada correcta
                 self.player.x, self.player.y = self.dungeon.entry_position(
                     d, self.player.w, self.player.h
                 )
+
+                # marcar explorada
                 self.dungeon.explored.add((self.dungeon.i, self.dungeon.j))
                 self.door_cooldown = 0.25
 
@@ -160,33 +185,41 @@ class Game:
                 # Actualizar referencia de room (¡muy importante!)
                 room = self.dungeon.current_room
 
-                # Spawn si no es el cuarto inicial
+                # Spawn si no es el cuarto inicial NI shop
                 cx, cy = self.dungeon.grid_w // 2, self.dungeon.grid_h // 2
                 is_start = (self.dungeon.i, self.dungeon.j) == getattr(self.dungeon, "start", (cx, cy))
-                if not is_start:
+                if not is_start and not getattr(room, "no_spawn", False):
                     dist = abs(self.dungeon.i - cx) + abs(self.dungeon.j - cy)
-                    room.ensure_spawn(difficulty=1 + dist)
+                    if hasattr(room, "ensure_spawn"):
+                        room.ensure_spawn(difficulty=1 + dist)
 
                 # 🔒 BLOQUEAR si hay enemigos y no ha sido limpiada (solo si no es start)
-                room.locked = (not is_start) and (len(room.enemies) > 0) and (not room.cleared)
+                if hasattr(room, "enemies") and hasattr(room, "cleared"):
+                    room.locked = (not is_start) and (len(room.enemies) > 0) and (not room.cleared)
 
             # -------- COLISIONES: balas jugador ↔ enemigos --------
-            for p in self.projectiles:
-                if not p.alive:
-                    continue
-                r_p = p.rect()
-                for en in room.enemies:
-                    if r_p.colliderect(en.rect()):
-                        en.hp -= 1
-                        p.alive = False
-                        break  # una bala = un impacto
+            if hasattr(room, "enemies"):
+                for p in self.projectiles:
+                    if not p.alive:
+                        continue
+                    r_p = p.rect()
+                    for en in room.enemies:
+                        if r_p.colliderect(en.rect()):
+                            en.hp -= 1
+                            p.alive = False
+                            break  # una bala = un impacto
 
-            # Limpiar enemigos muertos
-            room.enemies = [en for en in room.enemies if getattr(en, "hp", 1) > 0]
+                # Limpiar enemigos muertos
+                room.enemies = [en for en in room.enemies if getattr(en, "hp", 1) > 0]
 
-            # 🔓 DESBLOQUEAR cuando limpias
-            room.refresh_lock_state()
+                # 🔓 DESBLOQUEAR cuando limpias
+                if hasattr(room, "refresh_lock_state"):
+                    room.refresh_lock_state()
 
+            # -------- INPUT/LOGICA DE TIENDA (por frame, con eventos ya capturados) --------
+            current_room = self.dungeon.current_room
+            if hasattr(current_room, "handle_events"):
+                current_room.handle_events(events, self.player, self.shop, self.world, self.ui_font)
 
             # -------- RENDER al world --------
             self.world.fill((0, 0, 0))  # limpia el lienzo del mundo
@@ -194,8 +227,9 @@ class Game:
             room.draw(self.world, self.tileset)
 
             # enemigos
-            for en in room.enemies:
-                en.draw(self.world)
+            if hasattr(room, "enemies"):
+                for en in room.enemies:
+                    en.draw(self.world)
 
             # jugador
             self.player.draw(self.world)
@@ -209,11 +243,14 @@ class Game:
             # (opcional) DEBUG de triggers de puertas
             # for r in room._door_trigger_rects().values():
             #     pygame.draw.rect(self.world, (0, 255, 0), r, 1)
-            
-            # antes de escalar al screen
-            for r in room._door_trigger_rects().values():
-                pygame.draw.rect(self.world, (0,255,0), r, 1)
+            if hasattr(room, "_door_trigger_rects"):
+                for r in room._door_trigger_rects().values():
+                    pygame.draw.rect(self.world, (0,255,0), r, 1)
 
+            # -------- Overlays de SHOP --------
+            if hasattr(self.dungeon.current_room, "draw_overlay"):
+                self.dungeon.current_room.draw_overlay(self.world, self.ui_font, self.player, self.shop)
+            self.shop.draw(self.world)
 
             # -------- ESCALADO world -> screen --------
             scaled = pygame.transform.scale(
