@@ -212,9 +212,29 @@ class Dungeon:
         if not self.main_path:
             return
 
-        # Evita usar el start si el camino es muy corto
-        mid_idx = max(1, len(self.main_path) // 2)
-        sx, sy = self.main_path[mid_idx]
+        # Selecciona un punto del camino principal que no sea el inicio.
+        # Usa el orden del camino para mantener una ubicación consistente
+        # pero evita repetidos (puede haber retrocesos en la generación).
+        unique_path: list[tuple[int, int]] = []
+        seen: set[tuple[int, int]] = set()
+        for step in self.main_path:
+            if step == self.start:
+                continue
+            if step in seen:
+                continue
+            seen.add(step)
+            unique_path.append(step)
+
+        # Si el camino sólo tiene el inicio (poco probable), cae a cualquier otra sala.
+        if not unique_path:
+            candidates = [pos for pos in self.rooms.keys() if pos != self.start]
+            if not candidates:
+                return
+            sx, sy = random.choice(candidates)
+        else:
+            mid_idx = len(unique_path) // 2
+            sx, sy = unique_path[mid_idx]
+
         room = self.rooms.get((sx, sy))
         if not room:
             return
