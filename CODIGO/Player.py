@@ -9,6 +9,7 @@ class Player(Entity):
         super().__init__(x, y, w=12, h=12, speed=120.0)
         self.fire_cooldown = 0.15  # segundos entre disparos
         self._fire_timer = 0.0
+        self.gold = 0
 
     def update(self, dt: float, room) -> None:
         keys = pygame.key.get_pressed()

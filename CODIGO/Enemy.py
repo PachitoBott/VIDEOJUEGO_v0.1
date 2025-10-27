@@ -8,9 +8,10 @@ IDLE, WANDER, CHASE = 0, 1, 2
 
 class Enemy(Entity):
     """Base con FSM + LoS. Subclases cambian stats/comportamientos."""
-    def __init__(self, x: float, y: float, hp: int = 3) -> None:
+    def __init__(self, x: float, y: float, hp: int = 3, gold_reward: int = 5) -> None:
         super().__init__(x, y, w=12, h=12, speed=40.0)
         self.hp = hp
+        self.gold_reward = gold_reward
 
         # Estados y radios
         self.state = IDLE
@@ -107,7 +108,7 @@ class Enemy(Entity):
 class FastChaserEnemy(Enemy):
     """Rápido, poca vida."""
     def __init__(self, x, y):
-        super().__init__(x, y, hp=2)
+        super().__init__(x, y, hp=2, gold_reward=7)
         self.chase_speed  = 100.0
         self.wander_speed = 80.0
         self.detect_radius = 130.0
@@ -121,7 +122,7 @@ class FastChaserEnemy(Enemy):
 class TankEnemy(Enemy):
     """Lento, mucha vida."""
     def __init__(self, x, y):
-        super().__init__(x, y, hp=9)
+        super().__init__(x, y, hp=9, gold_reward=12)
         self.chase_speed  = 30.0
         self.wander_speed = 18.0
         self.detect_radius = 240.0
@@ -135,7 +136,7 @@ class TankEnemy(Enemy):
 class ShooterEnemy(Enemy):
     """Dispara si te ve (LoS) y estás en rango."""
     def __init__(self, x, y):
-        super().__init__(x, y, hp=3)
+        super().__init__(x, y, hp=3, gold_reward=9)
         self.chase_speed  = 5
         self.wander_speed = 5
         self.detect_radius = 220.0

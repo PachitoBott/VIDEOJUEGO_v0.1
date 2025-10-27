@@ -72,6 +72,7 @@ class Game:
             self.player = Player(px - 6, py - 6)
         else:
             self.player.x, self.player.y = px - 6, py - 6
+        setattr(self.player, "gold", 0)
 
         # Reset de runtime
         self._reset_runtime_state()
@@ -168,6 +169,7 @@ class Game:
     def _handle_collisions(self, room) -> None:
         if not hasattr(room, "enemies"):
             return
+        gold_earned = 0
         for projectile in self.projectiles:
             if not projectile.alive:
                 continue
@@ -177,7 +179,16 @@ class Game:
                     enemy.hp -= 1
                     projectile.alive = False
                     break
-        room.enemies = [en for en in room.enemies if getattr(en, "hp", 1) > 0]
+        survivors = []
+        for enemy in room.enemies:
+            if getattr(enemy, "hp", 1) > 0:
+                survivors.append(enemy)
+            else:
+                gold_earned += getattr(enemy, "gold_reward", 0)
+        if gold_earned:
+            current_gold = getattr(self.player, "gold", 0)
+            setattr(self.player, "gold", current_gold + gold_earned)
+        room.enemies = survivors
         self.projectiles.prune()
         if hasattr(room, "refresh_lock_state"):
             room.refresh_lock_state()
@@ -263,8 +274,11 @@ class Game:
         )
         self.screen.blit(scaled, (0, 0))
 
+        gold_amount = getattr(self.player, "gold", 0)
+        gold_text = self.ui_font.render(f"Oro: {gold_amount}", True, (255, 215, 0))
         seed_text = self.ui_font.render(f"Seed: {self.current_seed}", True, (230, 230, 230))
         help_text = self.ui_font.render("R: rejugar seed  |  N: nueva seed", True, (200, 200, 200))
+        self.screen.blit(gold_text, (0, 80))
         self.screen.blit(seed_text, (200, 100))
         self.screen.blit(help_text, (0, 100))
 
