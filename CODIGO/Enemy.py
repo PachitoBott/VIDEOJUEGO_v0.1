@@ -63,7 +63,7 @@ class Enemy(Entity):
         elif self.state == CHASE:
             self._update_chase(dt, room, dx, dy)
 
-    def maybe_shoot(self, dt: float, player, room, out_bullets: list) -> None:
+    def maybe_shoot(self, dt: float, player, room, out_bullets) -> None:
         """Por defecto, los enemigos base NO disparan."""
         return
 
@@ -150,7 +150,7 @@ class ShooterEnemy(Enemy):
         super().update(dt, player, room)
         self._fire_timer = max(0.0, self._fire_timer - dt)
 
-    def maybe_shoot(self, dt, player, room, out_bullets: list) -> None:
+    def maybe_shoot(self, dt, player, room, out_bullets) -> None:
         if self._fire_timer > 0.0:
             return
         # Solo dispara si está en CHASE, hay LoS y dentro de rango
@@ -168,10 +168,14 @@ class ShooterEnemy(Enemy):
             dx, dy = dx/dist, dy/dist
         spawn_x = ex + dx * 8
         spawn_y = ey + dy * 8
-        out_bullets.append(Projectile(
+        bullet = Projectile(
             spawn_x, spawn_y, dx, dy,
             speed=self.bullet_speed, radius=3, color=(255, 90, 90)
-        ))
+        )
+        if hasattr(out_bullets, "add"):
+            out_bullets.add(bullet)
+        else:
+            out_bullets.append(bullet)
         self._fire_timer = self.fire_cooldown
 
     def draw(self, surf):
