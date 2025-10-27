@@ -46,9 +46,6 @@ class Dungeon:
 
         # 3) Definir puertas según vecinos + tallar corredores
         self._link_neighbors_and_carve()
-        
-        # 3) Definir puertas según vecinos + tallar corredores
-        self._link_neighbors_and_carve()
 
         # <<< NUEVO: ubicar la tienda en la mitad del camino principal
         self._place_shop_room()
