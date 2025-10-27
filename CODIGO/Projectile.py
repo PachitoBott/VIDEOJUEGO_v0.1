@@ -1,3 +1,5 @@
+from typing import Iterator, List
+
 import pygame
 from Config import CFG
 
@@ -49,4 +51,35 @@ class Projectile:
         return False
 
     def draw(self, surf):
-       pygame.draw.circle(surf, self.color, (int(self.x), int(self.y)), self.radius)
+        pygame.draw.circle(surf, self.color, (int(self.x), int(self.y)), self.radius)
+
+
+class ProjectileGroup:
+    """Contenedor liviano para actualizar/dibujar proyectiles."""
+
+    def __init__(self) -> None:
+        self._items: List[Projectile] = []
+
+    def add(self, projectile: Projectile) -> None:
+        self._items.append(projectile)
+
+    def clear(self) -> None:
+        self._items.clear()
+
+    def update(self, dt: float, room) -> None:
+        for projectile in self._items:
+            projectile.update(dt, room)
+        self.prune()
+
+    def prune(self) -> None:
+        self._items = [p for p in self._items if p.alive]
+
+    def draw(self, surf) -> None:
+        for projectile in self._items:
+            projectile.draw(surf)
+
+    def __iter__(self) -> Iterator[Projectile]:
+        return iter(self._items)
+
+    def __len__(self) -> int:
+        return len(self._items)
