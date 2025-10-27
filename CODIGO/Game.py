@@ -156,9 +156,13 @@ class Game:
             self.enemy_projectiles = [b for b in self.enemy_projectiles if b.alive]
 
             # -------- Transición por puertas --------
+            # Después:
             d = None
-            if self.door_cooldown <= 0.0 and hasattr(room, "check_exit"):
+            if (self.door_cooldown <= 0.0
+                and hasattr(room, "check_exit")
+                and not getattr(room, "locked", False)):
                 d = room.check_exit(self.player)
+
 
             if d and self.dungeon.can_move(d):
                 # Mover de sala (usa hooks enter/exit en Dungeon)
