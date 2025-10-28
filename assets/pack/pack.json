@@ -1,0 +1,5 @@
+{
+    "tile_size": 16,
+    "_comment": "Agrega tus sprites aquí, por ejemplo 'characters/player': 'player.png'",
+    "sprites": {}
+}
