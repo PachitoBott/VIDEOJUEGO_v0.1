@@ -287,9 +287,8 @@ class Game:
 
         gold_amount = getattr(self.player, "gold", 0)
         gold_text = self.ui_font.render(f"Monedas: {gold_amount}", True, (255, 240, 180))
-        self.screen.blit(self._coin_icon, (16, 16))
-        self.screen.blit(gold_text, (36, 18))
-
+        self.screen.blit(self._coin_icon, (305, 100))
+        self.screen.blit(gold_text, (320, 100))
         seed_text = self.ui_font.render(f"Seed: {self.current_seed}", True, (230, 230, 230))
         help_text = self.ui_font.render("R: rejugar seed  |  N: nueva seed", True, (200, 200, 200))
         self.screen.blit(seed_text, (200, 100))
