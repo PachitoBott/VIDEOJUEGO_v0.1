@@ -179,7 +179,7 @@ class Room:
         # Nada especial por defecto. Podrías pausar IA/ambiente si quieres.
         pass
 
-    def handle_events(self, events, player, shop_ui, world_surface, ui_font):
+    def handle_events(self, events, player, shop_ui, world_surface, ui_font, screen_scale=1):
         """
         Maneja interacción con la tienda dentro de la sala (si es shop).
         No lee pygame.event.get() aquí; recibe la lista de events desde Game.
@@ -195,25 +195,45 @@ class Room:
             can_interact = True  # fallback
 
         for ev in events:
-            if ev.type != pygame.KEYDOWN:
-                continue
-            if ev.key == pygame.K_e and can_interact:
+            if ev.type == pygame.KEYDOWN:
+                if ev.key == pygame.K_e and can_interact:
+                    if not shop_ui.active:
+                        shop_ui.open(world_surface.get_width()//2, world_surface.get_height()//2)
+                    else:
+                        shop_ui.close()
+                    continue
+
                 if not shop_ui.active:
-                    shop_ui.open(world_surface.get_width()//2, world_surface.get_height()//2)
-                else:
+                    continue
+
+                if ev.key == pygame.K_UP:
+                    shop_ui.move_selection(-1)
+                    continue
+                if ev.key == pygame.K_DOWN:
+                    shop_ui.move_selection(+1)
+                    continue
+                if ev.key in (pygame.K_RETURN, pygame.K_SPACE):
+                    bought, msg = shop_ui.try_buy(player)
+                    # TODO: pintar msg en tu HUD si quieres
+                    continue
+                if ev.key == pygame.K_ESCAPE:
                     shop_ui.close()
+                    continue
+
             if not shop_ui.active:
                 continue
 
-            if ev.key == pygame.K_UP:
-                shop_ui.move_selection(-1)
-            elif ev.key == pygame.K_DOWN:
-                shop_ui.move_selection(+1)
-            elif ev.key in (pygame.K_RETURN, pygame.K_SPACE):
-                bought, msg = shop_ui.try_buy(player)
-                # TODO: pintar msg en tu HUD si quieres
-            elif ev.key == pygame.K_ESCAPE:
-                shop_ui.close()
+            if ev.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN):
+                if not hasattr(ev, "pos"):
+                    continue
+                mx = ev.pos[0] // max(1, screen_scale)
+                my = ev.pos[1] // max(1, screen_scale)
+                if ev.type == pygame.MOUSEMOTION:
+                    shop_ui.update_hover((mx, my))
+                elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                    shop_ui.update_hover((mx, my))
+                    bought, msg = shop_ui.handle_click((mx, my), player)
+                    # TODO: usar msg en HUD si se desea
 
     def draw_overlay(self, surface, ui_font, player, shop_ui):
         """
