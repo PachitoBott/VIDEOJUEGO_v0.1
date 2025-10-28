@@ -1,14 +1,33 @@
 # CODIGO/Enemy.py
 import math, random, pygame
+from typing import Optional
+
+try:
+    from typing import TYPE_CHECKING
+except ImportError:  # pragma: no cover
+    TYPE_CHECKING = False  # type: ignore
+
 from Entity import Entity
 from Config import CFG
 from Projectile import Projectile
+
+if TYPE_CHECKING:  # pragma: no cover
+    from AssetPack import AssetPack
 
 IDLE, WANDER, CHASE = 0, 1, 2
 
 class Enemy(Entity):
     """Base con FSM + LoS. Subclases cambian stats/comportamientos."""
-    def __init__(self, x: float, y: float, hp: int = 3, gold_reward: int = 5) -> None:
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        hp: int = 3,
+        gold_reward: int = 5,
+        *,
+        assets: Optional["AssetPack"] = None,
+        sprite_id: Optional[str] = None,
+    ) -> None:
         super().__init__(x, y, w=12, h=12, speed=40.0)
         self.hp = hp
         self.gold_reward = gold_reward
@@ -29,6 +48,8 @@ class Enemy(Entity):
 
         # timers internos
         self._los_timer = 0.0
+        self.assets = assets
+        self.sprite_id: Optional[str] = sprite_id or CFG.enemy_sprite_id(self.__class__.__name__)
 
     def _center(self):
         return (self.x + self.w/2, self.y + self.h/2)
@@ -96,11 +117,27 @@ class Enemy(Entity):
         self.move(dx, dy, dt * (self.chase_speed / max(1e-6, self.speed)), room)
 
     def draw(self, surf: pygame.Surface) -> None:
-        # NO llames a super().draw con color si Entity.draw no acepta color
-        color = (255, 255, 255) if self.state == IDLE else \
-                (255, 255, 255)  if self.state == WANDER else \
-                (255, 255, 255)
+        if self._draw_with_asset(surf):
+            return
+        color = (255, 255, 255)
         pygame.draw.rect(surf, color, self.rect())
+
+    def _draw_with_asset(self, surf: pygame.Surface) -> bool:
+        if not self.assets:
+            return False
+        sprite = self.assets.sprite(self.sprite_id)
+        if not sprite:
+            return False
+        rect = sprite.get_rect(center=(int(self.x + self.w / 2), int(self.y + self.h / 2)))
+        surf.blit(sprite, rect)
+        return True
+
+    def set_assets(self, assets: Optional["AssetPack"], sprite_id: Optional[str] = None) -> None:
+        self.assets = assets
+        if sprite_id is not None:
+            self.sprite_id = sprite_id
+        elif self.sprite_id is None:
+            self.sprite_id = CFG.enemy_sprite_id(self.__class__.__name__)
 
 
 # ===== Tipos de enemigo =====
@@ -115,7 +152,9 @@ class FastChaserEnemy(Enemy):
         self.lose_radius   = 170.0
 
     def draw(self, surf):
-        color = (0, 255, 0) if self.state == CHASE else (0, 255, 0)
+        if self._draw_with_asset(surf):
+            return
+        color = (0, 255, 0)
         pygame.draw.rect(surf, color, self.rect())
 
 
@@ -166,7 +205,9 @@ class ShooterEnemy(Enemy):
         self._fire_timer = self.fire_cooldown
 
     def draw(self, surf):
-        color = (0, 0, 255) if self.state == CHASE else (0, 0, 255)
+        if self._draw_with_asset(surf):
+            return
+        color = (0, 0, 255)
         pygame.draw.rect(surf, color, self.rect())
 
 
@@ -212,7 +253,9 @@ class BasicEnemy(Enemy):
         self._fire_timer = self.fire_cooldown
 
     def draw(self, surf):
-        color = (255, 255, 0) if self.state == CHASE else (255, 255, 0)
+        if self._draw_with_asset(surf):
+            return
+        color = (255, 255, 0)
         pygame.draw.rect(surf, color, self.rect())
 
 
@@ -274,5 +317,7 @@ class TankEnemy(Enemy):
         self._fire_timer = self.fire_cooldown
 
     def draw(self, surf):
-        color = (255, 0, 0) if self.state == CHASE else (255, 0, 0)
+        if self._draw_with_asset(surf):
+            return
+        color = (255, 0, 0)
         pygame.draw.rect(surf, color, self.rect())

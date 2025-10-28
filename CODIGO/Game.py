@@ -1,6 +1,8 @@
 # CODIGO/Game.py
 import sys
 import pygame
+from typing import Optional
+
 from Config import Config
 from Tileset import Tileset
 from Player import Player
@@ -9,12 +11,14 @@ from Minimap import Minimap
 from Projectile import ProjectileGroup
 from Shop import Shop
 from Shopkeeper import Shopkeeper
+from AssetPack import AssetPack
 
 
 class Game:
     def __init__(self, cfg: Config) -> None:
         pygame.init()
         self.cfg = cfg
+        self.assets = AssetPack(cfg.ASSET_PACK_DIR, cfg.ASSET_PACK_MANIFEST, tile_size=cfg.TILE_SIZE)
 
         # ---------- Ventana ----------
         self.screen = pygame.display.set_mode(
@@ -30,18 +34,19 @@ class Game:
         pygame.draw.circle(self._coin_icon, (255, 215, 0), (8, 8), 6)
         pygame.draw.circle(self._coin_icon, (160, 120, 0), (8, 8), 6, 1)
         pygame.draw.line(self._coin_icon, (160, 120, 0), (6, 8), (10, 8), 1)
-        self.current_seed: int | None = None
+        self.current_seed: Optional[int] = None
         
         # --- Tienda ---
         self.shop = Shop(font=self.ui_font)
 
         # ---------- Recursos ----------
-        self.tileset = Tileset()
+        self.tileset = Tileset(assets=self.assets)
         self.minimap = Minimap(cell=16, padding=8)
 
         # ---------- Estado runtime ----------
-        self.projectiles = ProjectileGroup()          # balas del jugador
-        self.enemy_projectiles = ProjectileGroup()    # balas de enemigos
+        default_proj_sprite = cfg.projectile_sprite_id()
+        self.projectiles = ProjectileGroup(assets=self.assets, default_sprite_id=default_proj_sprite)          # balas del jugador
+        self.enemy_projectiles = ProjectileGroup(assets=self.assets, default_sprite_id=default_proj_sprite)    # balas de enemigos
         self.door_cooldown = 0.0
         self.running = True
         self.debug_draw_doors = cfg.DEBUG_DRAW_DOOR_TRIGGERS
@@ -52,7 +57,7 @@ class Game:
     # ------------------------------------------------------------------ #
     # Nueva partida / regenerar dungeon (misma o nueva seed)
     # ------------------------------------------------------------------ #
-    def start_new_run(self, seed: int | None = None, dungeon_params: dict | None = None) -> None:
+    def start_new_run(self, seed: Optional[int] = None, dungeon_params: Optional[dict] = None) -> None:
         """
         Crea una nueva dungeon con la seed dada (o aleatoria si None),
         reubica al jugador y resetea estado de runtime.
@@ -61,7 +66,7 @@ class Game:
         if dungeon_params:
             params = {**params, **dungeon_params}
 
-        self.dungeon = Dungeon(**params, seed=seed)
+        self.dungeon = Dungeon(**params, seed=seed, asset_pack=self.assets)
         self.current_seed = self.dungeon.seed
         pygame.display.set_caption(f"Roguelike — Seed {self.current_seed}")
 
@@ -73,9 +78,11 @@ class Game:
         room = self.dungeon.current_room
         px, py = room.center_px()
         if not hasattr(self, "player"):
-            self.player = Player(px - 6, py - 6)
+            self.player = Player(px - 6, py - 6, asset_pack=self.assets)
         else:
             self.player.x, self.player.y = px - 6, py - 6
+            if hasattr(self.player, "set_assets"):
+                self.player.set_assets(self.assets)
         if hasattr(self.player, "reset_loadout"):
             self.player.reset_loadout()
         setattr(self.player, "gold", 0)
@@ -157,8 +164,16 @@ class Game:
         if is_start:
             return
         if hasattr(room, "ensure_spawn"):
-            dist = abs(self.dungeon.i - cx) + abs(self.dungeon.j - cy)
-            room.ensure_spawn(difficulty=1 + dist)
+            pos = (self.dungeon.i, self.dungeon.j)
+            depth = 0
+            if hasattr(self.dungeon, "room_depth"):
+                depth = self.dungeon.room_depth(pos)
+            branch_factor = max(0, sum(1 for open_ in getattr(room, "doors", {}).values() if open_) - 2)
+            on_main_path = 0
+            if hasattr(self.dungeon, "main_path"):
+                on_main_path = 1 if pos in self.dungeon.main_path else 0
+            difficulty = 1 + depth + branch_factor + (depth // 3) + on_main_path
+            room.ensure_spawn(difficulty=difficulty)
 
     def _update_enemies(self, dt: float, room) -> None:
         if not hasattr(room, "enemies"):
