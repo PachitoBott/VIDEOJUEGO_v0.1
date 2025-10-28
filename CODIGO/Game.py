@@ -76,6 +76,8 @@ class Game:
             self.player = Player(px - 6, py - 6)
         else:
             self.player.x, self.player.y = px - 6, py - 6
+        if hasattr(self.player, "reset_loadout"):
+            self.player.reset_loadout()
         setattr(self.player, "gold", 0)
 
         # Reset de runtime
@@ -240,7 +242,14 @@ class Game:
     def _update_shop(self, events: list) -> None:
         current_room = self.dungeon.current_room
         if hasattr(current_room, "handle_events"):
-            current_room.handle_events(events, self.player, self.shop, self.world, self.ui_font)
+            current_room.handle_events(
+                events,
+                self.player,
+                self.shop,
+                self.world,
+                self.ui_font,
+                self.cfg.SCREEN_SCALE,
+            )
 
     def _render(self) -> None:
         self._render_world()

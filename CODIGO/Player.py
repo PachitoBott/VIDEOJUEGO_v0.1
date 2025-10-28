@@ -1,15 +1,20 @@
-import pygame, math
+import math
+import pygame
+
 from Entity import Entity
 from Config import CFG
-from Projectile import Projectile   
+from Weapons import WeaponFactory
 
 
 class Player(Entity):
     def __init__(self, x: float, y: float) -> None:
         super().__init__(x, y, w=12, h=12, speed=120.0)
-        self.fire_cooldown = 0.15  # segundos entre disparos
-        self._fire_timer = 0.0
         self.gold = 0
+        self._weapon_factory = WeaponFactory()
+        self._owned_weapons: set[str] = set()
+        self.weapon_id: str | None = None
+        self.weapon = None
+        self.reset_loadout()
 
     def update(self, dt: float, room) -> None:
         keys = pygame.key.get_pressed()
@@ -19,12 +24,12 @@ class Player(Entity):
         if mag > 0: dx, dy = dx / mag, dy / mag
         self.move(dx, dy, dt, room)
 
-        # avanza el temporizador del disparo
-        self._fire_timer = max(0.0, self._fire_timer - dt)
+        if self.weapon:
+            self.weapon.tick(dt)
 
     def try_shoot(self, mouse_world_pos, out_projectiles) -> None:
         """Dispara hacia mouse si se pulsa y cooldown listo."""
-        if self._fire_timer > 0.0:
+        if not self.weapon or not self.weapon.can_fire():
             return
         mouse_pressed = pygame.mouse.get_pressed(3)[0]  # botón izquierdo
         if not mouse_pressed:
@@ -34,20 +39,47 @@ class Player(Entity):
         # origen: centro del jugador
         cx = self.x + self.w / 2
         cy = self.y + self.h / 2
-        vx, vy = mx - cx, my - cy
-        mag = math.hypot(vx, vy)
-        if mag <= 0.0001:
+        created = self.weapon.fire((cx, cy), (mx, my))
+        if not created:
             return
-        vx, vy = vx / mag, vy / mag  # normaliza
+        adder = getattr(out_projectiles, "add", None)
+        for bullet in created:
+            if callable(adder):
+                adder(bullet)
+            else:
+                out_projectiles.append(bullet)
 
-        # separa un poco el spawn para que no colisione con el propio jugador
-        spawn_x = cx + vx * 8
-        spawn_y = cy + vy * 8
-        bullet = Projectile(spawn_x, spawn_y, vx, vy, speed=360.0, radius=3)
-        if hasattr(out_projectiles, "add"):
-            out_projectiles.add(bullet)
-        else:
-            out_projectiles.append(bullet)
-        self._fire_timer = self.fire_cooldown
     def draw(self, surf):
         pygame.draw.rect(surf, CFG.COLOR_PLAYER, self.rect())
+
+    # ------------------------------------------------------------------
+    # Armas
+    # ------------------------------------------------------------------
+    def reset_loadout(self) -> None:
+        """Restablece el arma inicial al comenzar una nueva partida."""
+        self._owned_weapons.clear()
+        self._grant_weapon("short_rifle")
+        self.equip_weapon("short_rifle")
+
+    def has_weapon(self, weapon_id: str) -> bool:
+        return weapon_id in self._owned_weapons
+
+    def unlock_weapon(self, weapon_id: str, auto_equip: bool = True) -> bool:
+        """Añade el arma al inventario. Devuelve True si era nueva."""
+        if weapon_id not in self._weapon_factory:
+            return False
+        is_new = weapon_id not in self._owned_weapons
+        self._grant_weapon(weapon_id)
+        if auto_equip:
+            self.equip_weapon(weapon_id)
+        return is_new
+
+    def equip_weapon(self, weapon_id: str) -> None:
+        if weapon_id not in self._owned_weapons:
+            return
+        self.weapon = self._weapon_factory.create(weapon_id)
+        self.weapon_id = weapon_id
+
+    def _grant_weapon(self, weapon_id: str) -> None:
+        if weapon_id in self._weapon_factory:
+            self._owned_weapons.add(weapon_id)
