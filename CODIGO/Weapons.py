@@ -84,14 +84,14 @@ class WeaponFactory:
         self._registry: Dict[str, WeaponSpec] = {
             "short_rifle": WeaponSpec(
                 weapon_id="short_rifle",
-                cooldown=0.18,
+                cooldown=0.25,
                 spread_deg=10.0,
                 bullet_speed=340.0,
             ),
             "dual_pistols": WeaponSpec(
                 weapon_id="dual_pistols",
-                cooldown=0.18,
-                spread_deg=10.0,
+                cooldown=0.30,
+                spread_deg=15.0,
                 bullet_speed=340.0,
                 offsets=(-6.0, 6.0),
             ),

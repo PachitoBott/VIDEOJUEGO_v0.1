@@ -15,8 +15,8 @@ class Enemy(Entity):
 
         # Estados y radios
         self.state = IDLE
-        self.detect_radius = 110.0
-        self.lose_radius   = 130.0
+        self.detect_radius = 140.0
+        self.lose_radius   = 160.0
         self._los_grace    = 0.35   # “gracia” sin LoS antes de soltar persecución
 
         # Velocidades
@@ -109,10 +109,10 @@ class FastChaserEnemy(Enemy):
     """Rápido, poca vida."""
     def __init__(self, x, y):
         super().__init__(x, y, hp=2, gold_reward=7)
-        self.chase_speed  = 100.0
+        self.chase_speed  = 130.0
         self.wander_speed = 80.0
-        self.detect_radius = 130.0
-        self.lose_radius   = 150.0
+        self.detect_radius = 150.0
+        self.lose_radius   = 170.0
 
     def draw(self, surf):
         color = (0, 255, 0) if self.state == CHASE else (0, 255, 0)
@@ -128,10 +128,10 @@ class ShooterEnemy(Enemy):
         self.detect_radius = 220.0
         self.lose_radius   = 260.0
 
-        self.fire_cooldown = 0.9
+        self.fire_cooldown = 1.5
         self._fire_timer   = 0.0
         self.fire_range    = 260.0
-        self.bullet_speed  = 200.0
+        self.bullet_speed  = 280.0
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
@@ -175,10 +175,10 @@ class BasicEnemy(Enemy):
 
     def __init__(self, x, y):
         super().__init__(x, y, hp=3, gold_reward=5)
-        self.fire_cooldown = 1.6
+        self.fire_cooldown = 1.2
         self._fire_timer = 0.0
         self.fire_range = 210.0
-        self.bullet_speed = 170.0
+        self.bullet_speed = 220.0
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
@@ -226,7 +226,7 @@ class TankEnemy(Enemy):
         self.detect_radius = 240.0
         self.lose_radius   = 260.0
 
-        self.fire_cooldown = 3.5
+        self.fire_cooldown = 4
         self._fire_timer = 0.0
         self.fire_range = 260.0
         self.bullet_speed = 160.0
