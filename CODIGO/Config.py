@@ -34,9 +34,9 @@ class Config:
     def dungeon_params(self) -> dict:
         """Parámetros por defecto para generar una dungeon."""
         return {
-            "grid_w": 7,
-            "grid_h": 7,
-            "main_len": 8,
+            "grid_w": 10,
+            "grid_h": 10,
+            "main_len": 12,
             "branch_chance": 0.45,
             "branch_min": 2,
             "branch_max": 4,

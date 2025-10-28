@@ -232,8 +232,8 @@ class Dungeon:
                 return
             sx, sy = random.choice(candidates)
         else:
-            mid_idx = len(unique_path) // 2
-            sx, sy = unique_path[mid_idx]
+            quarter_idx = max(0, len(unique_path) // 4)
+            sx, sy = unique_path[quarter_idx]
 
         room = self.rooms.get((sx, sy))
         if not room:
