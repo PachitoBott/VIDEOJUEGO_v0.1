@@ -9,6 +9,7 @@ class Player(Entity):
         super().__init__(x, y, w=12, h=12, speed=120.0)
         self.fire_cooldown = 0.15  # segundos entre disparos
         self._fire_timer = 0.0
+        self.gold = 0
 
     def update(self, dt: float, room) -> None:
         keys = pygame.key.get_pressed()
@@ -21,7 +22,7 @@ class Player(Entity):
         # avanza el temporizador del disparo
         self._fire_timer = max(0.0, self._fire_timer - dt)
 
-    def try_shoot(self, mouse_world_pos, out_projectiles: list) -> None:
+    def try_shoot(self, mouse_world_pos, out_projectiles) -> None:
         """Dispara hacia mouse si se pulsa y cooldown listo."""
         if self._fire_timer > 0.0:
             return
@@ -42,7 +43,11 @@ class Player(Entity):
         # separa un poco el spawn para que no colisione con el propio jugador
         spawn_x = cx + vx * 8
         spawn_y = cy + vy * 8
-        out_projectiles.append(Projectile(spawn_x, spawn_y, vx, vy, speed=360.0, radius=3))
+        bullet = Projectile(spawn_x, spawn_y, vx, vy, speed=360.0, radius=3)
+        if hasattr(out_projectiles, "add"):
+            out_projectiles.add(bullet)
+        else:
+            out_projectiles.append(bullet)
         self._fire_timer = self.fire_cooldown
     def draw(self, surf):
-     pygame.draw.rect(surf, CFG.COLOR_PLAYER, self.rect())
+        pygame.draw.rect(surf, CFG.COLOR_PLAYER, self.rect())
