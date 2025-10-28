@@ -1,11 +1,59 @@
 import pygame
-from typing import Dict, Tuple, Optional, List
+from typing import Dict, Tuple, Optional, List, Type
 from Config import CFG
-from Enemy import Enemy
 # arriba de Room.py
 import random
 from Enemy import Enemy, FastChaserEnemy, TankEnemy, ShooterEnemy, BasicEnemy
 import Enemy as enemy_mod  # <- para usar enemy_mod.WANDER
+
+# Plantillas de encuentros por umbral de dificultad.
+ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
+    (
+        2,
+        [
+            [BasicEnemy],
+            [BasicEnemy, BasicEnemy],
+            [BasicEnemy, FastChaserEnemy],
+        ],
+    ),
+    (
+        4,
+        [
+            [BasicEnemy, BasicEnemy, FastChaserEnemy],
+            [BasicEnemy, ShooterEnemy],
+            [ShooterEnemy, FastChaserEnemy],
+        ],
+    ),
+    (
+        6,
+        [
+            [BasicEnemy, ShooterEnemy, FastChaserEnemy],
+            [BasicEnemy, BasicEnemy, ShooterEnemy],
+            [FastChaserEnemy, FastChaserEnemy, ShooterEnemy],
+            [TankEnemy],
+        ],
+    ),
+    (
+        8,
+        [
+            [TankEnemy, FastChaserEnemy],
+            [ShooterEnemy, ShooterEnemy, FastChaserEnemy],
+            [BasicEnemy, TankEnemy, ShooterEnemy],
+            [BasicEnemy, BasicEnemy, FastChaserEnemy, FastChaserEnemy],
+        ],
+    ),
+    (
+        10,
+        [
+            [TankEnemy, ShooterEnemy, FastChaserEnemy],
+            [TankEnemy, TankEnemy],
+            [ShooterEnemy, ShooterEnemy, FastChaserEnemy, FastChaserEnemy],
+            [BasicEnemy, ShooterEnemy, TankEnemy, FastChaserEnemy],
+        ],
+    ),
+]
+
+
 
 
 class Room:
@@ -253,35 +301,66 @@ class Room:
     # Spawning de enemigos (una sola vez por cuarto)
     # ------------------------------------------------------------------ #
     def ensure_spawn(self, difficulty: int = 1) -> None:
-        if self._spawn_done or self.bounds is None:
+        if self._spawn_done or self.bounds is None or self.no_spawn:
             return
         rx, ry, rw, rh = self.bounds
         ts = CFG.TILE_SIZE
 
-        n = max(1, min(4, 1 + difficulty))
-        for _ in range(n):
-            tx = random.randint(rx + 1, rx + rw - 2)
-            ty = random.randint(ry + 1, ry + rh - 2)
-            px = tx * ts + ts // 2 - 6
-            py = ty * ts + ts // 2 - 6
+        encounter_factories = self._pick_encounter(difficulty)
+        if not encounter_factories:
+            self._spawn_done = True
+            return
+        used_tiles: set[tuple[int, int]] = set()
+        for factory in encounter_factories:
+            # Intentar encontrar una baldosa libre para ubicar al enemigo
+            for _ in range(12):
+                tx = random.randint(rx + 1, rx + rw - 2)
+                ty = random.randint(ry + 1, ry + rh - 2)
+                if (tx, ty) in used_tiles:
+                    continue
+                used_tiles.add((tx, ty))
+                px = tx * ts + ts // 2 - 6
+                py = ty * ts + ts // 2 - 6
+                enemy = factory(px, py)
 
-            r = random.random()
-            if r < 0.5:
-                e = BasicEnemy(px, py)
-            elif r < 0.75:
-                e = ShooterEnemy(px, py)
-            elif r < 0.9:
-                e = TankEnemy(px, py)
-            else:
-                e = FastChaserEnemy(px, py)
+                # Variar encuentros: algunos enemigos comienzan patrullando
+                if random.random() < 0.35:
+                    enemy._pick_wander()
+                    enemy.state = enemy_mod.WANDER
 
-            if random.random() < 0.4:
-                e._pick_wander()
-                e.state = enemy_mod.WANDER
+                self.enemies.append(enemy)
+                break
 
-            self.enemies.append(e)   # ✅ SOLO UNA VEZ
+        # Escalado adicional: probabilidad de sumar un perseguidor extra
+        extra_chance = min(0.1 * max(0, difficulty - 1), 0.5)
+        if random.random() < extra_chance:
+            for _ in range(12):
+                tx = random.randint(rx + 1, rx + rw - 2)
+                ty = random.randint(ry + 1, ry + rh - 2)
+                if (tx, ty) in used_tiles:
+                    continue
+                used_tiles.add((tx, ty))
+                px = tx * ts + ts // 2 - 6
+                py = ty * ts + ts // 2 - 6
+                bonus = FastChaserEnemy(px, py)
+                bonus._pick_wander()
+                bonus.state = enemy_mod.WANDER
+                self.enemies.append(bonus)
+                break
 
+        if self.enemies:
+            self.locked = True
+            self.cleared = False
+         
         self._spawn_done = True
+
+    def _pick_encounter(self, difficulty: int) -> list[Type[Enemy]]:
+        """Selecciona una combinación de enemigos según la dificultad."""
+        tier = max(1, min(10, difficulty))
+        for threshold, templates in ENCOUNTER_TABLE:
+            if tier <= threshold:
+                return random.choice(templates)
+        return random.choice(ENCOUNTER_TABLE[-1][1]) if ENCOUNTER_TABLE else []
 
 
     # ------------------------------------------------------------------ #
