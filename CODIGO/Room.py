@@ -1,14 +1,10 @@
 import pygame
-from typing import Dict, Tuple, Optional, List, Type, TYPE_CHECKING
+from typing import Dict, Tuple, Optional, List, Type
 from Config import CFG
 # arriba de Room.py
 import random
 from Enemy import Enemy, FastChaserEnemy, TankEnemy, ShooterEnemy, BasicEnemy
 import Enemy as enemy_mod  # <- para usar enemy_mod.WANDER
-
-if TYPE_CHECKING:  # pragma: no cover
-    from AssetPack import AssetPack
-
 
 # Plantillas de encuentros por umbral de dificultad.
 ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
@@ -315,7 +311,6 @@ class Room:
         if not encounter_factories:
             self._spawn_done = True
             return
-
         used_tiles: set[tuple[int, int]] = set()
         for factory in encounter_factories:
             # Intentar encontrar una baldosa libre para ubicar al enemigo
@@ -328,8 +323,6 @@ class Room:
                 px = tx * ts + ts // 2 - 6
                 py = ty * ts + ts // 2 - 6
                 enemy = factory(px, py)
-                self._apply_enemy_assets(enemy)
-
                 # Variar encuentros: algunos enemigos comienzan patrullando
                 if random.random() < 0.35:
                     enemy._pick_wander()
@@ -350,7 +343,6 @@ class Room:
                 px = tx * ts + ts // 2 - 6
                 py = ty * ts + ts // 2 - 6
                 bonus = FastChaserEnemy(px, py)
-                self._apply_enemy_assets(bonus)
                 bonus._pick_wander()
                 bonus.state = enemy_mod.WANDER
                 self.enemies.append(bonus)
@@ -359,7 +351,6 @@ class Room:
         if self.enemies:
             self.locked = True
             self.cleared = False
-
         self._spawn_done = True
 
     def _pick_encounter(self, difficulty: int) -> list[Type[Enemy]]:
