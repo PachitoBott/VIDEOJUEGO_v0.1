@@ -76,6 +76,8 @@ class Game:
             self.player = Player(px - 6, py - 6)
         else:
             self.player.x, self.player.y = px - 6, py - 6
+        if hasattr(self.player, "reset_loadout"):
+            self.player.reset_loadout()
         setattr(self.player, "gold", 0)
 
         # Reset de runtime

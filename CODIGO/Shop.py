@@ -7,7 +7,7 @@ class Shop:
     def __init__(self, font=None):
         self.items = [
             # type: weapon|upgrade
-            {"name": "Pistola Doble", "price": 50, "type": "weapon", "id": "dual_pistol"},
+            {"name": "Pistolas Dobles", "price": 50, "type": "weapon", "id": "dual_pistols"},
             {"name": "Rifle Ligero", "price": 65, "type": "weapon", "id": "light_rifle"},
             {"name": "Aumento de Vida (+1)", "price": 30, "type": "upgrade", "id": "hp_up"},
             {"name": "Aumento de Velocidad (+5%)", "price": 25, "type": "upgrade", "id": "spd_up"},
@@ -76,6 +76,10 @@ class Shop:
         if gold < item["price"]:
             return False, "No tienes suficiente oro."
 
+        if item["type"] == "weapon" and hasattr(player, "has_weapon"):
+            if player.has_weapon(item["id"]):
+                return False, "Ya tienes esta arma."
+
         # Cobro
         setattr(player, "gold", gold - item["price"])
 
@@ -90,12 +94,15 @@ class Shop:
     def _apply_weapon(self, player, wid):
         # Si tienes un sistema de armas, llama tu método real:
         # player.equip_weapon(wid)
-        equip = getattr(player, "equip_weapon", None)
-        if callable(equip):
-            equip(wid)
+        unlock = getattr(player, "unlock_weapon", None)
+        if callable(unlock):
+            unlock(wid, auto_equip=True)
         else:
-            # Fallback no destructivo: setear atributo temporal
-            setattr(player, "current_weapon", wid)
+            equip = getattr(player, "equip_weapon", None)
+            if callable(equip):
+                equip(wid)
+            else:
+                setattr(player, "current_weapon", wid)
 
     def _apply_upgrade(self, player, uid):
         if uid == "hp_up":
