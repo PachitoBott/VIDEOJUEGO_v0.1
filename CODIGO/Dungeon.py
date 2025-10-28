@@ -93,7 +93,13 @@ class Dungeon:
             pos = (self.i, self.j)
         return self.depth_map.get(pos, 0)
 
-    def entry_position(self, came_from: str, pw: int, ph: int) -> tuple[float, float]:
+    def room_depth(self, pos: Optional[Tuple[int, int]] = None) -> int:
+        """Devuelve la profundidad (pasos desde el inicio) para la sala dada."""
+        if pos is None:
+            pos = (self.i, self.j)
+        return self.depth_map.get(pos, 0)
+
+    def entry_position(self, came_from: str, pw: int, ph: int) -> Tuple[float, float]:
         # reutiliza tu lógica actual (Dungeon no necesita cambiarla)
         room = self.current_room
         rx, ry, rw, rh = room.bounds
@@ -113,7 +119,7 @@ class Dungeon:
     def _in_bounds(self, x: int, y: int) -> bool:
         return 0 <= x < self.grid_w and 0 <= y < self.grid_h
 
-    def _neighbors(self, x: int, y: int) -> list[Vec]:
+    def _neighbors(self, x: int, y: int) -> List[Vec]:
         return [(x+dx, y+dy) for dx,dy in DIRS.values() if self._in_bounds(x+dx, y+dy)]
 
     def _place_room(self, x: int, y: int) -> None:
@@ -140,7 +146,7 @@ class Dungeon:
         self.main_path.clear()
         self.main_path.append((x, y))
 
-        last_dir: Vec | None = None
+        last_dir: Optional[Vec] = None
 
         for _ in range(max(1, length)):
             # Evitar retroceder inmediatamente para caminos más “limpios”
@@ -187,7 +193,7 @@ class Dungeon:
                 continue
             length = random.randint(min_len, max_len)
             x, y = ax, ay
-            last_dir: Vec | None = None
+            last_dir: Optional[Vec] = None
             for _ in range(length):
                 # preferir direcciones que se alejen del ancla para “ramificarse”
                 dirs = list(DIRS.values())
@@ -255,8 +261,8 @@ class Dungeon:
         # Selecciona un punto del camino principal que no sea el inicio.
         # Usa el orden del camino para mantener una ubicación consistente
         # pero evita repetidos (puede haber retrocesos en la generación).
-        unique_path: list[tuple[int, int]] = []
-        seen: set[tuple[int, int]] = set()
+        unique_path: List[Tuple[int, int]] = []
+        seen: Set[Tuple[int, int]] = set()
         for step in self.main_path:
             if step == self.start:
                 continue

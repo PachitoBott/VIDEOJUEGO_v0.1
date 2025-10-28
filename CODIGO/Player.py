@@ -16,8 +16,8 @@ class Player(Entity):
         super().__init__(x, y, w=12, h=12, speed=120.0)
         self.gold = 0
         self._weapon_factory = WeaponFactory()
-        self._owned_weapons: set[str] = set()
-        self.weapon_id: str | None = None
+        self._owned_weapons: Set[str] = set()
+        self.weapon_id: Optional[str] = None
         self.weapon = None
         self.assets = asset_pack
         self.sprite_id: Optional[str] = CFG.player_sprite_id()

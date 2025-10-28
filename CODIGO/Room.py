@@ -367,6 +367,20 @@ class Room:
         sprite_id = CFG.enemy_sprite_id(enemy.__class__.__name__)
         enemy.set_assets(self.assets, sprite_id=sprite_id)
 
+    def _pick_encounter(self, difficulty: int) -> List[Type[Enemy]]:
+        """Selecciona una combinación de enemigos según la dificultad."""
+        tier = max(1, min(10, difficulty))
+        for threshold, templates in ENCOUNTER_TABLE:
+            if tier <= threshold:
+                return random.choice(templates)
+        return random.choice(ENCOUNTER_TABLE[-1][1]) if ENCOUNTER_TABLE else []
+
+    def _apply_enemy_assets(self, enemy: Enemy) -> None:
+        if not self.assets or not hasattr(enemy, "set_assets"):
+            return
+        sprite_id = CFG.enemy_sprite_id(enemy.__class__.__name__)
+        enemy.set_assets(self.assets, sprite_id=sprite_id)
+
 
     # ------------------------------------------------------------------ #
     # Colisiones y triggers de puertas

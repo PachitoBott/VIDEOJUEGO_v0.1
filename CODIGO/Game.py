@@ -1,6 +1,8 @@
 # CODIGO/Game.py
 import sys
 import pygame
+from typing import Optional
+
 from Config import Config
 from Tileset import Tileset
 from Player import Player
@@ -32,7 +34,7 @@ class Game:
         pygame.draw.circle(self._coin_icon, (255, 215, 0), (8, 8), 6)
         pygame.draw.circle(self._coin_icon, (160, 120, 0), (8, 8), 6, 1)
         pygame.draw.line(self._coin_icon, (160, 120, 0), (6, 8), (10, 8), 1)
-        self.current_seed: int | None = None
+        self.current_seed: Optional[int] = None
         
         # --- Tienda ---
         self.shop = Shop(font=self.ui_font)
@@ -55,7 +57,7 @@ class Game:
     # ------------------------------------------------------------------ #
     # Nueva partida / regenerar dungeon (misma o nueva seed)
     # ------------------------------------------------------------------ #
-    def start_new_run(self, seed: int | None = None, dungeon_params: dict | None = None) -> None:
+    def start_new_run(self, seed: Optional[int] = None, dungeon_params: Optional[dict] = None) -> None:
         """
         Crea una nueva dungeon con la seed dada (o aleatoria si None),
         reubica al jugador y resetea estado de runtime.
