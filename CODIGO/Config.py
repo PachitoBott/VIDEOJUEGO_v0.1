@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Tuple, Optional
+from typing import Dict, Optional, Tuple
 
 @dataclass(frozen=True)
 class Config:
@@ -15,6 +15,8 @@ class Config:
     ROOM_H_MAX: int = 26
 
     TILESET_PATH: Optional[str] = None  # ej: "assets/tileset.png"
+    ASSET_PACK_DIR: Optional[str] = "assets/pack"
+    ASSET_PACK_MANIFEST: str = "pack.json"
 
     COLOR_BG: Tuple[int,int,int] = (10, 10, 14)
     COLOR_FLOOR: Tuple[int,int,int] = (36, 36, 46)
@@ -41,5 +43,32 @@ class Config:
             "branch_min": 2,
             "branch_max": 4,
         }
+
+    # -------------------- Asset pack helpers -------------------- #
+    def tile_sprite_ids(self) -> Dict[int, str]:
+        """Mapea IDs de tile (floor/wall) a sprites del asset pack."""
+        return {
+            self.FLOOR: "tiles/floor",
+            self.WALL: "tiles/wall",
+        }
+
+    def player_sprite_id(self) -> Optional[str]:
+        return "characters/player"
+
+    def enemy_sprite_id(self, enemy_cls_name: str) -> Optional[str]:
+        mapping = {
+            "Enemy": "enemies/basic",
+            "BasicEnemy": "enemies/basic",
+            "FastChaserEnemy": "enemies/fast",
+            "ShooterEnemy": "enemies/shooter",
+            "TankEnemy": "enemies/tank",
+        }
+        return mapping.get(enemy_cls_name, mapping.get("Enemy"))
+
+    def projectile_sprite_id(self) -> Optional[str]:
+        return "fx/projectile"
+
+    def shopkeeper_sprite_id(self) -> Optional[str]:
+        return "characters/shopkeeper"
 
 CFG = Config()

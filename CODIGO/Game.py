@@ -9,12 +9,14 @@ from Minimap import Minimap
 from Projectile import ProjectileGroup
 from Shop import Shop
 from Shopkeeper import Shopkeeper
+from AssetPack import AssetPack
 
 
 class Game:
     def __init__(self, cfg: Config) -> None:
         pygame.init()
         self.cfg = cfg
+        self.assets = AssetPack(cfg.ASSET_PACK_DIR, cfg.ASSET_PACK_MANIFEST, tile_size=cfg.TILE_SIZE)
 
         # ---------- Ventana ----------
         self.screen = pygame.display.set_mode(
@@ -36,12 +38,13 @@ class Game:
         self.shop = Shop(font=self.ui_font)
 
         # ---------- Recursos ----------
-        self.tileset = Tileset()
+        self.tileset = Tileset(assets=self.assets)
         self.minimap = Minimap(cell=16, padding=8)
 
         # ---------- Estado runtime ----------
-        self.projectiles = ProjectileGroup()          # balas del jugador
-        self.enemy_projectiles = ProjectileGroup()    # balas de enemigos
+        default_proj_sprite = cfg.projectile_sprite_id()
+        self.projectiles = ProjectileGroup(assets=self.assets, default_sprite_id=default_proj_sprite)          # balas del jugador
+        self.enemy_projectiles = ProjectileGroup(assets=self.assets, default_sprite_id=default_proj_sprite)    # balas de enemigos
         self.door_cooldown = 0.0
         self.running = True
         self.debug_draw_doors = cfg.DEBUG_DRAW_DOOR_TRIGGERS
@@ -61,7 +64,7 @@ class Game:
         if dungeon_params:
             params = {**params, **dungeon_params}
 
-        self.dungeon = Dungeon(**params, seed=seed)
+        self.dungeon = Dungeon(**params, seed=seed, asset_pack=self.assets)
         self.current_seed = self.dungeon.seed
         pygame.display.set_caption(f"Roguelike — Seed {self.current_seed}")
 
@@ -73,9 +76,11 @@ class Game:
         room = self.dungeon.current_room
         px, py = room.center_px()
         if not hasattr(self, "player"):
-            self.player = Player(px - 6, py - 6)
+            self.player = Player(px - 6, py - 6, asset_pack=self.assets)
         else:
             self.player.x, self.player.y = px - 6, py - 6
+            if hasattr(self.player, "set_assets"):
+                self.player.set_assets(self.assets)
         if hasattr(self.player, "reset_loadout"):
             self.player.reset_loadout()
         setattr(self.player, "gold", 0)

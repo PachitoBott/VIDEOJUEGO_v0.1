@@ -4,6 +4,9 @@ from typing import Dict, Tuple, Set
 from Config import CFG
 from Room import Room
 
+if TYPE_CHECKING:  # pragma: no cover
+    from AssetPack import AssetPack
+
 Vec = Tuple[int, int]
 DIRS: Dict[str, Vec] = {"N": (0, -1), "S": (0, 1), "E": (1, 0), "W": (-1, 0)}
 DIRS_INV: Dict[Vec, str] = {(0, -1): "N", (0, 1): "S", (1, 0): "E", (-1, 0): "W"}
@@ -23,17 +26,19 @@ class Dungeon:
                  branch_chance: float = 0.45,
                  branch_min: int = 2,
                  branch_max: int = 4,
-                 seed: int | None = None) -> None:
+                 seed: int | None = None,
+                 asset_pack: Optional["AssetPack"] = None) -> None:
         if seed is not None:
             random.seed(seed)
         if seed is None:
             seed = random.randrange(0, 10**9)
         self.seed = seed
-        random.seed(self.seed)    
+        random.seed(self.seed)
 
         self.grid_w, self.grid_h = grid_w, grid_h
         self.i, self.j = grid_w // 2, grid_h // 2  # posición actual (empieza centro)
         self.start = (self.i, self.j)
+        self.asset_pack = asset_pack
         self.rooms: Dict[Tuple[int, int], Room] = {}
         self.explored: Set[Tuple[int, int]] = set()
         self.main_path: list[Tuple[int, int]] = []  # <<< NUEVO: orden del camino principal
@@ -82,6 +87,12 @@ class Dungeon:
             pos = (self.i, self.j)
         return self.depth_map.get(pos, 0)
 
+    def room_depth(self, pos: Tuple[int, int] | None = None) -> int:
+        """Devuelve la profundidad (pasos desde el inicio) para la sala dada."""
+        if pos is None:
+            pos = (self.i, self.j)
+        return self.depth_map.get(pos, 0)
+
     def entry_position(self, came_from: str, pw: int, ph: int) -> tuple[float, float]:
         # reutiliza tu lógica actual (Dungeon no necesita cambiarla)
         room = self.current_room
@@ -107,7 +118,7 @@ class Dungeon:
 
     def _place_room(self, x: int, y: int) -> None:
         if (x, y) not in self.rooms:
-            r = Room()
+            r = Room(asset_pack=self.asset_pack)
             # Tamaños aleatorios dentro del rango
             rw = random.randint(CFG.ROOM_W_MIN, CFG.ROOM_W_MAX)
             rh = random.randint(CFG.ROOM_H_MIN, CFG.ROOM_H_MAX)
@@ -235,7 +246,7 @@ class Dungeon:
                     queue.append(((nx, ny), depth + 1))        
     def _place_shop_room(self) -> None:
         """
-        Marca como 'shop' la sala ubicada aproximadamente a mitad del camino principal.
+        Marca como 'shop' la sala ubicada aproximadamente al primer cuarto del camino principal.
         Guarda también la posición en self.shop_pos para fácil acceso desde Game/Minimap.
         """
         if not self.main_path:

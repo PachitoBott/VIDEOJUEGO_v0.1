@@ -54,8 +54,6 @@ ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
 ]
 
 
-
-
 class Room:
     """
     Un cuarto sobre una grilla MAP_W x MAP_H (en tiles).
@@ -65,7 +63,7 @@ class Room:
     - Enemigos se generan 1 sola vez con `ensure_spawn(...)`
     """
 
-    def __init__(self) -> None:
+    def __init__(self, asset_pack: Optional["AssetPack"] = None) -> None:
         # mapa lleno de paredes por defecto
         self.tiles: List[List[int]] = [[CFG.WALL for _ in range(CFG.MAP_W)] for _ in range(CFG.MAP_H)]
         self.bounds: Optional[Tuple[int, int, int, int]] = None
@@ -75,6 +73,7 @@ class Room:
         self.enemies: List[Enemy] = []
         self._spawn_done: bool = False
         self._door_width_tiles = 2
+        self.assets = asset_pack
 
         # 🔒 estado de puertas
         self.locked: bool = False
@@ -198,7 +197,8 @@ class Room:
         ts = cfg.TILE_SIZE
         cx = (rx + rw // 2) * ts
         cy = (ry + rh // 2) * ts
-        self.shopkeeper = ShopkeeperCls((cx, cy))
+        sprite_id = cfg.shopkeeper_sprite_id()
+        self.shopkeeper = ShopkeeperCls((cx, cy), asset_pack=self.assets, sprite_id=sprite_id)
 
     def on_enter(self, player, cfg, ShopkeeperCls=None):
         """
@@ -303,6 +303,7 @@ class Room:
     def ensure_spawn(self, difficulty: int = 1) -> None:
         if self._spawn_done or self.bounds is None or self.no_spawn:
             return
+
         rx, ry, rw, rh = self.bounds
         ts = CFG.TILE_SIZE
 
@@ -322,7 +323,6 @@ class Room:
                 px = tx * ts + ts // 2 - 6
                 py = ty * ts + ts // 2 - 6
                 enemy = factory(px, py)
-
                 # Variar encuentros: algunos enemigos comienzan patrullando
                 if random.random() < 0.35:
                     enemy._pick_wander()
@@ -351,7 +351,6 @@ class Room:
         if self.enemies:
             self.locked = True
             self.cleared = False
-         
         self._spawn_done = True
 
     def _pick_encounter(self, difficulty: int) -> list[Type[Enemy]]:
@@ -361,6 +360,12 @@ class Room:
             if tier <= threshold:
                 return random.choice(templates)
         return random.choice(ENCOUNTER_TABLE[-1][1]) if ENCOUNTER_TABLE else []
+
+    def _apply_enemy_assets(self, enemy: Enemy) -> None:
+        if not self.assets or not hasattr(enemy, "set_assets"):
+            return
+        sprite_id = CFG.enemy_sprite_id(enemy.__class__.__name__)
+        enemy.set_assets(self.assets, sprite_id=sprite_id)
 
 
     # ------------------------------------------------------------------ #
