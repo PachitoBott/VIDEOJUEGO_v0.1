@@ -1,9 +1,4 @@
-from typing import Iterator, List, Optional
-
-try:
-    from typing import TYPE_CHECKING
-except ImportError:  # pragma: no cover
-    TYPE_CHECKING = False  # type: ignore
+from typing import Iterator, List, Optional, TYPE_CHECKING
 
 import pygame
 from Config import CFG

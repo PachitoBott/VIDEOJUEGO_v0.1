@@ -1,10 +1,5 @@
 import pygame
-from typing import Optional
-
-try:
-    from typing import TYPE_CHECKING
-except ImportError:  # pragma: no cover
-    TYPE_CHECKING = False  # type: ignore
+from typing import Optional, TYPE_CHECKING
 
 from Config import CFG
 

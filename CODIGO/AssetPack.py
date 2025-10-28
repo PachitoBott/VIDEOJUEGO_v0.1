@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 import pygame
 
@@ -45,11 +45,11 @@ class AssetPack:
         self,
         surface: pygame.Surface,
         sprite_id: Optional[str],
-        position: Tuple[int, int],
+        position: tuple[int, int],
         *,
         anchor: str = "center",
-        fallback_color: Optional[Tuple[int, int, int]] = None,
-        size: Optional[Tuple[int, int]] = None,
+        fallback_color: Optional[tuple[int, int, int]] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         sprite = self.sprite(sprite_id)
         if sprite is not None:
@@ -103,9 +103,7 @@ class AssetPack:
 
         self.loaded = True
 
-    def _load_sprite_definition(
-        self, sprite_id: str, definition: Any
-    ) -> Optional[Union[pygame.Surface, List[pygame.Surface]]]:
+    def _load_sprite_definition(self, sprite_id: str, definition: Any) -> Optional[pygame.Surface | List[pygame.Surface]]:
         if isinstance(definition, str):
             image = self._load_image(definition)
             return image
