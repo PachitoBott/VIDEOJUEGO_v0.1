@@ -26,6 +26,10 @@ class Game:
 
         # ---------- UI ----------
         self.ui_font = pygame.font.SysFont(None, 18)
+        self._coin_icon = pygame.Surface((16, 16), pygame.SRCALPHA)
+        pygame.draw.circle(self._coin_icon, (255, 215, 0), (8, 8), 6)
+        pygame.draw.circle(self._coin_icon, (160, 120, 0), (8, 8), 6, 1)
+        pygame.draw.line(self._coin_icon, (160, 120, 0), (6, 8), (10, 8), 1)
         self.current_seed: int | None = None
         
         # --- Tienda ---
@@ -275,10 +279,11 @@ class Game:
         self.screen.blit(scaled, (0, 0))
 
         gold_amount = getattr(self.player, "gold", 0)
-        gold_text = self.ui_font.render(f"Oro: {gold_amount}", True, (255, 215, 0))
+        gold_text = self.ui_font.render(f"Monedas: {gold_amount}", True, (255, 240, 180))
+        self.screen.blit(self._coin_icon, (305, 100))
+        self.screen.blit(gold_text, (320, 100))
         seed_text = self.ui_font.render(f"Seed: {self.current_seed}", True, (230, 230, 230))
         help_text = self.ui_font.render("R: rejugar seed  |  N: nueva seed", True, (200, 200, 200))
-        self.screen.blit(gold_text, (0, 80))
         self.screen.blit(seed_text, (200, 100))
         self.screen.blit(help_text, (0, 100))
 
