@@ -157,8 +157,16 @@ class Game:
         if is_start:
             return
         if hasattr(room, "ensure_spawn"):
-            dist = abs(self.dungeon.i - cx) + abs(self.dungeon.j - cy)
-            room.ensure_spawn(difficulty=1 + dist)
+            pos = (self.dungeon.i, self.dungeon.j)
+            depth = 0
+            if hasattr(self.dungeon, "room_depth"):
+                depth = self.dungeon.room_depth(pos)
+            branch_factor = max(0, sum(1 for open_ in getattr(room, "doors", {}).values() if open_) - 2)
+            on_main_path = 0
+            if hasattr(self.dungeon, "main_path"):
+                on_main_path = 1 if pos in self.dungeon.main_path else 0
+            difficulty = 1 + depth + branch_factor + (depth // 3) + on_main_path
+            room.ensure_spawn(difficulty=difficulty)
 
     def _update_enemies(self, dt: float, room) -> None:
         if not hasattr(room, "enemies"):

@@ -1,4 +1,5 @@
 import random
+from collections import deque
 from typing import Dict, Tuple, Set
 from Config import CFG
 from Room import Room
@@ -36,6 +37,7 @@ class Dungeon:
         self.rooms: Dict[Tuple[int, int], Room] = {}
         self.explored: Set[Tuple[int, int]] = set()
         self.main_path: list[Tuple[int, int]] = []  # <<< NUEVO: orden del camino principal
+        self.depth_map: Dict[Tuple[int, int], int] = {}
 
 
         # 1) Camino principal
@@ -47,7 +49,10 @@ class Dungeon:
         # 3) Definir puertas según vecinos + tallar corredores
         self._link_neighbors_and_carve()
 
-        # <<< NUEVO: ubicar la tienda en la mitad del camino principal
+        # 4) Calcular profundidad (distancia en pasos desde el inicio)
+        self._build_depth_map()
+
+        # <<< NUEVO: ubicar la tienda cerca del inicio del camino principal
         self._place_shop_room()
 
 
@@ -71,6 +76,11 @@ class Dungeon:
         if (ni, nj) in self.rooms:
             self.i, self.j = ni, nj
             self.explored.add((self.i, self.j))
+    def room_depth(self, pos: Tuple[int, int] | None = None) -> int:
+        """Devuelve la profundidad (pasos desde el inicio) para la sala dada."""
+        if pos is None:
+            pos = (self.i, self.j)
+        return self.depth_map.get(pos, 0)
 
     def entry_position(self, came_from: str, pw: int, ph: int) -> tuple[float, float]:
         # reutiliza tu lógica actual (Dungeon no necesita cambiarla)
@@ -204,6 +214,25 @@ class Dungeon:
             room.doors["E"] = (x+1, y) in self.rooms
             # Corredores visuales
             room.carve_corridors(width_tiles=2, length_tiles=3)
+            
+    def _build_depth_map(self) -> None:
+        """BFS desde la sala inicial para asignar una profundidad a cada habitación."""
+        self.depth_map = {}
+        start = self.start
+        if start not in self.rooms:
+            return
+
+        queue = deque([(start, 0)])
+        visited: Set[Tuple[int, int]] = {start}
+
+        while queue:
+            (x, y), depth = queue.popleft()
+            self.depth_map[(x, y)] = depth
+            for dx, dy in DIRS.values():
+                nx, ny = x + dx, y + dy
+                if (nx, ny) in self.rooms and (nx, ny) not in visited:
+                    visited.add((nx, ny))
+                    queue.append(((nx, ny), depth + 1))        
     def _place_shop_room(self) -> None:
         """
         Marca como 'shop' la sala ubicada aproximadamente a mitad del camino principal.
