@@ -65,7 +65,7 @@ class Enemy(Entity):
             self._update_chase(dt, room, dx, dy)
 
     def maybe_shoot(self, dt: float, player, room, out_bullets) -> None:
-        """Por defecto, los enemigos base NO disparan."""
+        """Subclases implementan si necesitan disparar."""
         return
 
     # ---------- estados ----------
@@ -119,20 +119,6 @@ class FastChaserEnemy(Enemy):
         pygame.draw.rect(surf, color, self.rect())
 
 
-class TankEnemy(Enemy):
-    """Lento, mucha vida."""
-    def __init__(self, x, y):
-        super().__init__(x, y, hp=9, gold_reward=12)
-        self.chase_speed  = 30.0
-        self.wander_speed = 18.0
-        self.detect_radius = 240.0
-        self.lose_radius   = 260.0
-
-    def draw(self, surf):
-        color = (255, 0, 0) if self.state == CHASE else (255, 0, 0)
-        pygame.draw.rect(surf, color, self.rect())
-
-
 class ShooterEnemy(Enemy):
     """Dispara si te ve (LoS) y estás en rango."""
     def __init__(self, x, y):
@@ -181,4 +167,112 @@ class ShooterEnemy(Enemy):
 
     def draw(self, surf):
         color = (0, 0, 255) if self.state == CHASE else (0, 0, 255)
+        pygame.draw.rect(surf, color, self.rect())
+
+
+class BasicEnemy(Enemy):
+    """Enemigo común que dispara lentamente mientras avanza."""
+
+    def __init__(self, x, y):
+        super().__init__(x, y, hp=3, gold_reward=5)
+        self.fire_cooldown = 1.6
+        self._fire_timer = 0.0
+        self.fire_range = 210.0
+        self.bullet_speed = 170.0
+
+    def update(self, dt, player, room):
+        super().update(dt, player, room)
+        self._fire_timer = max(0.0, getattr(self, "_fire_timer", 0.0) - dt)
+
+    def maybe_shoot(self, dt, player, room, out_bullets) -> None:
+        if getattr(self, "_fire_timer", 0.0) > 0.0:
+            return
+
+        ex, ey = self._center()
+        px, py = (player.x + player.w/2, player.y + player.h/2)
+        dx, dy = (px - ex), (py - ey)
+        dist = math.hypot(dx, dy)
+        if self.state != CHASE or dist > self.fire_range:
+            return
+        if not room.has_line_of_sight(ex, ey, px, py):
+            return
+
+        if dist > 0:
+            dx, dy = dx/dist, dy/dist
+        spawn_x = ex + dx * 6
+        spawn_y = ey + dy * 6
+        bullet = Projectile(
+            spawn_x, spawn_y, dx, dy,
+            speed=self.bullet_speed, radius=3, color=(240, 200, 120)
+        )
+        if hasattr(out_bullets, "add"):
+            out_bullets.add(bullet)
+        else:
+            out_bullets.append(bullet)
+        self._fire_timer = self.fire_cooldown
+
+    def draw(self, surf):
+        color = (255, 255, 0) if self.state == CHASE else (255, 255, 0)
+        pygame.draw.rect(surf, color, self.rect())
+
+
+class TankEnemy(Enemy):
+    """Lento, mucha vida y dispara ráfagas estilo escopeta."""
+
+    def __init__(self, x, y):
+        super().__init__(x, y, hp=9, gold_reward=12)
+        self.chase_speed  = 30.0
+        self.wander_speed = 18.0
+        self.detect_radius = 240.0
+        self.lose_radius   = 260.0
+
+        self.fire_cooldown = 3.5
+        self._fire_timer = 0.0
+        self.fire_range = 260.0
+        self.bullet_speed = 160.0
+        self.pellets = 5
+        self.spread_radians = math.radians(18)
+
+    def update(self, dt, player, room):
+        super().update(dt, player, room)
+        self._fire_timer = max(0.0, getattr(self, "_fire_timer", 0.0) - dt)
+
+    def maybe_shoot(self, dt, player, room, out_bullets) -> None:
+        if getattr(self, "_fire_timer", 0.0) > 0.0:
+            return
+
+        ex, ey = self._center()
+        px, py = (player.x + player.w/2, player.y + player.h/2)
+        dx, dy = (px - ex), (py - ey)
+        dist = math.hypot(dx, dy)
+        if self.state != CHASE or dist > self.fire_range:
+            return
+        if not room.has_line_of_sight(ex, ey, px, py):
+            return
+
+        if dist > 0:
+            dx, dy = dx/dist, dy/dist
+
+        base_angle = math.atan2(dy, dx)
+        half = (self.pellets - 1) / 2.0
+        for i in range(self.pellets):
+            offset = (i - half)
+            angle = base_angle + offset * (self.spread_radians / max(half, 1))
+            dir_x = math.cos(angle)
+            dir_y = math.sin(angle)
+            spawn_x = ex + dir_x * 8
+            spawn_y = ey + dir_y * 8
+            bullet = Projectile(
+                spawn_x, spawn_y, dir_x, dir_y,
+                speed=self.bullet_speed, radius=3, color=(255, 120, 90)
+            )
+            if hasattr(out_bullets, "add"):
+                out_bullets.add(bullet)
+            else:
+                out_bullets.append(bullet)
+
+        self._fire_timer = self.fire_cooldown
+
+    def draw(self, surf):
+        color = (255, 0, 0) if self.state == CHASE else (255, 0, 0)
         pygame.draw.rect(surf, color, self.rect())

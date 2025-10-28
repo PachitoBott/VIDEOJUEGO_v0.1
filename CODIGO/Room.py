@@ -4,7 +4,7 @@ from Config import CFG
 from Enemy import Enemy
 # arriba de Room.py
 import random
-from Enemy import Enemy, FastChaserEnemy, TankEnemy, ShooterEnemy
+from Enemy import Enemy, FastChaserEnemy, TankEnemy, ShooterEnemy, BasicEnemy
 import Enemy as enemy_mod  # <- para usar enemy_mod.WANDER
 
 
@@ -267,7 +267,7 @@ class Room:
 
             r = random.random()
             if r < 0.5:
-                e = Enemy(px, py)
+                e = BasicEnemy(px, py)
             elif r < 0.75:
                 e = ShooterEnemy(px, py)
             elif r < 0.9:
