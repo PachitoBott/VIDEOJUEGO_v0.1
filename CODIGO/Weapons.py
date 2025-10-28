@@ -23,9 +23,10 @@ class WeaponSpec:
 class Weapon:
     """Instancia runtime de un arma concreta."""
 
-    def __init__(self, spec: WeaponSpec) -> None:
+    def __init__(self, spec: WeaponSpec, cooldown_scale: float = 1.0) -> None:
         self.spec = spec
         self._cooldown = 0.0
+        self._cooldown_scale = max(0.05, cooldown_scale)
 
     # ------------------------- Temporización -------------------------
     def tick(self, dt: float) -> None:
@@ -73,8 +74,13 @@ class Weapon:
                 )
             )
 
-        self._cooldown = self.spec.cooldown
+        self._cooldown = self.spec.cooldown * self._cooldown_scale
         return bullets
+
+    # ----------------------- Ajustes dinámicos -----------------------
+    def set_cooldown_scale(self, cooldown_scale: float) -> None:
+        """Permite modificar el multiplicador de recarga en runtime."""
+        self._cooldown_scale = max(0.05, cooldown_scale)
 
 
 class WeaponFactory:
@@ -101,14 +107,37 @@ class WeaponFactory:
                 spread_deg=3.0,
                 bullet_speed=380.0,
             ),
+            "arcane_salvo": WeaponSpec(
+                weapon_id="arcane_salvo",
+                cooldown=0.55,
+                spread_deg=32.0,
+                bullet_speed=300.0,
+                offsets=(-12.0, -6.0, 0.0, 6.0, 12.0),
+                projectile_radius=4,
+            ),
+            "pulse_rifle": WeaponSpec(
+                weapon_id="pulse_rifle",
+                cooldown=0.08,
+                spread_deg=1.5,
+                bullet_speed=410.0,
+            ),
+            "tesla_gloves": WeaponSpec(
+                weapon_id="tesla_gloves",
+                cooldown=0.18,
+                spread_deg=24.0,
+                bullet_speed=260.0,
+                projectile_radius=5,
+                offsets=(-4.0, 4.0),
+                forward_spawn=4.0,
+            ),
         }
 
     def __contains__(self, weapon_id: str) -> bool:
         return weapon_id in self._registry
 
-    def create(self, weapon_id: str) -> Weapon:
+    def create(self, weapon_id: str, *, cooldown_scale: float = 1.0) -> Weapon:
         spec = self._registry[weapon_id]
-        return Weapon(spec)
+        return Weapon(spec, cooldown_scale=cooldown_scale)
 
     def ids(self) -> Iterable[str]:
         return self._registry.keys()

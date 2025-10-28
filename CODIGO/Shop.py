@@ -2,15 +2,20 @@
 import pygame
 
 class Shop:
-    WIDTH, HEIGHT = 320, 180
+    WIDTH, HEIGHT = 320, 240
 
     def __init__(self, font=None):
         self.items = [
             # type: weapon|upgrade
             {"name": "Pistolas Dobles", "price": 50, "type": "weapon", "id": "dual_pistols"},
             {"name": "Rifle Ligero", "price": 65, "type": "weapon", "id": "light_rifle"},
+            {"name": "Escopeta Salva Arcana", "price": 80, "type": "weapon", "id": "arcane_salvo"},
+            {"name": "Rifle de Pulsos", "price": 70, "type": "weapon", "id": "pulse_rifle"},
+            {"name": "Guantes Tesla", "price": 60, "type": "weapon", "id": "tesla_gloves"},
             {"name": "Aumento de Vida (+1)", "price": 30, "type": "upgrade", "id": "hp_up"},
             {"name": "Aumento de Velocidad (+5%)", "price": 25, "type": "upgrade", "id": "spd_up"},
+            {"name": "Blindaje Reforzado (+2)", "price": 55, "type": "upgrade", "id": "armor_up"},
+            {"name": "Talismán de Recarga (-10%)", "price": 45, "type": "upgrade", "id": "cdr_charm"},
         ]
         self.active = False
         self.selected = 0
@@ -115,6 +120,24 @@ class Shop:
         elif uid == "spd_up":
             speed = getattr(player, "speed", 1.0)
             setattr(player, "speed", speed * 1.05)
+        elif uid == "armor_up":
+            max_hp = getattr(player, "max_hp", getattr(player, "hp", 3))
+            hp = getattr(player, "hp", max_hp)
+            max_hp += 2
+            hp = min(hp + 2, max_hp)
+            setattr(player, "max_hp", max_hp)
+            setattr(player, "hp", hp)
+        elif uid == "cdr_charm":
+            current = getattr(player, "cooldown_scale", 1.0)
+            new_scale = max(0.4, current * 0.9)
+            setattr(player, "cooldown_scale", new_scale)
+            refresher = getattr(player, "refresh_weapon_modifiers", None)
+            if callable(refresher):
+                refresher()
+            elif hasattr(player, "weapon") and player.weapon:
+                setter = getattr(player.weapon, "set_cooldown_scale", None)
+                if callable(setter):
+                    setter(new_scale)
 
     def draw(self, surface):
         if not self.active:
