@@ -1,5 +1,5 @@
 import math
-from typing import Optional, TYPE_CHECKING, Set
+from typing import Optional, TYPE_CHECKING
 
 import pygame
 

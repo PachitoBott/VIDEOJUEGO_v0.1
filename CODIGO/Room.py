@@ -1,17 +1,13 @@
 import pygame
-from typing import Dict, Tuple, Optional, List, Type, TYPE_CHECKING, Set
+from typing import Dict, Tuple, Optional, List, Type
 from Config import CFG
 # arriba de Room.py
 import random
 from Enemy import Enemy, FastChaserEnemy, TankEnemy, ShooterEnemy, BasicEnemy
 import Enemy as enemy_mod  # <- para usar enemy_mod.WANDER
 
-if TYPE_CHECKING:  # pragma: no cover
-    from AssetPack import AssetPack
-
-
 # Plantillas de encuentros por umbral de dificultad.
-ENCOUNTER_TABLE: List[Tuple[int, List[List[Type[Enemy]]]]] = [
+ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
     (
         2,
         [
@@ -315,8 +311,7 @@ class Room:
         if not encounter_factories:
             self._spawn_done = True
             return
-
-        used_tiles: Set[Tuple[int, int]] = set()
+        used_tiles: set[tuple[int, int]] = set()
         for factory in encounter_factories:
             # Intentar encontrar una baldosa libre para ubicar al enemigo
             for _ in range(12):
@@ -328,8 +323,6 @@ class Room:
                 px = tx * ts + ts // 2 - 6
                 py = ty * ts + ts // 2 - 6
                 enemy = factory(px, py)
-                self._apply_enemy_assets(enemy)
-
                 # Variar encuentros: algunos enemigos comienzan patrullando
                 if random.random() < 0.35:
                     enemy._pick_wander()
@@ -350,7 +343,6 @@ class Room:
                 px = tx * ts + ts // 2 - 6
                 py = ty * ts + ts // 2 - 6
                 bonus = FastChaserEnemy(px, py)
-                self._apply_enemy_assets(bonus)
                 bonus._pick_wander()
                 bonus.state = enemy_mod.WANDER
                 self.enemies.append(bonus)
@@ -359,8 +351,21 @@ class Room:
         if self.enemies:
             self.locked = True
             self.cleared = False
-
         self._spawn_done = True
+
+    def _pick_encounter(self, difficulty: int) -> list[Type[Enemy]]:
+        """Selecciona una combinación de enemigos según la dificultad."""
+        tier = max(1, min(10, difficulty))
+        for threshold, templates in ENCOUNTER_TABLE:
+            if tier <= threshold:
+                return random.choice(templates)
+        return random.choice(ENCOUNTER_TABLE[-1][1]) if ENCOUNTER_TABLE else []
+
+    def _apply_enemy_assets(self, enemy: Enemy) -> None:
+        if not self.assets or not hasattr(enemy, "set_assets"):
+            return
+        sprite_id = CFG.enemy_sprite_id(enemy.__class__.__name__)
+        enemy.set_assets(self.assets, sprite_id=sprite_id)
 
     def _pick_encounter(self, difficulty: int) -> List[Type[Enemy]]:
         """Selecciona una combinación de enemigos según la dificultad."""

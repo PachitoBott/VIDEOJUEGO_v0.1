@@ -1,7 +1,6 @@
 import random
 from collections import deque
-from typing import Dict, Tuple, Set, Optional, TYPE_CHECKING, List
-
+from typing import Dict, Tuple, Set
 from Config import CFG
 from Room import Room
 
@@ -27,7 +26,7 @@ class Dungeon:
                  branch_chance: float = 0.45,
                  branch_min: int = 2,
                  branch_max: int = 4,
-                 seed: Optional[int] = None,
+                 seed: int | None = None,
                  asset_pack: Optional["AssetPack"] = None) -> None:
         if seed is not None:
             random.seed(seed)
@@ -42,7 +41,7 @@ class Dungeon:
         self.asset_pack = asset_pack
         self.rooms: Dict[Tuple[int, int], Room] = {}
         self.explored: Set[Tuple[int, int]] = set()
-        self.main_path: List[Tuple[int, int]] = []  # <<< NUEVO: orden del camino principal
+        self.main_path: list[Tuple[int, int]] = []  # <<< NUEVO: orden del camino principal
         self.depth_map: Dict[Tuple[int, int], int] = {}
 
 
@@ -82,6 +81,17 @@ class Dungeon:
         if (ni, nj) in self.rooms:
             self.i, self.j = ni, nj
             self.explored.add((self.i, self.j))
+    def room_depth(self, pos: Tuple[int, int] | None = None) -> int:
+        """Devuelve la profundidad (pasos desde el inicio) para la sala dada."""
+        if pos is None:
+            pos = (self.i, self.j)
+        return self.depth_map.get(pos, 0)
+
+    def room_depth(self, pos: Tuple[int, int] | None = None) -> int:
+        """Devuelve la profundidad (pasos desde el inicio) para la sala dada."""
+        if pos is None:
+            pos = (self.i, self.j)
+        return self.depth_map.get(pos, 0)
 
     def room_depth(self, pos: Optional[Tuple[int, int]] = None) -> int:
         """Devuelve la profundidad (pasos desde el inicio) para la sala dada."""
@@ -221,7 +231,7 @@ class Dungeon:
             room.doors["E"] = (x+1, y) in self.rooms
             # Corredores visuales
             room.carve_corridors(width_tiles=2, length_tiles=3)
-
+            
     def _build_depth_map(self) -> None:
         """BFS desde la sala inicial para asignar una profundidad a cada habitación."""
         self.depth_map = {}
@@ -239,7 +249,7 @@ class Dungeon:
                 nx, ny = x + dx, y + dy
                 if (nx, ny) in self.rooms and (nx, ny) not in visited:
                     visited.add((nx, ny))
-                    queue.append(((nx, ny), depth + 1))
+                    queue.append(((nx, ny), depth + 1))        
     def _place_shop_room(self) -> None:
         """
         Marca como 'shop' la sala ubicada aproximadamente al primer cuarto del camino principal.
