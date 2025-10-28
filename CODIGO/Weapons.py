@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, Iterable, List, Sequence, Tuple
 
 from Projectile import Projectile
 
@@ -35,7 +35,7 @@ class Weapon:
         return self._cooldown <= 0.0
 
     # ------------------------ Generación balas -----------------------
-    def fire(self, origin: tuple[float, float], target: tuple[float, float]) -> List[Projectile]:
+    def fire(self, origin: Tuple[float, float], target: Tuple[float, float]) -> List[Projectile]:
         if not self.can_fire():
             return []
 

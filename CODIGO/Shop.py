@@ -1,4 +1,6 @@
 # CODIGO/Shop.py
+from typing import List
+
 import pygame
 
 class Shop:
@@ -19,7 +21,7 @@ class Shop:
 
         # ventana
         self.rect = pygame.Rect(0, 0, self.WIDTH, self.HEIGHT)
-        self._item_hitboxes: list[pygame.Rect] = []
+        self._item_hitboxes: List[pygame.Rect] = []
 
     def open(self, cx, cy):
         self.active = True

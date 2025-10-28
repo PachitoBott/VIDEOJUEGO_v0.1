@@ -1,7 +1,12 @@
 import random
-from typing import Dict, Tuple, Set
+from collections import deque
+from typing import Dict, Tuple, Set, Optional, TYPE_CHECKING, List
+
 from Config import CFG
 from Room import Room
+
+if TYPE_CHECKING:  # pragma: no cover
+    from AssetPack import AssetPack
 
 Vec = Tuple[int, int]
 DIRS: Dict[str, Vec] = {"N": (0, -1), "S": (0, 1), "E": (1, 0), "W": (-1, 0)}
@@ -22,20 +27,23 @@ class Dungeon:
                  branch_chance: float = 0.45,
                  branch_min: int = 2,
                  branch_max: int = 4,
-                 seed: int | None = None) -> None:
+                 seed: Optional[int] = None,
+                 asset_pack: Optional["AssetPack"] = None) -> None:
         if seed is not None:
             random.seed(seed)
         if seed is None:
             seed = random.randrange(0, 10**9)
         self.seed = seed
-        random.seed(self.seed)    
+        random.seed(self.seed)
 
         self.grid_w, self.grid_h = grid_w, grid_h
         self.i, self.j = grid_w // 2, grid_h // 2  # posición actual (empieza centro)
         self.start = (self.i, self.j)
+        self.asset_pack = asset_pack
         self.rooms: Dict[Tuple[int, int], Room] = {}
         self.explored: Set[Tuple[int, int]] = set()
-        self.main_path: list[Tuple[int, int]] = []  # <<< NUEVO: orden del camino principal
+        self.main_path: List[Tuple[int, int]] = []  # <<< NUEVO: orden del camino principal
+        self.depth_map: Dict[Tuple[int, int], int] = {}
 
 
         # 1) Camino principal
@@ -47,7 +55,10 @@ class Dungeon:
         # 3) Definir puertas según vecinos + tallar corredores
         self._link_neighbors_and_carve()
 
-        # <<< NUEVO: ubicar la tienda en la mitad del camino principal
+        # 4) Calcular profundidad (distancia en pasos desde el inicio)
+        self._build_depth_map()
+
+        # <<< NUEVO: ubicar la tienda cerca del inicio del camino principal
         self._place_shop_room()
 
 
@@ -72,7 +83,13 @@ class Dungeon:
             self.i, self.j = ni, nj
             self.explored.add((self.i, self.j))
 
-    def entry_position(self, came_from: str, pw: int, ph: int) -> tuple[float, float]:
+    def room_depth(self, pos: Optional[Tuple[int, int]] = None) -> int:
+        """Devuelve la profundidad (pasos desde el inicio) para la sala dada."""
+        if pos is None:
+            pos = (self.i, self.j)
+        return self.depth_map.get(pos, 0)
+
+    def entry_position(self, came_from: str, pw: int, ph: int) -> Tuple[float, float]:
         # reutiliza tu lógica actual (Dungeon no necesita cambiarla)
         room = self.current_room
         rx, ry, rw, rh = room.bounds
@@ -92,12 +109,12 @@ class Dungeon:
     def _in_bounds(self, x: int, y: int) -> bool:
         return 0 <= x < self.grid_w and 0 <= y < self.grid_h
 
-    def _neighbors(self, x: int, y: int) -> list[Vec]:
+    def _neighbors(self, x: int, y: int) -> List[Vec]:
         return [(x+dx, y+dy) for dx,dy in DIRS.values() if self._in_bounds(x+dx, y+dy)]
 
     def _place_room(self, x: int, y: int) -> None:
         if (x, y) not in self.rooms:
-            r = Room()
+            r = Room(asset_pack=self.asset_pack)
             # Tamaños aleatorios dentro del rango
             rw = random.randint(CFG.ROOM_W_MIN, CFG.ROOM_W_MAX)
             rh = random.randint(CFG.ROOM_H_MIN, CFG.ROOM_H_MAX)
@@ -119,7 +136,7 @@ class Dungeon:
         self.main_path.clear()
         self.main_path.append((x, y))
 
-        last_dir: Vec | None = None
+        last_dir: Optional[Vec] = None
 
         for _ in range(max(1, length)):
             # Evitar retroceder inmediatamente para caminos más “limpios”
@@ -166,7 +183,7 @@ class Dungeon:
                 continue
             length = random.randint(min_len, max_len)
             x, y = ax, ay
-            last_dir: Vec | None = None
+            last_dir: Optional[Vec] = None
             for _ in range(length):
                 # preferir direcciones que se alejen del ancla para “ramificarse”
                 dirs = list(DIRS.values())
@@ -204,9 +221,28 @@ class Dungeon:
             room.doors["E"] = (x+1, y) in self.rooms
             # Corredores visuales
             room.carve_corridors(width_tiles=2, length_tiles=3)
+
+    def _build_depth_map(self) -> None:
+        """BFS desde la sala inicial para asignar una profundidad a cada habitación."""
+        self.depth_map = {}
+        start = self.start
+        if start not in self.rooms:
+            return
+
+        queue = deque([(start, 0)])
+        visited: Set[Tuple[int, int]] = {start}
+
+        while queue:
+            (x, y), depth = queue.popleft()
+            self.depth_map[(x, y)] = depth
+            for dx, dy in DIRS.values():
+                nx, ny = x + dx, y + dy
+                if (nx, ny) in self.rooms and (nx, ny) not in visited:
+                    visited.add((nx, ny))
+                    queue.append(((nx, ny), depth + 1))
     def _place_shop_room(self) -> None:
         """
-        Marca como 'shop' la sala ubicada aproximadamente a mitad del camino principal.
+        Marca como 'shop' la sala ubicada aproximadamente al primer cuarto del camino principal.
         Guarda también la posición en self.shop_pos para fácil acceso desde Game/Minimap.
         """
         if not self.main_path:
@@ -215,8 +251,8 @@ class Dungeon:
         # Selecciona un punto del camino principal que no sea el inicio.
         # Usa el orden del camino para mantener una ubicación consistente
         # pero evita repetidos (puede haber retrocesos en la generación).
-        unique_path: list[tuple[int, int]] = []
-        seen: set[tuple[int, int]] = set()
+        unique_path: List[Tuple[int, int]] = []
+        seen: Set[Tuple[int, int]] = set()
         for step in self.main_path:
             if step == self.start:
                 continue
@@ -232,8 +268,8 @@ class Dungeon:
                 return
             sx, sy = random.choice(candidates)
         else:
-            mid_idx = len(unique_path) // 2
-            sx, sy = unique_path[mid_idx]
+            quarter_idx = max(0, len(unique_path) // 4)
+            sx, sy = unique_path[quarter_idx]
 
         room = self.rooms.get((sx, sy))
         if not room:

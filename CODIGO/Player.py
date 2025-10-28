@@ -1,19 +1,26 @@
 import math
+from typing import Optional, TYPE_CHECKING, Set
+
 import pygame
 
 from Entity import Entity
 from Config import CFG
 from Weapons import WeaponFactory
 
+if TYPE_CHECKING:  # pragma: no cover - sólo para type checkers
+    from AssetPack import AssetPack
+
 
 class Player(Entity):
-    def __init__(self, x: float, y: float) -> None:
+    def __init__(self, x: float, y: float, asset_pack: Optional["AssetPack"] = None) -> None:
         super().__init__(x, y, w=12, h=12, speed=120.0)
         self.gold = 0
         self._weapon_factory = WeaponFactory()
-        self._owned_weapons: set[str] = set()
-        self.weapon_id: str | None = None
+        self._owned_weapons: Set[str] = set()
+        self.weapon_id: Optional[str] = None
         self.weapon = None
+        self.assets = asset_pack
+        self.sprite_id: Optional[str] = CFG.player_sprite_id()
         self.reset_loadout()
 
     def update(self, dt: float, room) -> None:
@@ -50,6 +57,12 @@ class Player(Entity):
                 out_projectiles.append(bullet)
 
     def draw(self, surf):
+        if self.assets:
+            sprite = self.assets.sprite(self.sprite_id)
+            if sprite:
+                rect = sprite.get_rect(center=(int(self.x + self.w / 2), int(self.y + self.h / 2)))
+                surf.blit(sprite, rect)
+                return
         pygame.draw.rect(surf, CFG.COLOR_PLAYER, self.rect())
 
     # ------------------------------------------------------------------
@@ -83,3 +96,9 @@ class Player(Entity):
     def _grant_weapon(self, weapon_id: str) -> None:
         if weapon_id in self._weapon_factory:
             self._owned_weapons.add(weapon_id)
+
+    # ------------------------------------------------------------------
+    def set_assets(self, asset_pack: Optional["AssetPack"]) -> None:
+        self.assets = asset_pack
+        if self.sprite_id is None:
+            self.sprite_id = CFG.player_sprite_id()
