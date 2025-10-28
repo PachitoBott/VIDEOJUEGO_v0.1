@@ -14,22 +14,58 @@ class Shop:
         ]
         self.active = False
         self.selected = 0
+        self.hover_index = None
         self.font = font or pygame.font.SysFont(None, 18)
 
         # ventana
         self.rect = pygame.Rect(0, 0, self.WIDTH, self.HEIGHT)
+        self._item_hitboxes: list[pygame.Rect] = []
 
     def open(self, cx, cy):
         self.active = True
         # centrar sobre el mundo
         self.rect.center = (cx, cy)
+        self.hover_index = None
 
     def close(self):
         self.active = False
+        self.hover_index = None
+
+    def update_hover(self, mouse_pos):
+        if not self.active:
+            self.hover_index = None
+            return
+        self.hover_index = None
+        for idx, rect in enumerate(self._item_hitboxes):
+            if rect.collidepoint(mouse_pos):
+                self.hover_index = idx
+                self.selected = idx
+                break
+
+    def handle_click(self, mouse_pos, player):
+        """Procesa un click izquierdo dentro de la tienda."""
+        if not self.active:
+            return False, ""
+
+        # Click fuera de la ventana = cerrar
+        if not self.rect.collidepoint(mouse_pos):
+            self.close()
+            return False, ""
+
+        for idx, rect in enumerate(self._item_hitboxes):
+            if rect.collidepoint(mouse_pos):
+                if self.selected != idx:
+                    self.selected = idx
+                    self.hover_index = idx
+                    return False, ""
+                return self.try_buy(player)
+
+        return False, ""
 
     def move_selection(self, dy):
         if not self.active: return
         self.selected = (self.selected + dy) % len(self.items)
+        self.hover_index = self.selected
 
     def try_buy(self, player):
         """Aplica compra si hay oro suficiente y devuelve (comprado: bool, msg: str)."""
@@ -74,7 +110,7 @@ class Shop:
             setattr(player, "speed", speed * 1.05)
 
     def draw(self, surface):
-        if not self.active: 
+        if not self.active:
             return
         # marco
         pygame.draw.rect(surface, (20, 20, 24), self.rect)
@@ -86,8 +122,23 @@ class Shop:
 
         # lista
         y = self.rect.y + 36
+        self._item_hitboxes = []
         for idx, it in enumerate(self.items):
-            line = f"{'>' if idx == self.selected else ' '} {it['name']}  -  {it['price']} oro"
-            txt = self.font.render(line, True, (230, 230, 230))
-            surface.blit(txt, (self.rect.x + 16, y))
+            item_rect = pygame.Rect(self.rect.x + 12, y - 4, self.rect.width - 24, 22)
+            self._item_hitboxes.append(item_rect)
+
+            is_selected = idx == self.selected
+            is_hover = idx == self.hover_index
+
+            if is_selected:
+                pygame.draw.rect(surface, (65, 60, 100), item_rect)
+            elif is_hover:
+                pygame.draw.rect(surface, (50, 45, 75), item_rect)
+
+            line = f"{it['name']}  -  {it['price']} oro"
+            color = (255, 240, 180) if is_selected else (235, 235, 235)
+            if is_hover and not is_selected:
+                color = (255, 255, 255)
+            txt = self.font.render(line, True, color)
+            surface.blit(txt, (self.rect.x + 18, y))
             y += 24
