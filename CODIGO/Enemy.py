@@ -128,7 +128,7 @@ class ShooterEnemy(Enemy):
         self.detect_radius = 220.0
         self.lose_radius   = 260.0
 
-        self.fire_cooldown = 1.25
+        self.fire_cooldown = 0.9
         self._fire_timer   = 0.0
         self.fire_range    = 260.0
         self.bullet_speed  = 280.0
@@ -203,7 +203,7 @@ class BasicEnemy(Enemy):
 
     def __init__(self, x, y):
         super().__init__(x, y, hp=3, gold_reward=5)
-        self.fire_cooldown = 1.1
+        self.fire_cooldown = 0.8
         self._fire_timer = 0.0
         self.fire_range = 210.0
         self.bullet_speed = 240.0
@@ -261,7 +261,7 @@ class TankEnemy(Enemy):
         self.detect_radius = 240.0
         self.lose_radius   = 260.0
 
-        self.fire_cooldown = 3.1
+        self.fire_cooldown = 2.75
         self._fire_timer = 0.0
         self.fire_range = 260.0
         self.bullet_speed = 190.0
