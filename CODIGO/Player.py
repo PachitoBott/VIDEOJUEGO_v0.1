@@ -15,18 +15,93 @@ class Player(Entity):
         self._owned_weapons: set[str] = set()
         self.weapon_id: str | None = None
         self.weapon = None
+
+        # --- Atributos de supervivencia y movilidad ---
+        self.max_hp = 3
+        self.hp = self.max_hp
+        self.invulnerable_timer = 0.0
+        self.post_hit_invulnerability = 0.45
+
+        self.sprint_multiplier = 1.35
+
+        self.dash_speed_multiplier = 3.25
+        self.dash_duration = 0.18
+        self.dash_cooldown = 0.75
+        self.dash_iframe_duration = self.dash_duration + 0.08
+
+        self._dash_timer = 0.0
+        self._dash_cooldown_timer = 0.0
+        self._dash_key_down = False
+        self._dash_dir = (0.0, -1.0)
+        self._last_move_dir = (0.0, -1.0)
+
         self.reset_loadout()
 
     def update(self, dt: float, room) -> None:
         keys = pygame.key.get_pressed()
+        self.invulnerable_timer = max(0.0, self.invulnerable_timer - dt)
+        self._dash_timer = max(0.0, self._dash_timer - dt)
+        self._dash_cooldown_timer = max(0.0, self._dash_cooldown_timer - dt)
+
         dx = (keys[pygame.K_d] or keys[pygame.K_RIGHT]) - (keys[pygame.K_a] or keys[pygame.K_LEFT])
         dy = (keys[pygame.K_s] or keys[pygame.K_DOWN]) - (keys[pygame.K_w] or keys[pygame.K_UP])
-        mag = math.hypot(dx, dy)
-        if mag > 0: dx, dy = dx / mag, dy / mag
-        self.move(dx, dy, dt, room)
+        input_mag = math.hypot(dx, dy)
+        if input_mag > 0:
+            dx, dy = dx / input_mag, dy / input_mag
+            self._last_move_dir = (dx, dy)
+
+        dash_pressed = keys[pygame.K_SPACE]
+        dash_just_pressed = dash_pressed and not self._dash_key_down
+        self._dash_key_down = dash_pressed
+
+        move_dx, move_dy = dx, dy
+        speed_scale = 1.0
+
+        dash_active = self._dash_timer > 0.0
+        if dash_active:
+            move_dx, move_dy = self._dash_dir
+            speed_scale = self.dash_speed_multiplier
+        else:
+            if dash_just_pressed and self._dash_cooldown_timer <= 0.0:
+                dash_dir = (dx, dy) if input_mag > 0 else self._last_move_dir
+                dash_mag = math.hypot(*dash_dir)
+                if dash_mag > 0:
+                    dash_dir = (dash_dir[0] / dash_mag, dash_dir[1] / dash_mag)
+                    self._dash_dir = dash_dir
+                    self._dash_timer = self.dash_duration
+                    move_dx, move_dy = dash_dir
+                    speed_scale = self.dash_speed_multiplier
+                    self._dash_cooldown_timer = self.dash_cooldown
+                    self.invulnerable_timer = max(self.invulnerable_timer, self.dash_iframe_duration)
+                    dash_active = True
+            if not dash_active and input_mag > 0:
+                if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
+                    speed_scale = self.sprint_multiplier
+
+        if move_dx != 0 or move_dy != 0:
+            mag = math.hypot(move_dx, move_dy)
+            if mag > 0:
+                move_dx /= mag
+                move_dy /= mag
+
+        self.move(move_dx * speed_scale, move_dy * speed_scale, dt, room)
 
         if self.weapon:
             self.weapon.tick(dt)
+
+    # ------------------------------------------------------------------
+    # Estado defensivo
+    # ------------------------------------------------------------------
+    def is_invulnerable(self) -> bool:
+        return self.invulnerable_timer > 0.0
+
+    def take_damage(self, amount: int) -> bool:
+        """Aplica daño al jugador si no está en iframes. Devuelve True si impactó."""
+        if amount <= 0 or self.is_invulnerable():
+            return False
+        self.hp = max(0, self.hp - amount)
+        self.invulnerable_timer = max(self.invulnerable_timer, self.post_hit_invulnerability)
+        return True
 
     def try_shoot(self, mouse_world_pos, out_projectiles) -> None:
         """Dispara hacia mouse si se pulsa y cooldown listo."""
@@ -60,6 +135,13 @@ class Player(Entity):
         """Restablece el arma inicial al comenzar una nueva partida."""
         self._owned_weapons.clear()
         self.cooldown_scale = 1.0
+        self.hp = self.max_hp
+        self.invulnerable_timer = 0.0
+        self._dash_timer = 0.0
+        self._dash_cooldown_timer = 0.0
+        self._dash_key_down = False
+        self._dash_dir = (0.0, -1.0)
+        self._last_move_dir = (0.0, -1.0)
         self._grant_weapon("short_rifle")
         self.equip_weapon("short_rifle")
 
