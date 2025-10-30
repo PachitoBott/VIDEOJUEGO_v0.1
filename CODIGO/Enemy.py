@@ -13,10 +13,11 @@ class Enemy(Entity):
         self.hp = hp
         self.gold_reward = gold_reward
 
+
         # Estados y radios
         self.state = IDLE
-        self.detect_radius = 140.0
-        self.lose_radius   = 160.0
+        self.detect_radius = 110.0
+        self.lose_radius   = 130.0
         self._los_grace    = 0.35   # “gracia” sin LoS antes de soltar persecución
 
         # Velocidades
@@ -64,8 +65,8 @@ class Enemy(Entity):
         elif self.state == CHASE:
             self._update_chase(dt, room, dx, dy)
 
-    def maybe_shoot(self, dt: float, player, room, out_bullets) -> None:
-        """Subclases implementan si necesitan disparar."""
+    def maybe_shoot(self, dt: float, player, room, out_bullets: list) -> None:
+        """Por defecto, los enemigos base NO disparan."""
         return
 
     # ---------- estados ----------
@@ -109,13 +110,27 @@ class FastChaserEnemy(Enemy):
     """Rápido, poca vida."""
     def __init__(self, x, y):
         super().__init__(x, y, hp=2, gold_reward=7)
-        self.chase_speed  = 130.0
+        self.chase_speed  = 100.0
         self.wander_speed = 80.0
-        self.detect_radius = 150.0
-        self.lose_radius   = 170.0
+        self.detect_radius = 100.0
+        self.lose_radius   = 150.0
 
     def draw(self, surf):
         color = (0, 255, 0) if self.state == CHASE else (0, 255, 0)
+        pygame.draw.rect(surf, color, self.rect())
+
+
+class TankEnemy(Enemy):
+    """Lento, mucha vida."""
+    def __init__(self, x, y):
+        super().__init__(x, y, hp=9, gold_reward=12)
+        self.chase_speed  = 30.0
+        self.wander_speed = 18.0
+        self.detect_radius = 240.0
+        self.lose_radius   = 260.0
+
+    def draw(self, surf):
+        color = (255, 0, 0) if self.state == CHASE else (255, 0, 0)
         pygame.draw.rect(surf, color, self.rect())
 
 
@@ -131,13 +146,13 @@ class ShooterEnemy(Enemy):
         self.fire_cooldown = 1.25
         self._fire_timer   = 0.0
         self.fire_range    = 260.0
-        self.bullet_speed  = 280.0
+        self.bullet_speed  = 200.0
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
         self._fire_timer = max(0.0, self._fire_timer - dt)
 
-    def maybe_shoot(self, dt, player, room, out_bullets) -> None:
+    def maybe_shoot(self, dt, player, room, out_bullets: list) -> None:
         if self._fire_timer > 0.0:
             return
         # Solo dispara si está en CHASE, hay LoS y dentro de rango
