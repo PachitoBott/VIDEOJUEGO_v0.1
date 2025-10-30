@@ -13,10 +13,11 @@ class Enemy(Entity):
         self.hp = hp
         self.gold_reward = gold_reward
 
+
         # Estados y radios
         self.state = IDLE
-        self.detect_radius = 140.0
-        self.lose_radius   = 160.0
+        self.detect_radius = 110.0
+        self.lose_radius   = 130.0
         self._los_grace    = 0.35   # “gracia” sin LoS antes de soltar persecución
 
         # Velocidades
@@ -64,8 +65,8 @@ class Enemy(Entity):
         elif self.state == CHASE:
             self._update_chase(dt, room, dx, dy)
 
-    def maybe_shoot(self, dt: float, player, room, out_bullets) -> None:
-        """Subclases implementan si necesitan disparar."""
+    def maybe_shoot(self, dt: float, player, room, out_bullets: list) -> None:
+        """Por defecto, los enemigos base NO disparan."""
         return
 
     # ---------- estados ----------
@@ -109,13 +110,27 @@ class FastChaserEnemy(Enemy):
     """Rápido, poca vida."""
     def __init__(self, x, y):
         super().__init__(x, y, hp=2, gold_reward=7)
-        self.chase_speed  = 130.0
+        self.chase_speed  = 100.0
         self.wander_speed = 80.0
-        self.detect_radius = 150.0
-        self.lose_radius   = 170.0
+        self.detect_radius = 100.0
+        self.lose_radius   = 150.0
 
     def draw(self, surf):
         color = (0, 255, 0) if self.state == CHASE else (0, 255, 0)
+        pygame.draw.rect(surf, color, self.rect())
+
+
+class TankEnemy(Enemy):
+    """Lento, mucha vida."""
+    def __init__(self, x, y):
+        super().__init__(x, y, hp=9, gold_reward=12)
+        self.chase_speed  = 30.0
+        self.wander_speed = 18.0
+        self.detect_radius = 240.0
+        self.lose_radius   = 260.0
+
+    def draw(self, surf):
+        color = (255, 0, 0) if self.state == CHASE else (255, 0, 0)
         pygame.draw.rect(surf, color, self.rect())
 
 
@@ -131,13 +146,13 @@ class ShooterEnemy(Enemy):
         self.fire_cooldown = 0.9
         self._fire_timer   = 0.0
         self.fire_range    = 260.0
-        self.bullet_speed  = 280.0
+        self.bullet_speed  = 200.0
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
         self._fire_timer = max(0.0, self._fire_timer - dt)
 
-    def maybe_shoot(self, dt, player, room, out_bullets) -> None:
+    def maybe_shoot(self, dt, player, room, out_bullets: list) -> None:
         if self._fire_timer > 0.0:
             return
         # Solo dispara si está en CHASE, hay LoS y dentro de rango
@@ -150,185 +165,17 @@ class ShooterEnemy(Enemy):
         if not room.has_line_of_sight(ex, ey, px, py):
             return
 
-        # Normaliza y dispara ráfagas en abanico
+        # Normaliza y dispara
         if dist > 0:
             dx, dy = dx/dist, dy/dist
-
-        base_angle = math.atan2(dy, dx)
-        spread = math.radians(35)
-        burst = 5
-        center = (burst - 1) / 2.0
-        for i in range(burst):
-            offset = (i - center)
-            angle = base_angle + (spread * offset / max(center, 1))
-            dir_x = math.cos(angle)
-            dir_y = math.sin(angle)
-            spawn_x = ex + dir_x * 8
-            spawn_y = ey + dir_y * 8
-            bullet = Projectile(
-                spawn_x, spawn_y, dir_x, dir_y,
-                speed=self.bullet_speed, radius=3, color=(255, 90, 90)
-            )
-            if hasattr(out_bullets, "add"):
-                out_bullets.add(bullet)
-            else:
-                out_bullets.append(bullet)
-
-        # Anillo radial lento para saturar la sala
-        radial = 8
-        radial_speed = self.bullet_speed * 0.55
-        for j in range(radial):
-            angle = base_angle + j * (math.tau / radial)
-            dir_x = math.cos(angle)
-            dir_y = math.sin(angle)
-            spawn_x = ex + dir_x * 10
-            spawn_y = ey + dir_y * 10
-            bullet = Projectile(
-                spawn_x, spawn_y, dir_x, dir_y,
-                speed=radial_speed, radius=3, color=(200, 70, 180)
-            )
-            if hasattr(out_bullets, "add"):
-                out_bullets.add(bullet)
-            else:
-                out_bullets.append(bullet)
+        spawn_x = ex + dx * 8,
+        spawn_y = ey + dy * 8
+        out_bullets.append(Projectile(
+            spawn_x, spawn_y, dx, dy,
+            speed=self.bullet_speed, radius=3, color=(255, 90, 90)
+        ))
         self._fire_timer = self.fire_cooldown
 
     def draw(self, surf):
         color = (0, 0, 255) if self.state == CHASE else (0, 0, 255)
-        pygame.draw.rect(surf, color, self.rect())
-
-
-class BasicEnemy(Enemy):
-    """Enemigo común que dispara lentamente mientras avanza."""
-
-    def __init__(self, x, y):
-        super().__init__(x, y, hp=3, gold_reward=5)
-        self.fire_cooldown = 0.8
-        self._fire_timer = 0.0
-        self.fire_range = 210.0
-        self.bullet_speed = 240.0
-
-    def update(self, dt, player, room):
-        super().update(dt, player, room)
-        self._fire_timer = max(0.0, getattr(self, "_fire_timer", 0.0) - dt)
-
-    def maybe_shoot(self, dt, player, room, out_bullets) -> None:
-        if getattr(self, "_fire_timer", 0.0) > 0.0:
-            return
-
-        ex, ey = self._center()
-        px, py = (player.x + player.w/2, player.y + player.h/2)
-        dx, dy = (px - ex), (py - ey)
-        dist = math.hypot(dx, dy)
-        if self.state != CHASE or dist > self.fire_range:
-            return
-        if not room.has_line_of_sight(ex, ey, px, py):
-            return
-
-        if dist > 0:
-            dx, dy = dx/dist, dy/dist
-
-        base_angle = math.atan2(dy, dx)
-        offsets = (-0.18, 0.0, 0.18)
-        for offset in offsets:
-            angle = base_angle + offset
-            dir_x = math.cos(angle)
-            dir_y = math.sin(angle)
-            spawn_x = ex + dir_x * 6
-            spawn_y = ey + dir_y * 6
-            bullet = Projectile(
-                spawn_x, spawn_y, dir_x, dir_y,
-                speed=self.bullet_speed, radius=3, color=(240, 200, 120)
-            )
-            if hasattr(out_bullets, "add"):
-                out_bullets.add(bullet)
-            else:
-                out_bullets.append(bullet)
-        self._fire_timer = self.fire_cooldown
-
-    def draw(self, surf):
-        color = (255, 255, 0) if self.state == CHASE else (255, 255, 0)
-        pygame.draw.rect(surf, color, self.rect())
-
-
-class TankEnemy(Enemy):
-    """Lento, mucha vida y dispara ráfagas estilo escopeta."""
-
-    def __init__(self, x, y):
-        super().__init__(x, y, hp=9, gold_reward=12)
-        self.chase_speed  = 30.0
-        self.wander_speed = 18.0
-        self.detect_radius = 240.0
-        self.lose_radius   = 260.0
-
-        self.fire_cooldown = 2.75
-        self._fire_timer = 0.0
-        self.fire_range = 260.0
-        self.bullet_speed = 190.0
-        self.pellets = 7
-        self.spread_radians = math.radians(28)
-
-    def update(self, dt, player, room):
-        super().update(dt, player, room)
-        self._fire_timer = max(0.0, getattr(self, "_fire_timer", 0.0) - dt)
-
-    def maybe_shoot(self, dt, player, room, out_bullets) -> None:
-        if getattr(self, "_fire_timer", 0.0) > 0.0:
-            return
-
-        ex, ey = self._center()
-        px, py = (player.x + player.w/2, player.y + player.h/2)
-        dx, dy = (px - ex), (py - ey)
-        dist = math.hypot(dx, dy)
-        if self.state != CHASE or dist > self.fire_range:
-            return
-        if not room.has_line_of_sight(ex, ey, px, py):
-            return
-
-        if dist > 0:
-            dx, dy = dx/dist, dy/dist
-
-        base_angle = math.atan2(dy, dx)
-        half = (self.pellets - 1) / 2.0
-        fired_any = False
-        for i in range(self.pellets):
-            offset = (i - half)
-            angle = base_angle + offset * (self.spread_radians / max(half, 1))
-            dir_x = math.cos(angle)
-            dir_y = math.sin(angle)
-            spawn_x = ex + dir_x * 8
-            spawn_y = ey + dir_y * 8
-            bullet = Projectile(
-                spawn_x, spawn_y, dir_x, dir_y,
-                speed=self.bullet_speed, radius=3, color=(255, 120, 90)
-            )
-            fired_any = True
-            if hasattr(out_bullets, "add"):
-                out_bullets.add(bullet)
-            else:
-                out_bullets.append(bullet)
-
-        # Anillo secundario para llenar el cuarto (tiro en cruz)
-        if fired_any:
-            ortho_angle = base_angle + math.pi / 2
-            ortho_dirs = (
-                (math.cos(ortho_angle), math.sin(ortho_angle)),
-                (math.cos(ortho_angle + math.pi), math.sin(ortho_angle + math.pi)),
-            )
-            for dir_x, dir_y in ortho_dirs:
-                spawn_x = ex + dir_x * 8
-                spawn_y = ey + dir_y * 8
-                bullet = Projectile(
-                    spawn_x, spawn_y, dir_x, dir_y,
-                    speed=self.bullet_speed * 0.9, radius=3, color=(255, 160, 120)
-                )
-                if hasattr(out_bullets, "add"):
-                    out_bullets.add(bullet)
-                else:
-                    out_bullets.append(bullet)
-
-        self._fire_timer = self.fire_cooldown
-
-    def draw(self, surf):
-        color = (255, 0, 0) if self.state == CHASE else (255, 0, 0)
         pygame.draw.rect(surf, color, self.rect())
