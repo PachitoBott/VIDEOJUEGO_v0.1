@@ -13,42 +13,46 @@ ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
         [
             [BasicEnemy],
             [BasicEnemy, BasicEnemy],
+            [FastChaserEnemy],
             [BasicEnemy, FastChaserEnemy],
+            [BasicEnemy, BasicEnemy, FastChaserEnemy],
         ],
     ),
     (
         4,
         [
             [BasicEnemy, BasicEnemy, FastChaserEnemy],
-            [BasicEnemy, ShooterEnemy],
-            [ShooterEnemy, FastChaserEnemy],
+            [FastChaserEnemy, FastChaserEnemy],
+            [BasicEnemy, FastChaserEnemy, FastChaserEnemy],
+            [BasicEnemy, BasicEnemy, BasicEnemy],
         ],
     ),
     (
         6,
         [
-            [BasicEnemy, ShooterEnemy, FastChaserEnemy],
-            [BasicEnemy, BasicEnemy, ShooterEnemy],
-            [FastChaserEnemy, FastChaserEnemy, ShooterEnemy],
             [TankEnemy],
+            [TankEnemy, BasicEnemy],
+            [TankEnemy, FastChaserEnemy],
+            [BasicEnemy, BasicEnemy, TankEnemy],
         ],
     ),
     (
         8,
         [
-            [TankEnemy, FastChaserEnemy],
-            [ShooterEnemy, ShooterEnemy, FastChaserEnemy],
-            [BasicEnemy, TankEnemy, ShooterEnemy],
-            [BasicEnemy, BasicEnemy, FastChaserEnemy, FastChaserEnemy],
+            [TankEnemy, TankEnemy],
+            [TankEnemy, FastChaserEnemy, FastChaserEnemy],
+            [TankEnemy, BasicEnemy, FastChaserEnemy],
+            [TankEnemy, TankEnemy, BasicEnemy],
         ],
     ),
     (
         10,
         [
-            [TankEnemy, ShooterEnemy, FastChaserEnemy],
-            [TankEnemy, TankEnemy],
+            [ShooterEnemy, ShooterEnemy, FastChaserEnemy],
+            [ShooterEnemy, TankEnemy, FastChaserEnemy],
+            [ShooterEnemy, ShooterEnemy, TankEnemy],
+            [ShooterEnemy, BasicEnemy, TankEnemy, FastChaserEnemy],
             [ShooterEnemy, ShooterEnemy, FastChaserEnemy, FastChaserEnemy],
-            [BasicEnemy, ShooterEnemy, TankEnemy, FastChaserEnemy],
         ],
     ),
 ]

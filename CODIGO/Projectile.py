@@ -10,7 +10,7 @@ class Projectile:
         self.speed = speed
         self.radius = radius
         self.alive = True
-        self.ttl = 2.0
+        self.ttl = 3.5
         self.color = color
 
     def rect(self) -> pygame.Rect:
