@@ -128,7 +128,7 @@ class ShooterEnemy(Enemy):
         self.detect_radius = 220.0
         self.lose_radius   = 260.0
 
-        self.fire_cooldown = 1.5
+        self.fire_cooldown = 1.25
         self._fire_timer   = 0.0
         self.fire_range    = 260.0
         self.bullet_speed  = 280.0
@@ -150,19 +150,47 @@ class ShooterEnemy(Enemy):
         if not room.has_line_of_sight(ex, ey, px, py):
             return
 
-        # Normaliza y dispara
+        # Normaliza y dispara ráfagas en abanico
         if dist > 0:
             dx, dy = dx/dist, dy/dist
-        spawn_x = ex + dx * 8
-        spawn_y = ey + dy * 8
-        bullet = Projectile(
-            spawn_x, spawn_y, dx, dy,
-            speed=self.bullet_speed, radius=3, color=(255, 90, 90)
-        )
-        if hasattr(out_bullets, "add"):
-            out_bullets.add(bullet)
-        else:
-            out_bullets.append(bullet)
+
+        base_angle = math.atan2(dy, dx)
+        spread = math.radians(35)
+        burst = 5
+        center = (burst - 1) / 2.0
+        for i in range(burst):
+            offset = (i - center)
+            angle = base_angle + (spread * offset / max(center, 1))
+            dir_x = math.cos(angle)
+            dir_y = math.sin(angle)
+            spawn_x = ex + dir_x * 8
+            spawn_y = ey + dir_y * 8
+            bullet = Projectile(
+                spawn_x, spawn_y, dir_x, dir_y,
+                speed=self.bullet_speed, radius=3, color=(255, 90, 90)
+            )
+            if hasattr(out_bullets, "add"):
+                out_bullets.add(bullet)
+            else:
+                out_bullets.append(bullet)
+
+        # Anillo radial lento para saturar la sala
+        radial = 8
+        radial_speed = self.bullet_speed * 0.55
+        for j in range(radial):
+            angle = base_angle + j * (math.tau / radial)
+            dir_x = math.cos(angle)
+            dir_y = math.sin(angle)
+            spawn_x = ex + dir_x * 10
+            spawn_y = ey + dir_y * 10
+            bullet = Projectile(
+                spawn_x, spawn_y, dir_x, dir_y,
+                speed=radial_speed, radius=3, color=(200, 70, 180)
+            )
+            if hasattr(out_bullets, "add"):
+                out_bullets.add(bullet)
+            else:
+                out_bullets.append(bullet)
         self._fire_timer = self.fire_cooldown
 
     def draw(self, surf):
@@ -175,10 +203,10 @@ class BasicEnemy(Enemy):
 
     def __init__(self, x, y):
         super().__init__(x, y, hp=3, gold_reward=5)
-        self.fire_cooldown = 1.2
+        self.fire_cooldown = 1.1
         self._fire_timer = 0.0
         self.fire_range = 210.0
-        self.bullet_speed = 220.0
+        self.bullet_speed = 240.0
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
@@ -199,16 +227,23 @@ class BasicEnemy(Enemy):
 
         if dist > 0:
             dx, dy = dx/dist, dy/dist
-        spawn_x = ex + dx * 6
-        spawn_y = ey + dy * 6
-        bullet = Projectile(
-            spawn_x, spawn_y, dx, dy,
-            speed=self.bullet_speed, radius=3, color=(240, 200, 120)
-        )
-        if hasattr(out_bullets, "add"):
-            out_bullets.add(bullet)
-        else:
-            out_bullets.append(bullet)
+
+        base_angle = math.atan2(dy, dx)
+        offsets = (-0.18, 0.0, 0.18)
+        for offset in offsets:
+            angle = base_angle + offset
+            dir_x = math.cos(angle)
+            dir_y = math.sin(angle)
+            spawn_x = ex + dir_x * 6
+            spawn_y = ey + dir_y * 6
+            bullet = Projectile(
+                spawn_x, spawn_y, dir_x, dir_y,
+                speed=self.bullet_speed, radius=3, color=(240, 200, 120)
+            )
+            if hasattr(out_bullets, "add"):
+                out_bullets.add(bullet)
+            else:
+                out_bullets.append(bullet)
         self._fire_timer = self.fire_cooldown
 
     def draw(self, surf):
@@ -226,12 +261,12 @@ class TankEnemy(Enemy):
         self.detect_radius = 240.0
         self.lose_radius   = 260.0
 
-        self.fire_cooldown = 4
+        self.fire_cooldown = 3.1
         self._fire_timer = 0.0
         self.fire_range = 260.0
-        self.bullet_speed = 160.0
-        self.pellets = 5
-        self.spread_radians = math.radians(18)
+        self.bullet_speed = 190.0
+        self.pellets = 7
+        self.spread_radians = math.radians(28)
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
@@ -255,6 +290,7 @@ class TankEnemy(Enemy):
 
         base_angle = math.atan2(dy, dx)
         half = (self.pellets - 1) / 2.0
+        fired_any = False
         for i in range(self.pellets):
             offset = (i - half)
             angle = base_angle + offset * (self.spread_radians / max(half, 1))
@@ -266,10 +302,30 @@ class TankEnemy(Enemy):
                 spawn_x, spawn_y, dir_x, dir_y,
                 speed=self.bullet_speed, radius=3, color=(255, 120, 90)
             )
+            fired_any = True
             if hasattr(out_bullets, "add"):
                 out_bullets.add(bullet)
             else:
                 out_bullets.append(bullet)
+
+        # Anillo secundario para llenar el cuarto (tiro en cruz)
+        if fired_any:
+            ortho_angle = base_angle + math.pi / 2
+            ortho_dirs = (
+                (math.cos(ortho_angle), math.sin(ortho_angle)),
+                (math.cos(ortho_angle + math.pi), math.sin(ortho_angle + math.pi)),
+            )
+            for dir_x, dir_y in ortho_dirs:
+                spawn_x = ex + dir_x * 8
+                spawn_y = ey + dir_y * 8
+                bullet = Projectile(
+                    spawn_x, spawn_y, dir_x, dir_y,
+                    speed=self.bullet_speed * 0.9, radius=3, color=(255, 160, 120)
+                )
+                if hasattr(out_bullets, "add"):
+                    out_bullets.add(bullet)
+                else:
+                    out_bullets.append(bullet)
 
         self._fire_timer = self.fire_cooldown
 
