@@ -193,6 +193,26 @@ class Game:
                     enemy.hp -= 1
                     projectile.alive = False
                     break
+        player_rect = self.player.rect()
+        player_invulnerable = getattr(self.player, "is_invulnerable", lambda: False)()
+        for projectile in self.enemy_projectiles:
+            if not projectile.alive:
+                continue
+            if not projectile.rect().colliderect(player_rect):
+                continue
+            if player_invulnerable:
+                # Deja que las balas atraviesen mientras haya iframes (p. ej. durante el dash).
+                # Mantenerlas vivas evita que desaparezcan visualmente al rozar al jugador.
+                continue
+            took_hit = False
+            if hasattr(self.player, "take_damage"):
+                took_hit = bool(self.player.take_damage(1))
+            if took_hit:
+                projectile.alive = False
+                player_invulnerable = getattr(self.player, "is_invulnerable", lambda: False)()
+            else:
+                projectile.alive = False
+
         survivors = []
         for enemy in room.enemies:
             if getattr(enemy, "hp", 1) > 0:
@@ -204,6 +224,7 @@ class Game:
             setattr(self.player, "gold", current_gold + gold_earned)
         room.enemies = survivors
         self.projectiles.prune()
+        self.enemy_projectiles.prune()
         if hasattr(room, "refresh_lock_state"):
             room.refresh_lock_state()
         self._update_room_lock(room)
