@@ -201,8 +201,7 @@ class Game:
             if not projectile.rect().colliderect(player_rect):
                 continue
             if player_invulnerable:
-                # Deja que las balas atraviesen mientras haya iframes (p. ej. durante el dash).
-                # Mantenerlas vivas evita que desaparezcan visualmente al rozar al jugador.
+                projectile.alive = False
                 continue
             took_hit = False
             if hasattr(self.player, "take_damage"):
