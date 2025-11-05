@@ -19,6 +19,8 @@ class Player(Entity):
         # --- Atributos de supervivencia y movilidad ---
         self.max_hp = 3
         self.hp = self.max_hp
+        self.max_lives = CFG.PLAYER_START_LIVES
+        self.lives = self.max_lives
         self.invulnerable_timer = 0.0
         self.post_hit_invulnerability = 0.45
 
@@ -103,6 +105,26 @@ class Player(Entity):
         self.invulnerable_timer = max(self.invulnerable_timer, self.post_hit_invulnerability)
         return True
 
+    def lose_life(self) -> bool:
+        """Consume una vida. Devuelve True si aún quedan vidas disponibles."""
+        if self.lives <= 0:
+            return False
+        self.lives -= 1
+        return self.lives > 0
+
+    def reset_lives(self) -> None:
+        self.lives = self.max_lives
+
+    def respawn(self) -> None:
+        """Restaura la salud y otorga invulnerabilidad breve tras revivir."""
+        self.hp = self.max_hp
+        self.invulnerable_timer = max(self.invulnerable_timer, self.post_hit_invulnerability)
+        self._dash_timer = 0.0
+        self._dash_cooldown_timer = 0.0
+        self._dash_key_down = False
+        self._dash_dir = (0.0, -1.0)
+        self._last_move_dir = (0.0, -1.0)
+
     def try_shoot(self, mouse_world_pos, out_projectiles) -> None:
         """Dispara hacia mouse si se pulsa y cooldown listo."""
         if not self.weapon or not self.weapon.can_fire():
@@ -136,6 +158,7 @@ class Player(Entity):
         self._owned_weapons.clear()
         self.cooldown_scale = 1.0
         self.hp = self.max_hp
+        self.reset_lives()
         self.invulnerable_timer = 0.0
         self._dash_timer = 0.0
         self._dash_cooldown_timer = 0.0
