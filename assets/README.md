@@ -13,4 +13,6 @@ Las animaciones del jugador se cargan desde la carpeta indicada en `Config.PLAYE
 - Recargar: `player_reload_0.png` a `player_reload_4.png`.
 - Disparar: `player_shoot_0.png` a `player_shoot_3.png`.
 
+> **Importante:** El juego ya no genera sprites de respaldo; si falta alguno de los archivos anteriores, la carga del jugador fallará. Asegúrate de exportar cada frame como un PNG independiente con ese nombre y colocarlo en la carpeta configurada.
+
 Puedes cambiar el prefijo (`player`) modificando `Config.PLAYER_SPRITE_PREFIX` si necesitas organizar varios personajes.
