@@ -198,19 +198,10 @@ class Game:
         for projectile in self.enemy_projectiles:
             if not projectile.alive:
                 continue
-            if getattr(projectile, "ignore_player_timer", 0.0) > 0.0:
-                continue
             if not projectile.rect().colliderect(player_rect):
                 continue
             if player_invulnerable:
-                # Deja que las balas atraviesen mientras haya iframes (p. ej. durante el dash).
-                # Mantenerlas vivas evita que desaparezcan visualmente al rozar al jugador.
-                remaining_iframes = getattr(self.player, "invulnerable_timer", 0.0)
-                if hasattr(projectile, "ignore_player_timer"):
-                    projectile.ignore_player_timer = max(
-                        projectile.ignore_player_timer,
-                        remaining_iframes + 0.05,
-                    )
+                projectile.alive = False
                 continue
             took_hit = False
             if hasattr(self.player, "take_damage"):
