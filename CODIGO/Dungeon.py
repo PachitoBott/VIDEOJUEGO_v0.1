@@ -47,6 +47,20 @@ class Dungeon:
         # 2) Ramas opcionales
         self._generate_branches(branch_chance, branch_min, branch_max)
 
+        # Tabla de botín compartida para cofres del tesoro
+        self._treasure_loot_table: list[dict] = [
+            {"name": "Bolsa de oro (+35)", "type": "gold", "amount": 35},
+            {"name": "Bolsa de oro (+50)", "type": "gold", "amount": 50},
+            {"name": "Aumento de Vida (+1)", "type": "upgrade", "id": "hp_up"},
+            {"name": "Blindaje Reforzado (+2)", "type": "upgrade", "id": "armor_up"},
+            {"name": "Talismán de Recarga (-10%)", "type": "upgrade", "id": "cdr_charm"},
+            {"name": "Aumento de Velocidad (+5%)", "type": "upgrade", "id": "spd_up"},
+            {"name": "Tónico Curativo (+2 HP)", "type": "heal", "amount": 2},
+            {"name": "Pistolas Dobles", "type": "weapon", "id": "dual_pistols"},
+            {"name": "Rifle Ligero", "type": "weapon", "id": "light_rifle"},
+            {"name": "Guantes Tesla", "type": "weapon", "id": "tesla_gloves"},
+        ]
+
         # 3) Definir puertas según vecinos + tallar corredores
         self._link_neighbors_and_carve()
 
@@ -55,6 +69,9 @@ class Dungeon:
 
         # <<< NUEVO: ubicar la tienda cerca del inicio del camino principal
         self._place_shop_room()
+
+        # <<< NUEVO: ubicar salas de tesoro en el recorrido
+        self._place_treasure_rooms()
 
 
         # marcar inicial como explorado
@@ -278,6 +295,53 @@ class Dungeon:
         # Marca de tipo (no rompe si Room no define 'type')
         setattr(room, "type", "shop")     # <<< etiqueta directa en Room
         self.shop_pos = (sx, sy)          # <<< guarda la coordenada para otras clases
+
+    def _place_treasure_rooms(self, max_rooms: int = 2, base_chance: float = 0.28) -> None:
+        """Selecciona algunas salas y las convierte en cuartos del tesoro."""
+        if not self.rooms:
+            return
+
+        forbidden = {self.start}
+        if hasattr(self, "shop_pos"):
+            forbidden.add(getattr(self, "shop_pos"))
+
+        # Prioriza el camino principal para que aparezcan "entre" salas de combate
+        main_candidates = [pos for pos in self.main_path if pos not in forbidden]
+        branch_candidates = [pos for pos in self.rooms.keys() if pos not in forbidden and pos not in main_candidates]
+
+        # Ordena candidatos por profundidad para diversificar
+        def depth_of(pos: tuple[int, int]) -> int:
+            return self.depth_map.get(pos, 0)
+
+        main_candidates.sort(key=depth_of)
+        branch_candidates.sort(key=depth_of)
+
+        chosen: list[tuple[int, int]] = []
+
+        rng = random.random
+        for pos in main_candidates + branch_candidates:
+            if len(chosen) >= max_rooms:
+                break
+            depth = depth_of(pos)
+            if depth <= 0:
+                continue
+            chance = base_chance + 0.04 * min(depth, 5)
+            if rng() > min(0.75, chance):
+                continue
+            chosen.append(pos)
+
+        if not chosen and main_candidates:
+            # Garantiza al menos un cuarto si hay candidatos
+            chosen.append(main_candidates[-1])
+
+        self.treasure_rooms: set[tuple[int, int]] = set()
+        for pos in chosen:
+            room = self.rooms.get(pos)
+            if not room:
+                continue
+            if hasattr(room, "setup_treasure_room"):
+                room.setup_treasure_room(list(self._treasure_loot_table))
+                self.treasure_rooms.add(pos)
     # Dungeon.py (añade estos métodos)
 
     def move_and_enter(self, direction: str, player, cfg, ShopkeeperCls=None) -> bool:
