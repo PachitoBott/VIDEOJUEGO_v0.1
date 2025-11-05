@@ -138,7 +138,9 @@ class Game:
         self._spawn_room_enemies(room)
         self._update_enemies(dt, room)
         self._update_projectiles(dt, room)
-        self._handle_collisions(room)
+        player_died = self._handle_collisions(room)
+        if player_died:
+            return
         self._handle_room_transition(room)
         self._update_shop(events)
 
@@ -180,9 +182,9 @@ class Game:
         self.projectiles.update(dt, room)
         self.enemy_projectiles.update(dt, room)
 
-    def _handle_collisions(self, room) -> None:
+    def _handle_collisions(self, room) -> bool:
         if not hasattr(room, "enemies"):
-            return
+            return False
         gold_earned = 0
         for projectile in self.projectiles:
             if not projectile.alive:
@@ -227,6 +229,38 @@ class Game:
         if hasattr(room, "refresh_lock_state"):
             room.refresh_lock_state()
         self._update_room_lock(room)
+        if getattr(self.player, "hp", 1) <= 0:
+            self._handle_player_death(room)
+            return True
+        return False
+
+    def _handle_player_death(self, room) -> None:
+        if not hasattr(self.player, "lose_life"):
+            seed = self.current_seed
+            self.start_new_run(seed=seed)
+            return
+        can_continue = bool(self.player.lose_life())
+        if not can_continue:
+            seed = self.current_seed
+            self.start_new_run(seed=seed)
+            return
+
+        if hasattr(self.player, "respawn"):
+            self.player.respawn()
+        else:
+            max_hp = getattr(self.player, "max_hp", 1)
+            self.player.hp = max_hp
+            invuln = getattr(self.player, "post_hit_invulnerability", 0.0)
+            self.player.invulnerable_timer = max(getattr(self.player, "invulnerable_timer", 0.0), invuln)
+
+        if hasattr(room, "center_px"):
+            px, py = room.center_px()
+            self.player.x = px - self.player.w / 2
+            self.player.y = py - self.player.h / 2
+
+        self.projectiles.clear()
+        self.enemy_projectiles.clear()
+        self.door_cooldown = 0.25
 
     def _handle_room_transition(self, room) -> None:
         if not hasattr(room, "check_exit"):
@@ -314,6 +348,23 @@ class Game:
              self.cfg.SCREEN_H * self.cfg.SCREEN_SCALE)
         )
         self.screen.blit(scaled, (0, 0))
+
+        lives_remaining = getattr(self.player, "lives", 0)
+        max_lives = getattr(self.player, "max_lives", self.cfg.PLAYER_START_LIVES)
+        lives_text = self.ui_font.render(
+            f"Vidas: {lives_remaining}/{max_lives}", True, (255, 120, 120)
+        )
+        self.screen.blit(lives_text, (0, 80))
+
+        hits_remaining_life_fn = getattr(self.player, "hits_remaining_this_life", None)
+        if callable(hits_remaining_life_fn):
+            hits_remaining = hits_remaining_life_fn()
+        else:
+            hits_remaining = max(0, getattr(self.player, "hp", 0))
+        hits_text = self.ui_font.render(
+            f"Golpes restantes vida: {hits_remaining}", True, (255, 180, 120)
+        )
+        self.screen.blit(hits_text, (0, 92))
 
         gold_amount = getattr(self.player, "gold", 0)
         gold_text = self.ui_font.render(f"Monedas: {gold_amount}", True, (255, 240, 180))

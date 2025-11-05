@@ -19,8 +19,12 @@ class Player(Entity):
         # --- Atributos de supervivencia y movilidad ---
         self.max_hp = 3
         self.hp = self.max_hp
+        self.max_lives = CFG.PLAYER_START_LIVES
+        self.lives = self.max_lives
         self.invulnerable_timer = 0.0
         self.post_hit_invulnerability = 0.45
+        # Conteo de golpes por vida (cada golpe equivale a 1 punto de vida perdido)
+        self._hits_taken_current_life = 0
 
         self.sprint_multiplier = 1.35
 
@@ -99,9 +103,41 @@ class Player(Entity):
         """Aplica daño al jugador si no está en iframes. Devuelve True si impactó."""
         if amount <= 0 or self.is_invulnerable():
             return False
+        prev_hp = self.hp
         self.hp = max(0, self.hp - amount)
         self.invulnerable_timer = max(self.invulnerable_timer, self.post_hit_invulnerability)
+        if prev_hp != self.hp:
+            self._hits_taken_current_life = self.max_hp - self.hp
         return True
+
+    def lose_life(self) -> bool:
+        """Consume una vida. Devuelve True si aún quedan vidas disponibles."""
+        if self.lives <= 0:
+            return False
+        self.lives -= 1
+        return self.lives > 0
+
+    def reset_lives(self) -> None:
+        self.lives = self.max_lives
+
+    def hits_taken_this_life(self) -> int:
+        """Golpes recibidos en la vida actual (se resetea al revivir)."""
+        return self._hits_taken_current_life
+
+    def hits_remaining_this_life(self) -> int:
+        """Golpes que aún se pueden resistir antes de perder la vida actual."""
+        return max(0, self.max_hp - self._hits_taken_current_life)
+
+    def respawn(self) -> None:
+        """Restaura la salud y otorga invulnerabilidad breve tras revivir."""
+        self.hp = self.max_hp
+        self._hits_taken_current_life = 0
+        self.invulnerable_timer = max(self.invulnerable_timer, self.post_hit_invulnerability)
+        self._dash_timer = 0.0
+        self._dash_cooldown_timer = 0.0
+        self._dash_key_down = False
+        self._dash_dir = (0.0, -1.0)
+        self._last_move_dir = (0.0, -1.0)
 
     def try_shoot(self, mouse_world_pos, out_projectiles) -> None:
         """Dispara hacia mouse si se pulsa y cooldown listo."""
@@ -136,6 +172,8 @@ class Player(Entity):
         self._owned_weapons.clear()
         self.cooldown_scale = 1.0
         self.hp = self.max_hp
+        self.reset_lives()
+        self._hits_taken_current_life = 0
         self.invulnerable_timer = 0.0
         self._dash_timer = 0.0
         self._dash_cooldown_timer = 0.0
