@@ -130,6 +130,14 @@ class WeaponFactory:
                 offsets=(-4.0, 4.0),
                 forward_spawn=4.0,
             ),
+            "ember_carbine": WeaponSpec(
+                weapon_id="ember_carbine",
+                cooldown=0.22,
+                spread_deg=8.0,
+                bullet_speed=325.0,
+                offsets=(0.0,),
+                forward_spawn=9.0,
+            ),
         }
 
     def __contains__(self, weapon_id: str) -> bool:

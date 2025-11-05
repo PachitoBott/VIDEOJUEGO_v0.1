@@ -692,40 +692,56 @@ class Room:
         return population[0]
 
     def _apply_treasure_reward(self, player, reward: dict) -> bool:
+        return self._apply_reward_entry(player, reward)
+
+    def _apply_reward_entry(self, player, reward: dict) -> bool:
         rtype = reward.get("type")
         if rtype == "gold":
-            amount = int(reward.get("amount", 0))
-            current = getattr(player, "gold", 0)
-            setattr(player, "gold", current + amount)
-            return amount > 0
+            return self._apply_gold_reward(player, reward.get("amount", 0))
         if rtype == "heal":
-            amount = int(reward.get("amount", 0))
-            if amount <= 0:
-                return False
-            max_hp = getattr(player, "max_hp", getattr(player, "hp", 1))
-            hp = getattr(player, "hp", max_hp)
-            new_hp = min(max_hp, hp + amount)
-            setattr(player, "hp", new_hp)
-            return new_hp != hp
+            return self._apply_heal_reward(player, reward.get("amount", 0))
         if rtype == "weapon":
-            wid = reward.get("id")
-            if not wid:
-                return False
-            unlock = getattr(player, "unlock_weapon", None)
-            if callable(unlock):
-                return bool(unlock(wid, auto_equip=True))
-            equip = getattr(player, "equip_weapon", None)
-            if callable(equip):
-                equip(wid)
-                return True
-            setattr(player, "current_weapon", wid)
-            return True
+            return self._apply_weapon_reward(player, reward.get("id"))
         if rtype == "upgrade":
-            uid = reward.get("id")
-            if not uid:
-                return False
-            return self._apply_upgrade_reward(player, uid)
+            return self._apply_upgrade_reward(player, reward.get("id"))
+        if rtype == "consumable":
+            return self._apply_consumable_reward(player, reward)
+        if rtype == "bundle":
+            return self._apply_bundle_reward(player, reward)
         return False
+
+    def _apply_gold_reward(self, player, amount) -> bool:
+        amount = int(amount)
+        if amount <= 0:
+            return False
+        current = getattr(player, "gold", 0)
+        setattr(player, "gold", current + amount)
+        return True
+
+    def _apply_heal_reward(self, player, amount) -> bool:
+        amount = int(amount)
+        if amount <= 0:
+            return False
+        max_hp = getattr(player, "max_hp", getattr(player, "hp", 1))
+        hp = getattr(player, "hp", max_hp)
+        new_hp = min(max_hp, hp + amount)
+        setattr(player, "hp", new_hp)
+        if hasattr(player, "_hits_taken_current_life"):
+            setattr(player, "_hits_taken_current_life", max(0, max_hp - new_hp))
+        return new_hp != hp
+
+    def _apply_weapon_reward(self, player, wid: str | None) -> bool:
+        if not wid:
+            return False
+        unlock = getattr(player, "unlock_weapon", None)
+        if callable(unlock):
+            return bool(unlock(wid, auto_equip=True))
+        equip = getattr(player, "equip_weapon", None)
+        if callable(equip):
+            equip(wid)
+            return True
+        setattr(player, "current_weapon", wid)
+        return True
 
     def _apply_upgrade_reward(self, player, uid: str) -> bool:
         if uid == "hp_up":
@@ -763,7 +779,67 @@ class Room:
                 if callable(setter):
                     setter(new_scale)
             return True
+        if uid == "cdr_core":
+            current = getattr(player, "cooldown_scale", 1.0)
+            new_scale = max(0.35, current * 0.88)
+            setattr(player, "cooldown_scale", new_scale)
+            refresher = getattr(player, "refresh_weapon_modifiers", None)
+            if callable(refresher):
+                refresher()
+            elif hasattr(player, "weapon") and player.weapon:
+                setter = getattr(player.weapon, "set_cooldown_scale", None)
+                if callable(setter):
+                    setter(new_scale)
+            return True
+        if uid == "sprint_core":
+            sprint = getattr(player, "sprint_multiplier", 1.0)
+            setattr(player, "sprint_multiplier", sprint * 1.1)
+            speed = getattr(player, "speed", 1.0)
+            setattr(player, "speed", speed * 1.03)
+            return True
+        if uid == "dash_core":
+            cooldown = getattr(player, "dash_cooldown", 0.75)
+            new_cd = max(0.25, cooldown * 0.85)
+            setattr(player, "dash_cooldown", new_cd)
+            return True
+        if uid == "dash_drive":
+            duration = getattr(player, "dash_duration", 0.18)
+            new_duration = min(0.45, duration + 0.05)
+            setattr(player, "dash_duration", new_duration)
+            setattr(player, "dash_iframe_duration", new_duration + 0.08)
+            return True
         return False
+
+    def _apply_consumable_reward(self, player, reward: dict) -> bool:
+        cid = reward.get("id")
+        if not cid:
+            return False
+        if cid == "heal_full":
+            max_hp = getattr(player, "max_hp", getattr(player, "hp", 1))
+            setattr(player, "hp", max_hp)
+            if hasattr(player, "_hits_taken_current_life"):
+                setattr(player, "_hits_taken_current_life", 0)
+            return True
+        if cid == "heal_medium":
+            amount = int(reward.get("amount", 2) or 2)
+            return self._apply_heal_reward(player, amount)
+        if cid == "heal_small":
+            amount = int(reward.get("amount", 1) or 1)
+            return self._apply_heal_reward(player, amount)
+        if cid == "life_refill":
+            max_lives = getattr(player, "max_lives", getattr(player, "lives", 1))
+            setattr(player, "lives", max_lives)
+            return True
+        return False
+
+    def _apply_bundle_reward(self, player, reward: dict) -> bool:
+        contents = reward.get("contents") or []
+        applied_any = False
+        for entry in contents:
+            if not isinstance(entry, dict):
+                continue
+            applied_any = self._apply_reward_entry(player, entry) or applied_any
+        return applied_any
 
     def _draw_treasure(self, surface: pygame.Surface) -> None:
         if not self.treasure:

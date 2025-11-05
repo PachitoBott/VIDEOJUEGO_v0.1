@@ -17,6 +17,7 @@ class Player(Entity):
         self.weapon = None
 
         # --- Atributos de supervivencia y movilidad ---
+        self.base_speed = self.speed
         self.base_max_hp = 3
         self.max_hp = self.base_max_hp
         self.hp = self.max_hp
@@ -29,10 +30,13 @@ class Player(Entity):
         self._hits_taken_current_life = 0
 
         self.sprint_multiplier = 1.35
+        self.base_sprint_multiplier = self.sprint_multiplier
 
         self.dash_speed_multiplier = 3.25
         self.dash_duration = 0.18
+        self.base_dash_duration = self.dash_duration
         self.dash_cooldown = 0.75
+        self.base_dash_cooldown = self.dash_cooldown
         self.dash_iframe_duration = self.dash_duration + 0.08
 
         self._dash_timer = 0.0
@@ -173,6 +177,7 @@ class Player(Entity):
         """Restablece el arma inicial al comenzar una nueva partida."""
         self._owned_weapons.clear()
         self.cooldown_scale = 1.0
+        self.speed = self.base_speed
         self.max_hp = self.base_max_hp
         self.hp = self.max_hp
         self.max_lives = self.base_max_lives
@@ -184,6 +189,10 @@ class Player(Entity):
         self._dash_key_down = False
         self._dash_dir = (0.0, -1.0)
         self._last_move_dir = (0.0, -1.0)
+        self.sprint_multiplier = self.base_sprint_multiplier
+        self.dash_duration = self.base_dash_duration
+        self.dash_cooldown = self.base_dash_cooldown
+        self.dash_iframe_duration = self.dash_duration + 0.08
         self._grant_weapon("short_rifle")
         self.equip_weapon("short_rifle")
 
