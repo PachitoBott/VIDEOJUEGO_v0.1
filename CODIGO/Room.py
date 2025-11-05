@@ -94,6 +94,9 @@ class Room:
         self.no_combat = False
         self._populated_once = False
         self.shopkeeper = None
+        self.treasure: dict | None = None
+        self.treasure_message: str = ""
+        self.treasure_message_until: int = 0
 
 
     # ------------------------------------------------------------------ #
@@ -218,6 +221,11 @@ class Room:
             self.locked = False
             if ShopkeeperCls:
                 self._ensure_shopkeeper(cfg, ShopkeeperCls)
+        elif self.type == "treasure":
+            self.safe = True
+            self.no_spawn = True
+            self.no_combat = True
+            self.locked = False
         else:
             # Poblar enemigos SOLO una vez (si no es shop)
             if not self._populated_once and not self.no_spawn:
@@ -236,6 +244,9 @@ class Room:
         Maneja interacción con la tienda dentro de la sala (si es shop).
         No lee pygame.event.get() aquí; recibe la lista de events desde Game.
         """
+        if self.type == "treasure":
+            self._handle_treasure_events(events, player)
+
         if self.type != "shop" or self.shopkeeper is None:
             return
 
@@ -250,6 +261,9 @@ class Room:
             if ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_e and can_interact:
                     if not shop_ui.active:
+                        rotater = getattr(shop_ui, "rotate_inventory", None)
+                        if callable(rotater):
+                            rotater()
                         shop_ui.open(world_surface.get_width()//2, world_surface.get_height()//2)
                     else:
                         shop_ui.close()
@@ -291,6 +305,9 @@ class Room:
         """
         Dibuja elementos propios de la sala por encima del piso (p.ej. el mercader y tooltip).
         """
+        if self.type == "treasure" and self.treasure:
+            self._draw_treasure_overlay(surface, ui_font, player)
+
         if self.type == "shop" and self.shopkeeper is not None:
             self.shopkeeper.draw(surface)
             if hasattr(player, "rect") and self.shopkeeper.can_interact(player.rect()) and not shop_ui.active:
@@ -574,12 +591,299 @@ class Room:
                 for tx in range(CFG.MAP_W):
                     if row[tx] != CFG.FLOOR and self._wall_adjacent_to_floor(tx, ty):
                         pygame.draw.rect(surf, wall, pygame.Rect(tx * ts, ty * ts, ts, ts))
+
+        if self.type == "treasure" and self.treasure:
+            self._draw_treasure(surf)
         # Puertas bloqueadas: dibuja “rejas” rojas en las aberturas
         if self.locked:
             bars = self._door_opening_rects()
             for d, r in bars.items():
                 pygame.draw.rect(surf, (180, 40, 40), r)         # relleno rojo
                 pygame.draw.rect(surf, (255, 90, 90), r, 1)      # borde claro
+
+    # ------------------------------------------------------------------ #
+    # Tesoro
+    # ------------------------------------------------------------------ #
+    def setup_treasure_room(self, loot_table: list[dict]) -> None:
+        self.type = "treasure"
+        self.safe = True
+        self.no_spawn = True
+        self.no_combat = True
+        self.locked = False
+        self.treasure_message = ""
+        self.treasure_message_until = 0
+
+        if not self.bounds:
+            self.build_centered(9, 9)
+        assert self.bounds is not None
+        rx, ry, rw, rh = self.bounds
+        ts = CFG.TILE_SIZE
+        cx = (rx + rw // 2) * ts
+        cy = (ry + rh // 2) * ts
+
+        width = 28
+        height = 20
+        self.treasure = {
+            "rect": pygame.Rect(cx - width // 2, cy - height // 2, width, height),
+            "opened": False,
+            "loot_table": loot_table,
+        }
+
+    def _handle_treasure_events(self, events, player) -> None:
+        if not self.treasure:
+            return
+
+        chest_rect: pygame.Rect = self.treasure["rect"]
+        player_rect = self._player_rect(player)
+        interact_rect = chest_rect.inflate(30, 30)
+        can_interact = interact_rect.colliderect(player_rect)
+
+        if self.treasure.get("opened", False):
+            return
+
+        for ev in events:
+            if ev.type == pygame.KEYDOWN and ev.key in (pygame.K_e, pygame.K_RETURN, pygame.K_SPACE):
+                if can_interact:
+                    self._open_treasure_chest(player)
+                    break
+
+    def _open_treasure_chest(self, player) -> None:
+        if not self.treasure or self.treasure.get("opened", False):
+            return
+
+        reward = self._pick_treasure_reward(player)
+        message = "El cofre está vacío..."
+        if reward:
+            applied = self._apply_treasure_reward(player, reward)
+            name = reward.get("name", "Recompensa misteriosa")
+            message = f"Obtuviste: {name}" if applied else f"Encontraste: {name}"
+
+        self.treasure["opened"] = True
+        self.treasure_message = message
+        self.treasure_message_until = pygame.time.get_ticks() + 4200
+
+    def _pick_treasure_reward(self, player) -> dict | None:
+        if not self.treasure:
+            return None
+        loot_table: list[dict] = self.treasure.get("loot_table", [])
+        weighted: list[tuple[dict, float]] = []
+        for entry in loot_table:
+            weight = float(entry.get("weight", 1.0))
+            if weight <= 0:
+                continue
+            weighted.append((entry, weight))
+        if not weighted:
+            return None
+
+        attempts = max(1, len(weighted) * 2)
+        has_weapon = getattr(player, "has_weapon", None)
+        population = [entry for entry, _ in weighted]
+        weights = [weight for _, weight in weighted]
+        for _ in range(attempts):
+            candidate = random.choices(population, weights=weights, k=1)[0]
+            if candidate.get("type") == "weapon" and callable(has_weapon):
+                if has_weapon(candidate.get("id", "")):
+                    continue
+            return candidate
+
+        for entry in population:
+            if entry.get("type") == "gold":
+                return entry
+        return population[0]
+
+    def _apply_treasure_reward(self, player, reward: dict) -> bool:
+        return self._apply_reward_entry(player, reward)
+
+    def _apply_reward_entry(self, player, reward: dict) -> bool:
+        rtype = reward.get("type")
+        if rtype == "gold":
+            return self._apply_gold_reward(player, reward.get("amount", 0))
+        if rtype == "heal":
+            return self._apply_heal_reward(player, reward.get("amount", 0))
+        if rtype == "weapon":
+            return self._apply_weapon_reward(player, reward.get("id"))
+        if rtype == "upgrade":
+            return self._apply_upgrade_reward(player, reward.get("id"))
+        if rtype == "consumable":
+            return self._apply_consumable_reward(player, reward)
+        if rtype == "bundle":
+            return self._apply_bundle_reward(player, reward)
+        return False
+
+    def _apply_gold_reward(self, player, amount) -> bool:
+        amount = int(amount)
+        if amount <= 0:
+            return False
+        current = getattr(player, "gold", 0)
+        setattr(player, "gold", current + amount)
+        return True
+
+    def _apply_heal_reward(self, player, amount) -> bool:
+        amount = int(amount)
+        if amount <= 0:
+            return False
+        max_hp = getattr(player, "max_hp", getattr(player, "hp", 1))
+        hp = getattr(player, "hp", max_hp)
+        new_hp = min(max_hp, hp + amount)
+        setattr(player, "hp", new_hp)
+        if hasattr(player, "_hits_taken_current_life"):
+            setattr(player, "_hits_taken_current_life", max(0, max_hp - new_hp))
+        return new_hp != hp
+
+    def _apply_weapon_reward(self, player, wid: str | None) -> bool:
+        if not wid:
+            return False
+        unlock = getattr(player, "unlock_weapon", None)
+        if callable(unlock):
+            return bool(unlock(wid, auto_equip=True))
+        equip = getattr(player, "equip_weapon", None)
+        if callable(equip):
+            equip(wid)
+            return True
+        setattr(player, "current_weapon", wid)
+        return True
+
+    def _apply_upgrade_reward(self, player, uid: str) -> bool:
+        if uid == "hp_up":
+            max_lives = getattr(player, "max_lives", getattr(player, "lives", 1))
+            lives = getattr(player, "lives", max_lives)
+            max_lives += 1
+            lives = min(lives + 1, max_lives)
+            setattr(player, "max_lives", max_lives)
+            setattr(player, "lives", lives)
+            return True
+        if uid == "spd_up":
+            speed = getattr(player, "speed", 1.0)
+            setattr(player, "speed", speed * 1.05)
+            return True
+        if uid == "armor_up":
+            max_hp = getattr(player, "max_hp", getattr(player, "hp", 3))
+            hp = getattr(player, "hp", max_hp)
+            max_hp += 1
+            hp = min(hp + 1, max_hp)
+            setattr(player, "max_hp", max_hp)
+            setattr(player, "hp", hp)
+            if hasattr(player, "_hits_taken_current_life"):
+                hits_taken = max(0, max_hp - hp)
+                setattr(player, "_hits_taken_current_life", hits_taken)
+            return True
+        if uid == "cdr_charm":
+            current = getattr(player, "cooldown_scale", 1.0)
+            new_scale = max(0.4, current * 0.9)
+            setattr(player, "cooldown_scale", new_scale)
+            refresher = getattr(player, "refresh_weapon_modifiers", None)
+            if callable(refresher):
+                refresher()
+            elif hasattr(player, "weapon") and player.weapon:
+                setter = getattr(player.weapon, "set_cooldown_scale", None)
+                if callable(setter):
+                    setter(new_scale)
+            return True
+        if uid == "cdr_core":
+            current = getattr(player, "cooldown_scale", 1.0)
+            new_scale = max(0.35, current * 0.88)
+            setattr(player, "cooldown_scale", new_scale)
+            refresher = getattr(player, "refresh_weapon_modifiers", None)
+            if callable(refresher):
+                refresher()
+            elif hasattr(player, "weapon") and player.weapon:
+                setter = getattr(player.weapon, "set_cooldown_scale", None)
+                if callable(setter):
+                    setter(new_scale)
+            return True
+        if uid == "sprint_core":
+            sprint = getattr(player, "sprint_multiplier", 1.0)
+            setattr(player, "sprint_multiplier", sprint * 1.1)
+            speed = getattr(player, "speed", 1.0)
+            setattr(player, "speed", speed * 1.03)
+            return True
+        if uid == "dash_core":
+            cooldown = getattr(player, "dash_cooldown", 0.75)
+            new_cd = max(0.25, cooldown * 0.85)
+            setattr(player, "dash_cooldown", new_cd)
+            return True
+        if uid == "dash_drive":
+            duration = getattr(player, "dash_duration", 0.18)
+            new_duration = min(0.45, duration + 0.05)
+            setattr(player, "dash_duration", new_duration)
+            setattr(player, "dash_iframe_duration", new_duration + 0.08)
+            return True
+        return False
+
+    def _apply_consumable_reward(self, player, reward: dict) -> bool:
+        cid = reward.get("id")
+        if not cid:
+            return False
+        if cid == "heal_full":
+            max_hp = getattr(player, "max_hp", getattr(player, "hp", 1))
+            setattr(player, "hp", max_hp)
+            if hasattr(player, "_hits_taken_current_life"):
+                setattr(player, "_hits_taken_current_life", 0)
+            return True
+        if cid == "heal_medium":
+            amount = int(reward.get("amount", 2) or 2)
+            return self._apply_heal_reward(player, amount)
+        if cid == "heal_small":
+            amount = int(reward.get("amount", 1) or 1)
+            return self._apply_heal_reward(player, amount)
+        if cid == "life_refill":
+            max_lives = getattr(player, "max_lives", getattr(player, "lives", 1))
+            setattr(player, "lives", max_lives)
+            return True
+        return False
+
+    def _apply_bundle_reward(self, player, reward: dict) -> bool:
+        contents = reward.get("contents") or []
+        applied_any = False
+        for entry in contents:
+            if not isinstance(entry, dict):
+                continue
+            applied_any = self._apply_reward_entry(player, entry) or applied_any
+        return applied_any
+
+    def _draw_treasure(self, surface: pygame.Surface) -> None:
+        if not self.treasure:
+            return
+        rect: pygame.Rect = self.treasure["rect"]
+        opened = self.treasure.get("opened", False)
+        body_color = (176, 124, 56) if not opened else (110, 96, 96)
+        lid_color = (214, 168, 96) if not opened else (140, 128, 128)
+        band_color = (235, 208, 128) if not opened else (180, 172, 172)
+
+        pygame.draw.rect(surface, body_color, rect)
+        lid_height = max(6, rect.height // 3)
+        lid_rect = pygame.Rect(rect.x, rect.y, rect.width, lid_height)
+        pygame.draw.rect(surface, lid_color, lid_rect)
+        pygame.draw.rect(surface, band_color, pygame.Rect(rect.centerx - 3, rect.y, 6, rect.height))
+        pygame.draw.rect(surface, (20, 12, 8), rect, 2)
+
+    def _draw_treasure_overlay(self, surface, ui_font, player) -> None:
+        rect = self.treasure["rect"]
+        player_rect = self._player_rect(player)
+        near = rect.inflate(36, 36).colliderect(player_rect)
+
+        if not self.treasure.get("opened", False) and near:
+            tip = ui_font.render("E - Abrir cofre", True, (255, 255, 255))
+            surface.blit(tip, (rect.centerx - tip.get_width() // 2, rect.y - 22))
+
+        now = pygame.time.get_ticks()
+        if self.treasure_message and now <= self.treasure_message_until:
+            msg = ui_font.render(self.treasure_message, True, (255, 230, 140))
+            surface.blit(msg, (rect.centerx - msg.get_width() // 2, rect.bottom + 8))
+        elif now > self.treasure_message_until:
+            self.treasure_message = ""
+
+    def _player_rect(self, player) -> pygame.Rect:
+        if hasattr(player, "rect"):
+            prect = player.rect
+            if callable(prect):
+                prect = prect()
+            if isinstance(prect, pygame.Rect):
+                return prect
+        return pygame.Rect(int(getattr(player, "x", 0)),
+                            int(getattr(player, "y", 0)),
+                            int(getattr(player, "w", 12)),
+                            int(getattr(player, "h", 12)))
 
     def _wall_adjacent_to_floor(self, tx: int, ty: int) -> bool:
         if self.tiles[ty][tx] == CFG.FLOOR:
