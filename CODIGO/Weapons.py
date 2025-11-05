@@ -47,6 +47,20 @@ class Weapon:
             return False
         return self._shots_in_mag > 0
 
+    # ----------------------------- Estado -----------------------------
+    def is_reloading(self) -> bool:
+        return self._reload_timer > 0.0
+
+    @property
+    def reload_time(self) -> float:
+        return self.spec.reload_time
+
+    def reload_progress(self) -> float:
+        if self.spec.reload_time <= 0.0:
+            return 1.0
+        remaining = max(0.0, min(self.spec.reload_time, self._reload_timer))
+        return 1.0 - remaining / self.spec.reload_time
+
     # ------------------------ Generación balas -----------------------
     def fire(self, origin: tuple[float, float], target: tuple[float, float]) -> List[Projectile]:
         if not self.can_fire():
