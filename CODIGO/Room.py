@@ -261,6 +261,9 @@ class Room:
             if ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_e and can_interact:
                     if not shop_ui.active:
+                        rotater = getattr(shop_ui, "rotate_inventory", None)
+                        if callable(rotater):
+                            rotater()
                         shop_ui.open(world_surface.get_width()//2, world_surface.get_height()//2)
                     else:
                         shop_ui.close()

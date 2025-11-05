@@ -29,6 +29,10 @@ class Shop:
         self._item_hitboxes: list[pygame.Rect] = []
         self._restock()
 
+    def rotate_inventory(self) -> None:
+        """Genera un nuevo lote de artículos disponibles."""
+        self._restock()
+
     def _restock(self) -> None:
         available = list(self.catalog)
         weights = [float(entry.get("weight", 1.0)) for entry in available]
@@ -117,7 +121,9 @@ class Shop:
             self._apply_weapon(player, item["id"])
         elif item["type"] == "upgrade":
             self._apply_upgrade(player, item["id"])
-        return True, f"Compraste: {item['name']}"
+        name = item.get("name", "Artículo")
+        self._restock()
+        return True, f"Compraste: {name}"
 
     # --- Efectos concretos ---
     def _apply_weapon(self, player, wid):
