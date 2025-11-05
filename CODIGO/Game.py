@@ -354,7 +354,7 @@ class Game:
         lives_text = self.ui_font.render(
             f"Vidas: {lives_remaining}/{max_lives}", True, (255, 120, 120)
         )
-        self.screen.blit(lives_text, (0, 80))
+        self.screen.blit(lives_text, (5, 260))
 
         hits_remaining_life_fn = getattr(self.player, "hits_remaining_this_life", None)
         if callable(hits_remaining_life_fn):
@@ -364,7 +364,7 @@ class Game:
         hits_text = self.ui_font.render(
             f"Golpes restantes vida: {hits_remaining}", True, (255, 180, 120)
         )
-        self.screen.blit(hits_text, (0, 92))
+        self.screen.blit(hits_text, (5, 290))
 
         gold_amount = getattr(self.player, "gold", 0)
         gold_text = self.ui_font.render(f"Monedas: {gold_amount}", True, (255, 240, 180))
