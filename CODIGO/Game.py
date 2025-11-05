@@ -356,11 +356,13 @@ class Game:
         )
         self.screen.blit(lives_text, (0, 80))
 
-        hits_taken = getattr(self.player, "hits_taken", 0)
-        max_hits = getattr(self.player, "max_hits_per_run", lambda: 0)()
-        hits_remaining = max(0, max_hits - hits_taken)
+        hits_remaining_life_fn = getattr(self.player, "hits_remaining_this_life", None)
+        if callable(hits_remaining_life_fn):
+            hits_remaining = hits_remaining_life_fn()
+        else:
+            hits_remaining = max(0, getattr(self.player, "hp", 0))
         hits_text = self.ui_font.render(
-            f"Golpes: {hits_taken} (restan {hits_remaining})", True, (255, 180, 120)
+            f"Golpes restantes vida: {hits_remaining}", True, (255, 180, 120)
         )
         self.screen.blit(hits_text, (0, 92))
 
