@@ -552,7 +552,6 @@ class Room:
         úsalo; si no, renderizo con rectángulos de colores.
         """
         ts = CFG.TILE_SIZE
-        surf.fill(CFG.COLOR_BG)
         # Si tu tileset expone un método de dibujado por mapa, úsalo:
         drew_with_tileset = False
         if hasattr(tileset, "draw_map"):
