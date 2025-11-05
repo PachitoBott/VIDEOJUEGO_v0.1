@@ -18,6 +18,8 @@ class WeaponSpec:
     projectile_radius: int = 3
     offsets: Sequence[float] = field(default_factory=lambda: (0.0,))
     forward_spawn: float = 8.0
+    magazine_size: int = 10
+    reload_time: float = 1.0
 
 
 class Weapon:
@@ -27,13 +29,23 @@ class Weapon:
         self.spec = spec
         self._cooldown = 0.0
         self._cooldown_scale = max(0.05, cooldown_scale)
+        self._shots_in_mag = max(1, spec.magazine_size)
+        self._reload_timer = 0.0
 
     # ------------------------- Temporización -------------------------
     def tick(self, dt: float) -> None:
         self._cooldown = max(0.0, self._cooldown - dt)
+        if self._reload_timer > 0.0:
+            self._reload_timer = max(0.0, self._reload_timer - dt)
+            if self._reload_timer <= 0.0:
+                self._shots_in_mag = max(1, self.spec.magazine_size)
 
     def can_fire(self) -> bool:
-        return self._cooldown <= 0.0
+        if self._cooldown > 0.0:
+            return False
+        if self._reload_timer > 0.0:
+            return False
+        return self._shots_in_mag > 0
 
     # ------------------------ Generación balas -----------------------
     def fire(self, origin: tuple[float, float], target: tuple[float, float]) -> List[Projectile]:
@@ -75,6 +87,10 @@ class Weapon:
             )
 
         self._cooldown = self.spec.cooldown * self._cooldown_scale
+        self._shots_in_mag -= 1
+        if self._shots_in_mag <= 0:
+            self._shots_in_mag = 0
+            self._reload_timer = self.spec.reload_time
         return bullets
 
     # ----------------------- Ajustes dinámicos -----------------------
@@ -93,6 +109,8 @@ class WeaponFactory:
                 cooldown=0.25,
                 spread_deg=10.0,
                 bullet_speed=340.0,
+                magazine_size=10,
+                reload_time=1.1,
             ),
             "dual_pistols": WeaponSpec(
                 weapon_id="dual_pistols",
@@ -100,12 +118,16 @@ class WeaponFactory:
                 spread_deg=18.0,
                 bullet_speed=320.0,
                 offsets=(-6.0, 6.0),
+                magazine_size=12,
+                reload_time=1.25,
             ),
             "light_rifle": WeaponSpec(
                 weapon_id="light_rifle",
                 cooldown=0.16,
                 spread_deg=4.0,
                 bullet_speed=360.0,
+                magazine_size=14,
+                reload_time=1.4,
             ),
             "arcane_salvo": WeaponSpec(
                 weapon_id="arcane_salvo",
@@ -114,12 +136,16 @@ class WeaponFactory:
                 bullet_speed=280.0,
                 offsets=(-12.0, -6.0, 0.0, 6.0, 12.0),
                 projectile_radius=4,
+                magazine_size=8,
+                reload_time=1.85,
             ),
             "pulse_rifle": WeaponSpec(
                 weapon_id="pulse_rifle",
                 cooldown=0.12,
                 spread_deg=2.5,
                 bullet_speed=390.0,
+                magazine_size=16,
+                reload_time=1.6,
             ),
             "tesla_gloves": WeaponSpec(
                 weapon_id="tesla_gloves",
@@ -129,6 +155,8 @@ class WeaponFactory:
                 projectile_radius=5,
                 offsets=(-4.0, 4.0),
                 forward_spawn=4.0,
+                magazine_size=9,
+                reload_time=2.0,
             ),
             "ember_carbine": WeaponSpec(
                 weapon_id="ember_carbine",
@@ -137,6 +165,8 @@ class WeaponFactory:
                 bullet_speed=325.0,
                 offsets=(0.0,),
                 forward_spawn=9.0,
+                magazine_size=18,
+                reload_time=2.1,
             ),
         }
 
