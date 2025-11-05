@@ -143,7 +143,7 @@ class ShooterEnemy(Enemy):
         self.detect_radius = 220.0
         self.lose_radius   = 260.0
 
-        self.fire_cooldown = 1.25
+        self.fire_cooldown = 2.75
         self._fire_timer   = 0.0
         self.fire_range    = 260.0
         self.bullet_speed  = 200.0
