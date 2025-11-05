@@ -12,6 +12,8 @@ class Projectile:
         self.alive = True
         self.ttl = 3.5
         self.color = color
+        # Temporizador para ignorar colisiones con el jugador tras un dash.
+        self.ignore_player_timer = 0.0
 
     def rect(self) -> pygame.Rect:
         r = self.radius
@@ -24,6 +26,9 @@ class Projectile:
         if self.ttl <= 0:
             self.alive = False
             return
+
+        if self.ignore_player_timer > 0.0:
+            self.ignore_player_timer = max(0.0, self.ignore_player_timer - dt)
 
         step_x = self.dx * self.speed * dt
         step_y = self.dy * self.speed * dt
