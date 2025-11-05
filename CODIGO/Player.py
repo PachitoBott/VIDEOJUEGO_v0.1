@@ -1,9 +1,48 @@
 import math
+from dataclasses import dataclass
+from pathlib import Path
+
 import pygame
 
 from Entity import Entity
 from Config import CFG
 from Weapons import WeaponFactory
+
+
+@dataclass
+class FrameAnimation:
+    frames: list[pygame.Surface]
+    frame_time: float
+    loop: bool
+    index: int = 0
+    timer: float = 0.0
+    finished: bool = False
+
+    def reset(self) -> None:
+        self.index = 0
+        self.timer = 0.0
+        self.finished = False
+
+    def set_frame_duration(self, frame_time: float) -> None:
+        self.frame_time = max(0.01, frame_time)
+
+    def update(self, dt: float) -> None:
+        if self.finished or len(self.frames) <= 1:
+            return
+        self.timer += dt
+        while self.timer >= self.frame_time:
+            self.timer -= self.frame_time
+            self.index += 1
+            if self.index >= len(self.frames):
+                if self.loop:
+                    self.index = 0
+                else:
+                    self.index = len(self.frames) - 1
+                    self.finished = True
+                    break
+
+    def current_frame(self) -> pygame.Surface:
+        return self.frames[self.index]
 
 
 class Player(Entity):
@@ -44,6 +83,11 @@ class Player(Entity):
         self._dash_key_down = False
         self._dash_dir = (0.0, -1.0)
         self._last_move_dir = (0.0, -1.0)
+
+        self._animations = self._build_animations()
+        self._current_animation = "idle"
+        self._animation_override: str | None = None
+        self._was_reloading = False
 
         self.reset_loadout()
 
@@ -98,6 +142,9 @@ class Player(Entity):
 
         if self.weapon:
             self.weapon.tick(dt)
+
+        moving = dash_active or input_mag > 0
+        self._update_animation(dt, moving)
 
     # ------------------------------------------------------------------
     # Estado defensivo
@@ -160,6 +207,7 @@ class Player(Entity):
         created = self.weapon.fire((cx, cy), (mx, my))
         if not created:
             return
+        self._start_shoot_animation()
         adder = getattr(out_projectiles, "add", None)
         for bullet in created:
             if callable(adder):
@@ -168,7 +216,185 @@ class Player(Entity):
                 out_projectiles.append(bullet)
 
     def draw(self, surf):
-        pygame.draw.rect(surf, CFG.COLOR_PLAYER, self.rect())
+        animation = self._animations[self._current_animation]
+        sprite = animation.current_frame()
+        sprite_rect = sprite.get_rect()
+        sprite_rect.center = (self.x + self.w / 2, self.y + self.h / 2)
+        surf.blit(sprite, sprite_rect)
+
+    # ------------------------------------------------------------------
+    # Animaciones
+    # ------------------------------------------------------------------
+    def _build_animations(self) -> dict[str, FrameAnimation]:
+        size = CFG.SPRITE_SIZE
+        base_color = CFG.COLOR_PLAYER
+        outline = (40, 40, 60)
+        accent = (255, 255, 255)
+        weapon_color = (120, 160, 200)
+        sprite_dir = Path(CFG.PLAYER_SPRITES_PATH) if CFG.PLAYER_SPRITES_PATH else None
+        sprite_prefix = getattr(CFG, "PLAYER_SPRITE_PREFIX", "player")
+
+        def load_surface(path: Path) -> pygame.Surface | None:
+            try:
+                image = pygame.image.load(path.as_posix()).convert_alpha()
+            except (FileNotFoundError, pygame.error):
+                return None
+            if image.get_size() != (size, size):
+                image = pygame.transform.smoothscale(image, (size, size))
+            return image
+
+        def load_animation(state: str, expected_frames: int) -> list[pygame.Surface] | None:
+            if not sprite_dir:
+                return None
+            frames: list[pygame.Surface] = []
+            if expected_frames <= 1:
+                candidate = sprite_dir / f"{sprite_prefix}_{state}.png"
+                surface = load_surface(candidate)
+                if surface:
+                    frames.append(surface)
+                return frames or None
+            for i in range(expected_frames):
+                candidate = sprite_dir / f"{sprite_prefix}_{state}_{i}.png"
+                surface = load_surface(candidate)
+                if surface is None:
+                    return None
+                frames.append(surface)
+            return frames
+
+        def darker(color: tuple[int, int, int], amount: int) -> tuple[int, int, int]:
+            return tuple(max(0, c - amount) for c in color)
+
+        def base_body() -> pygame.Surface:
+            surf = pygame.Surface((size, size), pygame.SRCALPHA)
+            center = (size // 2, size // 2)
+            radius = size // 2 - 2
+            pygame.draw.circle(surf, outline, center, radius + 2)
+            pygame.draw.circle(surf, base_color, center, radius)
+            pygame.draw.circle(surf, darker(base_color, 30), (center[0], center[1] - 4), radius // 2)
+            pygame.draw.rect(surf, weapon_color, (center[0] - 2, center[1] - 2, 10, 4), border_radius=2)
+            return surf
+
+        def make_idle() -> pygame.Surface:
+            surf = base_body()
+            pygame.draw.circle(surf, accent, (size // 2 + 6, size // 2 - 6), 3)
+            return surf
+
+        def make_run_frames() -> list[pygame.Surface]:
+            frames = []
+            leg_colors = [(160, 140, 80), (200, 180, 120)]
+            for i in range(4):
+                surf = base_body()
+                sway = (i % 2) * 4 - 2
+                pygame.draw.line(
+                    surf,
+                    leg_colors[i % len(leg_colors)],
+                    (size // 2 - 8 + sway, size // 2 + 8),
+                    (size // 2 - 12 + sway, size // 2 + 14),
+                    4,
+                )
+                pygame.draw.line(
+                    surf,
+                    leg_colors[(i + 1) % len(leg_colors)],
+                    (size // 2 + 8 - sway, size // 2 + 8),
+                    (size // 2 + 12 - sway, size // 2 + 14),
+                    4,
+                )
+                frames.append(surf)
+            return frames
+
+        def make_reload_frames() -> list[pygame.Surface]:
+            frames = []
+            for i in range(5):
+                surf = base_body()
+                progress = i / 4
+                width = int(12 + progress * 8)
+                pygame.draw.rect(
+                    surf,
+                    (200, 220, 255),
+                    (size // 2 - width // 2, size // 2 - 10, width, 5),
+                    border_radius=2,
+                )
+                pygame.draw.rect(
+                    surf,
+                    (80, 110, 150),
+                    (size // 2 - width // 2, size // 2 - 10, width, 5),
+                    1,
+                    border_radius=2,
+                )
+                frames.append(surf)
+            return frames
+
+        def make_shoot_frames() -> list[pygame.Surface]:
+            frames = []
+            flash_colors = [(255, 240, 180), (255, 200, 120), (255, 120, 40), (255, 200, 120)]
+            for i in range(4):
+                surf = base_body()
+                pygame.draw.circle(surf, accent, (size // 2 + 6, size // 2 - 6), 3)
+                pygame.draw.polygon(
+                    surf,
+                    flash_colors[i],
+                    [
+                        (size // 2 + 14, size // 2 - 4),
+                        (size // 2 + 24, size // 2),
+                        (size // 2 + 14, size // 2 + 4),
+                    ],
+                )
+                frames.append(surf)
+            return frames
+
+        idle_frames = load_animation("idle", 1) or [make_idle()]
+        run_frames = load_animation("run", 4) or make_run_frames()
+        reload_frames = load_animation("reload", 5) or make_reload_frames()
+        shoot_frames = load_animation("shoot", 4) or make_shoot_frames()
+
+        animations = {
+            "idle": FrameAnimation(idle_frames, frame_time=0.2, loop=False),
+            "run": FrameAnimation(run_frames, frame_time=0.09, loop=True),
+            "reload": FrameAnimation(reload_frames, frame_time=0.12, loop=False),
+            "shoot": FrameAnimation(shoot_frames, frame_time=0.06, loop=False),
+        }
+        return animations
+
+    def _set_current_animation(self, name: str, *, force_reset: bool = False) -> None:
+        if self._current_animation != name:
+            self._current_animation = name
+            self._animations[name].reset()
+        elif force_reset:
+            self._animations[name].reset()
+
+    def _start_shoot_animation(self) -> None:
+        if self.weapon and self.weapon.is_reloading():
+            return
+        self._animation_override = "shoot"
+        self._set_current_animation("shoot", force_reset=True)
+
+    def _start_reload_animation(self) -> None:
+        if not self.weapon:
+            return
+        anim = self._animations["reload"]
+        anim.set_frame_duration(self.weapon.reload_time / max(1, len(anim.frames)))
+        self._animation_override = "reload"
+        self._set_current_animation("reload", force_reset=True)
+
+    def _update_animation(self, dt: float, moving: bool) -> None:
+        reloading = self.weapon.is_reloading() if self.weapon else False
+        if reloading and not self._was_reloading:
+            self._start_reload_animation()
+        self._was_reloading = reloading
+
+        active_name = self._animation_override
+        if active_name is None:
+            active_name = "run" if moving else "idle"
+        self._set_current_animation(active_name)
+
+        animation = self._animations[active_name]
+        animation.update(dt)
+
+        if self._animation_override == "shoot" and animation.finished:
+            self._animation_override = None
+        elif self._animation_override == "reload":
+            if not reloading and animation.finished:
+                self._animation_override = None
 
     # ------------------------------------------------------------------
     # Armas
