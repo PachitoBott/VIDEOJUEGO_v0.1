@@ -23,6 +23,7 @@ class Player(Entity):
         self.lives = self.max_lives
         self.invulnerable_timer = 0.0
         self.post_hit_invulnerability = 0.45
+        self.hits_taken = 0
 
         self.sprint_multiplier = 1.35
 
@@ -103,6 +104,7 @@ class Player(Entity):
             return False
         self.hp = max(0, self.hp - amount)
         self.invulnerable_timer = max(self.invulnerable_timer, self.post_hit_invulnerability)
+        self.hits_taken += 1
         return True
 
     def lose_life(self) -> bool:
