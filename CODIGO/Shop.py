@@ -56,6 +56,73 @@ class Shop:
         # ventana
         self.rect = pygame.Rect(0, 0, self.WIDTH, self.HEIGHT)
         self._item_hitboxes: list[pygame.Rect] = []
+        self._restock()
+
+    def rotate_inventory(self) -> None:
+        """Genera un nuevo lote de artículos disponibles."""
+        self._restock()
+
+    def _restock(self) -> None:
+        available = list(self.catalog)
+        weights = [float(entry.get("weight", 1.0)) for entry in available]
+        self.items = []
+        while available and len(self.items) < self.MAX_ITEMS:
+            choice = random.choices(available, weights=weights, k=1)[0]
+            idx = available.index(choice)
+            entry = {k: v for k, v in choice.items() if k != "weight"}
+            self.items.append(entry)
+            available.pop(idx)
+            weights.pop(idx)
+        if not self.items:
+            # fallback por si las ponderaciones eran cero
+            self.items = [{k: v for k, v in entry.items() if k != "weight"} for entry in self.catalog]
+        self.selected = 0
+        self.hover_index = None
+
+        # rng propio para fijar inventario por seed
+        self._seed: int | None = None
+        self._rng = random.Random()
+        self._inventory_generated = False
+
+    def configure_for_seed(self, seed: int | None) -> None:
+        """Genera el inventario inicial usando una seed concreta."""
+        self._seed = seed
+        if seed is None:
+            base_seed = random.randrange(1 << 30)
+        else:
+            base_seed = int(seed)
+        self._rng = random.Random(base_seed ^ 0xBADC0FFE)
+        self.items = self._build_inventory()
+        self.selected = 0
+        self.hover_index = None
+        self._inventory_generated = True
+
+    def rotate_inventory(self) -> None:
+        """Compatibilidad: asegura que exista inventario pero no lo rerolla."""
+        self.ensure_inventory()
+
+    def ensure_inventory(self) -> None:
+        if self.items or self._inventory_generated:
+            return
+        if self._seed is None:
+            self.configure_for_seed(None)
+        else:
+            self.configure_for_seed(self._seed)
+
+    def _build_inventory(self) -> list[dict]:
+        available = list(self.catalog)
+        weights = [float(entry.get("weight", 1.0)) for entry in available]
+        items: list[dict] = []
+        while available and len(items) < self.MAX_ITEMS:
+            choice = self._rng.choices(available, weights=weights, k=1)[0]
+            idx = available.index(choice)
+            entry = {k: v for k, v in choice.items() if k != "weight"}
+            items.append(entry)
+            available.pop(idx)
+            weights.pop(idx)
+        if not items:
+            items = [{k: v for k, v in entry.items() if k != "weight"} for entry in self.catalog]
+        return items
 
         # rng propio para fijar inventario por seed
         self._seed: int | None = None
