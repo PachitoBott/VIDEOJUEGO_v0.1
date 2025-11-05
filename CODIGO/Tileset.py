@@ -55,11 +55,12 @@ class Tileset:
         ts = CFG.TILE_SIZE
         for ty, row in enumerate(tiles):
             for tx, tile_id in enumerate(row):
-                if not self._should_draw_wall(tiles, tx, ty):
-                    continue
-
                 px = tx * ts
                 py = ty * ts
+                if tile_id == CFG.FLOOR:
+                    self.draw_tile(surf, CFG.FLOOR, px, py)
+                    continue
+
                 variant = self._wall_variant(tiles, tx, ty)
                 if variant not in self.rects:
                     variant = CFG.WALL
@@ -70,11 +71,10 @@ class Tileset:
         ts = CFG.TILE_SIZE
         for ty, row in enumerate(tiles):
             for tx, tile_id in enumerate(row):
-                if not self._should_draw_wall(tiles, tx, ty):
-                    continue
                 px = tx * ts
                 py = ty * ts
-                pygame.draw.rect(surf, CFG.COLOR_WALL, (px, py, ts, ts))
+                color = CFG.COLOR_FLOOR if tile_id == CFG.FLOOR else CFG.COLOR_WALL
+                pygame.draw.rect(surf, color, (px, py, ts, ts))
 
     def _wall_variant(self, tiles: Sequence[Sequence[int]], tx: int, ty: int) -> int:
         def is_floor(x: int, y: int) -> bool:
@@ -111,20 +111,3 @@ class Tileset:
             return CFG.WALL_RIGHT
 
         return CFG.WALL
-
-    def _should_draw_wall(self, tiles: Sequence[Sequence[int]], tx: int, ty: int) -> bool:
-        if tiles[ty][tx] == CFG.FLOOR:
-            return False
-
-        height = len(tiles)
-
-        for ny in range(ty - 1, ty + 2):
-            if not (0 <= ny < height):
-                continue
-            row = tiles[ny]
-            for nx in range(tx - 1, tx + 2):
-                if nx == tx and ny == ty:
-                    continue
-                if 0 <= nx < len(row) and row[nx] == CFG.FLOOR:
-                    return True
-        return False
