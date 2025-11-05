@@ -12,10 +12,10 @@ class Config:
 
     PLAYER_START_LIVES: int = 10
     
-    ROOM_W_MIN: int = 24
-    ROOM_W_MAX: int = 36
-    ROOM_H_MIN: int = 18
-    ROOM_H_MAX: int = 26
+    ROOM_W_MIN: int = 12
+    ROOM_W_MAX: int = 18
+    ROOM_H_MIN: int = 9
+    ROOM_H_MAX: int = 13
 
     TILESET_PATH: Optional[str] = "assets/tileset.png"
 
