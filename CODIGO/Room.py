@@ -552,18 +552,20 @@ class Room:
         úsalo; si no, renderizo con rectángulos de colores.
         """
         ts = CFG.TILE_SIZE
+        surf.fill(CFG.COLOR_BG)
         # Si tu tileset expone un método de dibujado por mapa, úsalo:
+        drew_with_tileset = False
         if hasattr(tileset, "draw_map"):
-            tileset.draw_map(surf, self.tiles)  # <- adapta si tu Tileset usa otra firma
-            return
+            drew_with_tileset = tileset.draw_map(surf, self.tiles)
 
-        # Fallback: pintar a color
-        wall = (60, 60, 70)
-        floor = (110, 85, 70)
-        for ty in range(CFG.MAP_H):
-            for tx in range(CFG.MAP_W):
-                color = floor if self.tiles[ty][tx] == 0 else wall
-                pygame.draw.rect(surf, color, pygame.Rect(tx*ts, ty*ts, ts, ts))
+        if not drew_with_tileset:
+            # Fallback: pintar a color
+            wall = CFG.COLOR_WALL
+            floor = CFG.COLOR_FLOOR
+            for ty in range(CFG.MAP_H):
+                for tx in range(CFG.MAP_W):
+                    color = floor if self.tiles[ty][tx] == 0 else wall
+                    pygame.draw.rect(surf, color, pygame.Rect(tx*ts, ty*ts, ts, ts))
         # Puertas bloqueadas: dibuja “rejas” rojas en las aberturas
         if self.locked:
             bars = self._door_opening_rects()
