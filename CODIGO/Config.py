@@ -8,6 +8,8 @@ class Config:
     MAP_H: int = 40
     SCREEN_SCALE: int = 2
     FPS: int = 120
+
+    PLAYER_START_LIVES: int = 10
     
     ROOM_W_MIN: int = 24
     ROOM_W_MAX: int = 36
