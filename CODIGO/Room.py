@@ -552,7 +552,16 @@ class Room:
         úsalo; si no, renderizo con rectángulos de colores.
         """
         ts = CFG.TILE_SIZE
-        # Si tu tileset expone un método de dibujado por mapa, úsalo:
+
+        # Rellenar el suelo con un color plano para evitar repetir sprites.
+        floor = CFG.COLOR_FLOOR
+        for ty in range(CFG.MAP_H):
+            row = self.tiles[ty]
+            for tx in range(CFG.MAP_W):
+                if row[tx] == CFG.FLOOR:
+                    pygame.draw.rect(surf, floor, pygame.Rect(tx * ts, ty * ts, ts, ts))
+
+        # Si tu tileset expone un método de dibujado por mapa, úsalo para las paredes.
         drew_with_tileset = False
         if hasattr(tileset, "draw_map"):
             drew_with_tileset = tileset.draw_map(surf, self.tiles)
