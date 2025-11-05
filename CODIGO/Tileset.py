@@ -52,20 +52,7 @@ class Tileset:
             self._draw_map_fallback(surf, tiles)
             return False
 
-        used_sprite = False
         ts = CFG.TILE_SIZE
-
-        if CFG.FLOOR in self.rects:
-            used_sprite = True
-            for ty, row in enumerate(tiles):
-                for tx, tile_id in enumerate(row):
-                    if tile_id == CFG.FLOOR:
-                        px = tx * ts
-                        py = ty * ts
-                        self.draw_tile(surf, CFG.FLOOR, px, py)
-        else:
-            self._draw_floor_fallback(surf, tiles)
-
         for ty, row in enumerate(tiles):
             for tx, tile_id in enumerate(row):
                 if not self._should_draw_wall(tiles, tx, ty):
@@ -74,19 +61,12 @@ class Tileset:
                 px = tx * ts
                 py = ty * ts
                 variant = self._wall_variant(tiles, tx, ty)
-
-                if variant in self.rects:
-                    used_sprite = True
-                elif CFG.WALL in self.rects:
+                if variant not in self.rects:
                     variant = CFG.WALL
-                    used_sprite = True
-
                 self.draw_tile(surf, variant, px, py)
-
-        return used_sprite
+        return True
 
     def _draw_map_fallback(self, surf: pygame.Surface, tiles: Sequence[Sequence[int]]) -> None:
-        self._draw_floor_fallback(surf, tiles)
         ts = CFG.TILE_SIZE
         for ty, row in enumerate(tiles):
             for tx, tile_id in enumerate(row):
@@ -95,15 +75,6 @@ class Tileset:
                 px = tx * ts
                 py = ty * ts
                 pygame.draw.rect(surf, CFG.COLOR_WALL, (px, py, ts, ts))
-
-    def _draw_floor_fallback(self, surf: pygame.Surface, tiles: Sequence[Sequence[int]]) -> None:
-        ts = CFG.TILE_SIZE
-        for ty, row in enumerate(tiles):
-            for tx, tile_id in enumerate(row):
-                if tile_id == CFG.FLOOR:
-                    px = tx * ts
-                    py = ty * ts
-                    pygame.draw.rect(surf, CFG.COLOR_FLOOR, (px, py, ts, ts))
 
     def _wall_variant(self, tiles: Sequence[Sequence[int]], tx: int, ty: int) -> int:
         def is_floor(x: int, y: int) -> bool:
