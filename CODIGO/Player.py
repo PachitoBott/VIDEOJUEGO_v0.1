@@ -17,9 +17,11 @@ class Player(Entity):
         self.weapon = None
 
         # --- Atributos de supervivencia y movilidad ---
-        self.max_hp = 3
+        self.base_max_hp = 3
+        self.max_hp = self.base_max_hp
         self.hp = self.max_hp
-        self.max_lives = CFG.PLAYER_START_LIVES
+        self.base_max_lives = CFG.PLAYER_START_LIVES
+        self.max_lives = self.base_max_lives
         self.lives = self.max_lives
         self.invulnerable_timer = 0.0
         self.post_hit_invulnerability = 0.45
@@ -171,7 +173,9 @@ class Player(Entity):
         """Restablece el arma inicial al comenzar una nueva partida."""
         self._owned_weapons.clear()
         self.cooldown_scale = 1.0
+        self.max_hp = self.base_max_hp
         self.hp = self.max_hp
+        self.max_lives = self.base_max_lives
         self.reset_lives()
         self._hits_taken_current_life = 0
         self.invulnerable_timer = 0.0

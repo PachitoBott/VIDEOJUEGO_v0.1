@@ -1,22 +1,24 @@
 # CODIGO/Shop.py
+import random
 import pygame
 
 class Shop:
     WIDTH, HEIGHT = 320, 240
+    MAX_ITEMS = 6
 
     def __init__(self, font=None):
-        self.items = [
-            # type: weapon|upgrade
-            {"name": "Pistolas Dobles", "price": 50, "type": "weapon", "id": "dual_pistols"},
-            {"name": "Rifle Ligero", "price": 65, "type": "weapon", "id": "light_rifle"},
-            {"name": "Escopeta Salva Arcana", "price": 80, "type": "weapon", "id": "arcane_salvo"},
-            {"name": "Rifle de Pulsos", "price": 70, "type": "weapon", "id": "pulse_rifle"},
-            {"name": "Guantes Tesla", "price": 60, "type": "weapon", "id": "tesla_gloves"},
-            {"name": "Aumento de Vida (+1)", "price": 30, "type": "upgrade", "id": "hp_up"},
-            {"name": "Aumento de Velocidad (+5%)", "price": 25, "type": "upgrade", "id": "spd_up"},
-            {"name": "Blindaje Reforzado (+2)", "price": 55, "type": "upgrade", "id": "armor_up"},
-            {"name": "Talismán de Recarga (-10%)", "price": 45, "type": "upgrade", "id": "cdr_charm"},
+        self.catalog = [
+            {"name": "Pistolas dobles", "price": 65, "type": "weapon", "id": "dual_pistols", "weight": 1},
+            {"name": "Rifle ligero", "price": 80, "type": "weapon", "id": "light_rifle", "weight": 1},
+            {"name": "Escopeta salva arcana", "price": 95, "type": "weapon", "id": "arcane_salvo", "weight": 1},
+            {"name": "Rifle de pulsos", "price": 90, "type": "weapon", "id": "pulse_rifle", "weight": 1},
+            {"name": "Guantes tesla", "price": 78, "type": "weapon", "id": "tesla_gloves", "weight": 1},
+            {"name": "Vida extra (+1)", "price": 35, "type": "upgrade", "id": "hp_up", "weight": 4},
+            {"name": "Aumento de velocidad (+5%)", "price": 30, "type": "upgrade", "id": "spd_up", "weight": 3},
+            {"name": "Blindaje reforzado (+1 golpe)", "price": 60, "type": "upgrade", "id": "armor_up", "weight": 2},
+            {"name": "Talismán de recarga (-10%)", "price": 52, "type": "upgrade", "id": "cdr_charm", "weight": 3},
         ]
+        self.items: list[dict] = []
         self.active = False
         self.selected = 0
         self.hover_index = None
@@ -25,12 +27,38 @@ class Shop:
         # ventana
         self.rect = pygame.Rect(0, 0, self.WIDTH, self.HEIGHT)
         self._item_hitboxes: list[pygame.Rect] = []
+        self._restock()
+
+    def rotate_inventory(self) -> None:
+        """Genera un nuevo lote de artículos disponibles."""
+        self._restock()
+
+    def _restock(self) -> None:
+        available = list(self.catalog)
+        weights = [float(entry.get("weight", 1.0)) for entry in available]
+        self.items = []
+        while available and len(self.items) < self.MAX_ITEMS:
+            choice = random.choices(available, weights=weights, k=1)[0]
+            idx = available.index(choice)
+            entry = {k: v for k, v in choice.items() if k != "weight"}
+            self.items.append(entry)
+            available.pop(idx)
+            weights.pop(idx)
+        if not self.items:
+            # fallback por si las ponderaciones eran cero
+            self.items = [{k: v for k, v in entry.items() if k != "weight"} for entry in self.catalog]
+        self.selected = 0
+        self.hover_index = None
 
     def open(self, cx, cy):
         self.active = True
         # centrar sobre el mundo
         self.rect.center = (cx, cy)
         self.hover_index = None
+        if self.items:
+            self.selected = min(self.selected, len(self.items) - 1)
+        else:
+            self.selected = 0
 
     def close(self):
         self.active = False
@@ -93,7 +121,9 @@ class Shop:
             self._apply_weapon(player, item["id"])
         elif item["type"] == "upgrade":
             self._apply_upgrade(player, item["id"])
-        return True, f"Compraste: {item['name']}"
+        name = item.get("name", "Artículo")
+        self._restock()
+        return True, f"Compraste: {name}"
 
     # --- Efectos concretos ---
     def _apply_weapon(self, player, wid):
@@ -111,22 +141,25 @@ class Shop:
 
     def _apply_upgrade(self, player, uid):
         if uid == "hp_up":
-            max_hp = getattr(player, "max_hp", getattr(player, "hp", 3))
-            hp = getattr(player, "hp", max_hp)
-            max_hp += 1
-            hp = min(hp + 1, max_hp)
-            setattr(player, "max_hp", max_hp)
-            setattr(player, "hp", hp)
+            max_lives = getattr(player, "max_lives", getattr(player, "lives", 1))
+            lives = getattr(player, "lives", max_lives)
+            max_lives += 1
+            lives = min(lives + 1, max_lives)
+            setattr(player, "max_lives", max_lives)
+            setattr(player, "lives", lives)
         elif uid == "spd_up":
             speed = getattr(player, "speed", 1.0)
             setattr(player, "speed", speed * 1.05)
         elif uid == "armor_up":
             max_hp = getattr(player, "max_hp", getattr(player, "hp", 3))
             hp = getattr(player, "hp", max_hp)
-            max_hp += 2
-            hp = min(hp + 2, max_hp)
+            max_hp += 1
+            hp = min(hp + 1, max_hp)
             setattr(player, "max_hp", max_hp)
             setattr(player, "hp", hp)
+            if hasattr(player, "_hits_taken_current_life"):
+                hits_taken = max(0, max_hp - hp)
+                setattr(player, "_hits_taken_current_life", hits_taken)
         elif uid == "cdr_charm":
             current = getattr(player, "cooldown_scale", 1.0)
             new_scale = max(0.4, current * 0.9)
