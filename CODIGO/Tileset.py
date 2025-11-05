@@ -34,11 +34,42 @@ class Tileset:
             except Exception:
                 self.surface = None
 
-    def draw_tile(self, surf: pygame.Surface, tile_id: int, px: int, py: int) -> None:
+    def draw_tile(
+        self,
+        surf: pygame.Surface,
+        tile_id: int,
+        px: int,
+        py: int,
+        logical_id: Optional[int] = None,
+    ) -> None:
+        logical = tile_id if logical_id is None else logical_id
+        trim_x, trim_y = self._trim_for_tile(logical)
+
         if self.surface and tile_id in self.rects:
-            surf.blit(self.surface, (px, py), self.rects[tile_id]); return
-        color = CFG.COLOR_FLOOR if tile_id == CFG.FLOOR else CFG.COLOR_WALL
-        pygame.draw.rect(surf, color, (px, py, CFG.TILE_SIZE, CFG.TILE_SIZE))
+            area = self.rects[tile_id].copy()
+            dest_x, dest_y = px, py
+
+            if trim_x:
+                area.x += 1
+                area.width = max(0, area.width - 2)
+                dest_x += 1
+            if trim_y:
+                area.y += 1
+                area.height = max(0, area.height - 2)
+                dest_y += 1
+
+            surf.blit(self.surface, (dest_x, dest_y), area)
+            return
+
+        color = CFG.COLOR_FLOOR if logical == CFG.FLOOR else CFG.COLOR_WALL
+        rect = pygame.Rect(px, py, CFG.TILE_SIZE, CFG.TILE_SIZE)
+        if trim_x:
+            rect.x += 1
+            rect.width = max(0, rect.width - 2)
+        if trim_y:
+            rect.y += 1
+            rect.height = max(0, rect.height - 2)
+        pygame.draw.rect(surf, color, rect)
 
     # -----------------------------------------------------------
     # Dibujo de mapas completos
@@ -52,7 +83,20 @@ class Tileset:
             self._draw_map_fallback(surf, tiles)
             return False
 
+        used_sprite = False
         ts = CFG.TILE_SIZE
+
+        if CFG.FLOOR in self.rects:
+            used_sprite = True
+            for ty, row in enumerate(tiles):
+                for tx, tile_id in enumerate(row):
+                    if tile_id == CFG.FLOOR:
+                        px = tx * ts
+                        py = ty * ts
+                        self.draw_tile(surf, CFG.FLOOR, px, py)
+        else:
+            self._draw_floor_fallback(surf, tiles)
+
         for ty, row in enumerate(tiles):
             for tx, tile_id in enumerate(row):
                 if not self._should_draw_wall(tiles, tx, ty):
@@ -61,12 +105,20 @@ class Tileset:
                 px = tx * ts
                 py = ty * ts
                 variant = self._wall_variant(tiles, tx, ty)
-                if variant not in self.rects:
-                    variant = CFG.WALL
-                self.draw_tile(surf, variant, px, py)
-        return True
+                sprite_id = variant
+
+                if sprite_id in self.rects:
+                    used_sprite = True
+                elif CFG.WALL in self.rects:
+                    sprite_id = CFG.WALL
+                    used_sprite = True
+
+                self.draw_tile(surf, sprite_id, px, py, logical_id=variant)
+
+        return used_sprite
 
     def _draw_map_fallback(self, surf: pygame.Surface, tiles: Sequence[Sequence[int]]) -> None:
+        self._draw_floor_fallback(surf, tiles)
         ts = CFG.TILE_SIZE
         for ty, row in enumerate(tiles):
             for tx, tile_id in enumerate(row):
@@ -74,7 +126,24 @@ class Tileset:
                     continue
                 px = tx * ts
                 py = ty * ts
-                pygame.draw.rect(surf, CFG.COLOR_WALL, (px, py, ts, ts))
+                rect = pygame.Rect(px, py, ts, ts)
+                trim_x, trim_y = self._trim_for_tile(tile_id)
+                if trim_x:
+                    rect.x += 1
+                    rect.width = max(0, rect.width - 2)
+                if trim_y:
+                    rect.y += 1
+                    rect.height = max(0, rect.height - 2)
+                pygame.draw.rect(surf, CFG.COLOR_WALL, rect)
+
+    def _draw_floor_fallback(self, surf: pygame.Surface, tiles: Sequence[Sequence[int]]) -> None:
+        ts = CFG.TILE_SIZE
+        for ty, row in enumerate(tiles):
+            for tx, tile_id in enumerate(row):
+                if tile_id == CFG.FLOOR:
+                    px = tx * ts
+                    py = ty * ts
+                    pygame.draw.rect(surf, CFG.COLOR_FLOOR, (px, py, ts, ts))
 
     def _wall_variant(self, tiles: Sequence[Sequence[int]], tx: int, ty: int) -> int:
         def is_floor(x: int, y: int) -> bool:
@@ -128,3 +197,23 @@ class Tileset:
                 if 0 <= nx < len(row) and row[nx] == CFG.FLOOR:
                     return True
         return False
+
+    def _trim_for_tile(self, tile_id: int) -> tuple[bool, bool]:
+        if tile_id in {
+            CFG.WALL_CORNER_NW,
+            CFG.WALL_CORNER_NE,
+            CFG.WALL_CORNER_SW,
+            CFG.WALL_CORNER_SE,
+        }:
+            return False, False
+
+        if tile_id == CFG.WALL:
+            return True, True
+
+        if tile_id in {CFG.WALL_LEFT, CFG.WALL_RIGHT}:
+            return False, True
+
+        if tile_id in {CFG.WALL_TOP, CFG.WALL_BOTTOM}:
+            return True, False
+
+        return False, False
