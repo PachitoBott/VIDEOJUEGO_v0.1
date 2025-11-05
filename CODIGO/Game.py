@@ -318,7 +318,7 @@ class Game:
         self._render_ui()
 
     def _render_world(self) -> None:
-        self.world.fill((0, 0, 0))
+        self.world.fill(self.cfg.COLOR_BG)
         room = self.dungeon.current_room
         room.draw(self.world, self.tileset)
 

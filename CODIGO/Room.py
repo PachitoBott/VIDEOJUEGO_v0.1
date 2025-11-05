@@ -552,22 +552,48 @@ class Room:
         úsalo; si no, renderizo con rectángulos de colores.
         """
         ts = CFG.TILE_SIZE
-        # Si tu tileset expone un método de dibujado por mapa, úsalo:
-        if hasattr(tileset, "draw_map"):
-            tileset.draw_map(surf, self.tiles)  # <- adapta si tu Tileset usa otra firma
-            return
 
-        # Fallback: pintar a color
-        wall = (60, 60, 70)
-        floor = (110, 85, 70)
+        # Rellenar el suelo con un color plano para evitar repetir sprites.
+        floor = CFG.COLOR_FLOOR
         for ty in range(CFG.MAP_H):
+            row = self.tiles[ty]
             for tx in range(CFG.MAP_W):
-                color = floor if self.tiles[ty][tx] == 0 else wall
-                pygame.draw.rect(surf, color, pygame.Rect(tx*ts, ty*ts, ts, ts))
+                if row[tx] == CFG.FLOOR:
+                    pygame.draw.rect(surf, floor, pygame.Rect(tx * ts, ty * ts, ts, ts))
+
+        # Si tu tileset expone un método de dibujado por mapa, úsalo para las paredes.
+        drew_with_tileset = False
+        if hasattr(tileset, "draw_map"):
+            drew_with_tileset = tileset.draw_map(surf, self.tiles)
+
+        if not drew_with_tileset:
+            # Fallback: colorear las paredes a mano, evitando el exterior.
+            wall = CFG.COLOR_WALL
+            for ty in range(CFG.MAP_H):
+                row = self.tiles[ty]
+                for tx in range(CFG.MAP_W):
+                    if row[tx] != CFG.FLOOR and self._wall_adjacent_to_floor(tx, ty):
+                        pygame.draw.rect(surf, wall, pygame.Rect(tx * ts, ty * ts, ts, ts))
         # Puertas bloqueadas: dibuja “rejas” rojas en las aberturas
         if self.locked:
             bars = self._door_opening_rects()
             for d, r in bars.items():
                 pygame.draw.rect(surf, (180, 40, 40), r)         # relleno rojo
                 pygame.draw.rect(surf, (255, 90, 90), r, 1)      # borde claro
+
+    def _wall_adjacent_to_floor(self, tx: int, ty: int) -> bool:
+        if self.tiles[ty][tx] == CFG.FLOOR:
+            return False
+
+        height = len(self.tiles)
+        for ny in range(ty - 1, ty + 2):
+            if not (0 <= ny < height):
+                continue
+            row = self.tiles[ny]
+            for nx in range(tx - 1, tx + 2):
+                if nx == tx and ny == ty:
+                    continue
+                if 0 <= nx < len(row) and row[nx] == CFG.FLOOR:
+                    return True
+        return False
         
