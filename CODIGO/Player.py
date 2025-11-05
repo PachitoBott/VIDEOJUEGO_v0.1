@@ -246,14 +246,19 @@ class Player(Entity):
                 )
             frames: list[pygame.Surface] = []
             if expected_frames <= 1:
-                candidate = sprite_dir / f"{sprite_prefix}_{state}.png"
-                surface = load_surface(candidate)
-                if surface is None:
-                    raise FileNotFoundError(
-                        f"No se encontró el sprite '{candidate.as_posix()}' para la animación '{state}'"
-                    )
-                frames.append(surface)
-                return frames
+                candidates = [
+                    sprite_dir / f"{sprite_prefix}_{state}.png",
+                    sprite_dir / f"{sprite_prefix}_{state}_0.png",
+                ]
+                for candidate in candidates:
+                    surface = load_surface(candidate)
+                    if surface is not None:
+                        frames.append(surface)
+                        return frames
+                missing = " o ".join(candidate.as_posix() for candidate in candidates)
+                raise FileNotFoundError(
+                    f"No se encontró el sprite '{missing}' para la animación '{state}'"
+                )
             for i in range(expected_frames):
                 candidate = sprite_dir / f"{sprite_prefix}_{state}_{i}.png"
                 surface = load_surface(candidate)
