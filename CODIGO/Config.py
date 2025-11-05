@@ -5,8 +5,8 @@ from typing import Tuple, Optional
 class Config:
     TILE_SIZE: int = 32
     SPRITE_SIZE: int = 32
-    MAP_W: int = 30
-    MAP_H: int = 20
+    MAP_W: int = 60
+    MAP_H: int = 40
     SCREEN_SCALE: int = 2
     FPS: int = 120
 
