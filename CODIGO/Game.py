@@ -65,6 +65,11 @@ class Game:
         self.current_seed = self.dungeon.seed
         pygame.display.set_caption(f"Roguelike — Seed {self.current_seed}")
 
+        # preparar inventario de la tienda para esta seed
+        if hasattr(self, "shop"):
+            self.shop.close()
+            self.shop.configure_for_seed(self.current_seed)
+
         # marcar room inicial como explorado
         self.dungeon.explored = set()
         self.dungeon.explored.add((self.dungeon.i, self.dungeon.j))

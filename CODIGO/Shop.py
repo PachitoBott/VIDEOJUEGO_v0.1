@@ -50,7 +50,53 @@ class Shop:
         self.selected = 0
         self.hover_index = None
 
+        # rng propio para fijar inventario por seed
+        self._seed: int | None = None
+        self._rng = random.Random()
+        self._inventory_generated = False
+
+    def configure_for_seed(self, seed: int | None) -> None:
+        """Genera el inventario inicial usando una seed concreta."""
+        self._seed = seed
+        if seed is None:
+            base_seed = random.randrange(1 << 30)
+        else:
+            base_seed = int(seed)
+        self._rng = random.Random(base_seed ^ 0xBADC0FFE)
+        self.items = self._build_inventory()
+        self.selected = 0
+        self.hover_index = None
+        self._inventory_generated = True
+
+    def rotate_inventory(self) -> None:
+        """Compatibilidad: asegura que exista inventario pero no lo rerolla."""
+        self.ensure_inventory()
+
+    def ensure_inventory(self) -> None:
+        if self.items or self._inventory_generated:
+            return
+        if self._seed is None:
+            self.configure_for_seed(None)
+        else:
+            self.configure_for_seed(self._seed)
+
+    def _build_inventory(self) -> list[dict]:
+        available = list(self.catalog)
+        weights = [float(entry.get("weight", 1.0)) for entry in available]
+        items: list[dict] = []
+        while available and len(items) < self.MAX_ITEMS:
+            choice = self._rng.choices(available, weights=weights, k=1)[0]
+            idx = available.index(choice)
+            entry = {k: v for k, v in choice.items() if k != "weight"}
+            items.append(entry)
+            available.pop(idx)
+            weights.pop(idx)
+        if not items:
+            items = [{k: v for k, v in entry.items() if k != "weight"} for entry in self.catalog]
+        return items
+
     def open(self, cx, cy):
+        self.ensure_inventory()
         self.active = True
         # centrar sobre el mundo
         self.rect.center = (cx, cy)
@@ -96,13 +142,14 @@ class Shop:
         return False, ""
 
     def move_selection(self, dy):
-        if not self.active: return
+        if not self.active or not self.items:
+            return
         self.selected = (self.selected + dy) % len(self.items)
         self.hover_index = self.selected
 
     def try_buy(self, player):
         """Aplica compra si hay oro suficiente y devuelve (comprado: bool, msg: str)."""
-        if not self.active: 
+        if not self.active or not self.items:
             return False, ""
         item = self.items[self.selected]
         gold = getattr(player, "gold", 0)
@@ -122,7 +169,13 @@ class Shop:
         elif item["type"] == "upgrade":
             self._apply_upgrade(player, item["id"])
         name = item.get("name", "Artículo")
-        self._restock()
+        self.items.pop(self.selected)
+        if self.items:
+            self.selected %= len(self.items)
+            self.hover_index = self.selected
+        else:
+            self.selected = 0
+            self.hover_index = None
         return True, f"Compraste: {name}"
 
     # --- Efectos concretos ---
