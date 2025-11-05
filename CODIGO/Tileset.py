@@ -44,6 +44,7 @@ class Tileset:
     ) -> None:
         logical = tile_id if logical_id is None else logical_id
         trim_x, trim_y = self._trim_for_tile(logical)
+        
 
         if self.surface and tile_id in self.rects:
             area = self.rects[tile_id].copy()
@@ -63,12 +64,6 @@ class Tileset:
 
         color = CFG.COLOR_FLOOR if logical == CFG.FLOOR else CFG.COLOR_WALL
         rect = pygame.Rect(px, py, CFG.TILE_SIZE, CFG.TILE_SIZE)
-        if trim_x:
-            rect.x += 1
-            rect.width = max(0, rect.width - 2)
-        if trim_y:
-            rect.y += 1
-            rect.height = max(0, rect.height - 2)
         pygame.draw.rect(surf, color, rect)
 
     # -----------------------------------------------------------
@@ -211,9 +206,9 @@ class Tileset:
             return True, True
 
         if tile_id in {CFG.WALL_LEFT, CFG.WALL_RIGHT}:
-            return False, True
+            return True, False
 
         if tile_id in {CFG.WALL_TOP, CFG.WALL_BOTTOM}:
-            return True, False
+            return False, True
 
         return False, False
