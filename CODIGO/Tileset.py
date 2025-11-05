@@ -43,34 +43,32 @@ class Tileset:
         logical_id: Optional[int] = None,
     ) -> None:
         logical = tile_id if logical_id is None else logical_id
-        left_trim, top_trim, right_trim, bottom_trim = self._trim_for_tile(logical)
+        trim_x, trim_y = self._trim_for_tile(logical)
 
         if self.surface and tile_id in self.rects:
             area = self.rects[tile_id].copy()
-            dest_x = px + left_trim
-            dest_y = py + top_trim
+            dest_x, dest_y = px, py
 
-            if left_trim:
-                area.x += left_trim
-                area.width = max(0, area.width - left_trim)
-            if right_trim:
-                area.width = max(0, area.width - right_trim)
-            if top_trim:
-                area.y += top_trim
-                area.height = max(0, area.height - top_trim)
-            if bottom_trim:
-                area.height = max(0, area.height - bottom_trim)
+            if trim_x:
+                area.x += 1
+                area.width = max(0, area.width - 2)
+                dest_x += 1
+            if trim_y:
+                area.y += 1
+                area.height = max(0, area.height - 2)
+                dest_y += 1
 
             surf.blit(self.surface, (dest_x, dest_y), area)
             return
 
         color = CFG.COLOR_FLOOR if logical == CFG.FLOOR else CFG.COLOR_WALL
-        rect = pygame.Rect(
-            px + left_trim,
-            py + top_trim,
-            CFG.TILE_SIZE - left_trim - right_trim,
-            CFG.TILE_SIZE - top_trim - bottom_trim,
-        )
+        rect = pygame.Rect(px, py, CFG.TILE_SIZE, CFG.TILE_SIZE)
+        if trim_x:
+            rect.x += 1
+            rect.width = max(0, rect.width - 2)
+        if trim_y:
+            rect.y += 1
+            rect.height = max(0, rect.height - 2)
         pygame.draw.rect(surf, color, rect)
 
     # -----------------------------------------------------------
@@ -128,13 +126,14 @@ class Tileset:
                     continue
                 px = tx * ts
                 py = ty * ts
-                left_trim, top_trim, right_trim, bottom_trim = self._trim_for_tile(tile_id)
-                rect = pygame.Rect(
-                    px + left_trim,
-                    py + top_trim,
-                    ts - left_trim - right_trim,
-                    ts - top_trim - bottom_trim,
-                )
+                rect = pygame.Rect(px, py, ts, ts)
+                trim_x, trim_y = self._trim_for_tile(tile_id)
+                if trim_x:
+                    rect.x += 1
+                    rect.width = max(0, rect.width - 2)
+                if trim_y:
+                    rect.y += 1
+                    rect.height = max(0, rect.height - 2)
                 pygame.draw.rect(surf, CFG.COLOR_WALL, rect)
 
     def _draw_floor_fallback(self, surf: pygame.Surface, tiles: Sequence[Sequence[int]]) -> None:
@@ -162,13 +161,13 @@ class Tileset:
         down_left = is_floor(tx - 1, ty + 1)
         down_right = is_floor(tx + 1, ty + 1)
 
-        if down and not up and not left and down_right and not down_left:
+        if down_right and not (down or right):
             return CFG.WALL_CORNER_NW
-        if down and not up and not right and down_left and not down_right:
+        if down_left and not (down or left):
             return CFG.WALL_CORNER_NE
-        if up and not down and not left and up_right and not up_left:
+        if up_right and not (up or right):
             return CFG.WALL_CORNER_SW
-        if up and not down and not right and up_left and not up_right:
+        if up_left and not (up or left):
             return CFG.WALL_CORNER_SE
 
         if down and not up:
@@ -188,14 +187,33 @@ class Tileset:
 
         height = len(tiles)
 
-        neighbours = ((tx - 1, ty), (tx + 1, ty), (tx, ty - 1), (tx, ty + 1))
-        for nx, ny in neighbours:
-            if 0 <= ny < height and 0 <= nx < len(tiles[ny]):
-                if tiles[ny][nx] == CFG.FLOOR:
+        for ny in range(ty - 1, ty + 2):
+            if not (0 <= ny < height):
+                continue
+            row = tiles[ny]
+            for nx in range(tx - 1, tx + 2):
+                if nx == tx and ny == ty:
+                    continue
+                if 0 <= nx < len(row) and row[nx] == CFG.FLOOR:
                     return True
         return False
 
-    def _trim_for_tile(self, tile_id: int) -> tuple[int, int, int, int]:
-        """Devuelve el recorte (izq, arriba, der, abajo) para un tile."""
-        return 0, 0, 0, 0
+    def _trim_for_tile(self, tile_id: int) -> tuple[bool, bool]:
+        if tile_id in {
+            CFG.WALL_CORNER_NW,
+            CFG.WALL_CORNER_NE,
+            CFG.WALL_CORNER_SW,
+            CFG.WALL_CORNER_SE,
+        }:
+            return False, False
 
+        if tile_id == CFG.WALL:
+            return True, True
+
+        if tile_id in {CFG.WALL_LEFT, CFG.WALL_RIGHT}:
+            return False, True
+
+        if tile_id in {CFG.WALL_TOP, CFG.WALL_BOTTOM}:
+            return True, False
+
+        return False, False
