@@ -88,6 +88,8 @@ class Player(Entity):
         self._current_animation = "idle"
         self._animation_override: str | None = None
         self._was_reloading = False
+        self._sprite_scale = max(0.1, getattr(CFG, "PLAYER_DRAW_SCALE", 1.0))
+        self._facing_left = False
 
         self.reset_loadout()
 
@@ -131,6 +133,8 @@ class Player(Entity):
             if not dash_active and input_mag > 0:
                 if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
                     speed_scale = self.sprint_multiplier
+
+        self._update_facing(move_dx, dash_active)
 
         if move_dx != 0 or move_dy != 0:
             mag = math.hypot(move_dx, move_dy)
@@ -201,6 +205,7 @@ class Player(Entity):
             return
 
         mx, my = mouse_world_pos
+        self._face_towards_x(mx)
         # origen: centro del jugador
         cx = self.x + self.w / 2
         cy = self.y + self.h / 2
@@ -217,10 +222,51 @@ class Player(Entity):
 
     def draw(self, surf):
         animation = self._animations[self._current_animation]
-        sprite = animation.current_frame()
+        sprite = self._prepare_sprite(animation.current_frame())
         sprite_rect = sprite.get_rect()
         sprite_rect.center = (self.x + self.w / 2, self.y + self.h / 2)
         surf.blit(sprite, sprite_rect)
+
+    def _prepare_sprite(self, base_sprite: pygame.Surface) -> pygame.Surface:
+        sprite = base_sprite
+        if self._sprite_scale != 1.0:
+            width = max(1, int(round(base_sprite.get_width() * self._sprite_scale)))
+            height = max(1, int(round(base_sprite.get_height() * self._sprite_scale)))
+            if (width, height) != base_sprite.get_size():
+                sprite = pygame.transform.smoothscale(base_sprite, (width, height))
+        if self._facing_left:
+            sprite = pygame.transform.flip(sprite, True, False)
+        return sprite
+
+    def _update_facing(self, move_dx: float, dash_active: bool) -> None:
+        horizontal = 0.0
+        if dash_active:
+            horizontal = self._dash_dir[0]
+        elif abs(move_dx) > 1e-3:
+            horizontal = move_dx
+        elif abs(self._last_move_dir[0]) > 1e-3:
+            horizontal = self._last_move_dir[0]
+
+        if abs(horizontal) > 1e-3:
+            self._facing_left = horizontal < 0
+        else:
+            self._update_facing_from_mouse()
+
+    def _face_towards_x(self, target_x: float) -> None:
+        cx = self.x + self.w / 2
+        if abs(target_x - cx) < 0.5:
+            return
+        self._facing_left = target_x < cx
+
+    def _update_facing_from_mouse(self) -> None:
+        try:
+            mx, _ = pygame.mouse.get_pos()
+        except pygame.error:
+            return
+        scale = getattr(CFG, "SCREEN_SCALE", 1)
+        scale = scale if scale else 1
+        mx = mx / scale
+        self._face_towards_x(mx)
 
     # ------------------------------------------------------------------
     # Animaciones
