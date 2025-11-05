@@ -1,4 +1,5 @@
 import random
+import math
 from collections import deque
 from typing import Dict, Tuple, Set
 from Config import CFG
@@ -108,13 +109,19 @@ class Dungeon:
     def _place_room(self, x: int, y: int) -> None:
         if (x, y) not in self.rooms:
             r = Room()
-            # Tamaños aleatorios dentro del rango
-            rw = random.randint(CFG.ROOM_W_MIN, CFG.ROOM_W_MAX)
-            rh = random.randint(CFG.ROOM_H_MIN, CFG.ROOM_H_MAX)
+            # Tamaños aleatorios dentro del rango, ajustados al múltiplo de sprite
+            def aligned_choices(min_size: int, max_size: int) -> list[int]:
+                alignment = CFG.SPRITE_SIZE
+                tile = CFG.TILE_SIZE
+                factor = alignment // math.gcd(alignment, tile)
+                choices = [value for value in range(min_size, max_size + 1) if value % factor == 0]
+                return choices if choices else list(range(min_size, max_size + 1))
 
-            # (Opcional) forzar impares para centrar mejor
-            if rw % 2 == 0: rw += 1
-            if rh % 2 == 0: rh += 1
+            width_choices = aligned_choices(CFG.ROOM_W_MIN, CFG.ROOM_W_MAX)
+            height_choices = aligned_choices(CFG.ROOM_H_MIN, CFG.ROOM_H_MAX)
+
+            rw = random.choice(width_choices)
+            rh = random.choice(height_choices)
 
             r.build_centered(rw, rh)
 
