@@ -117,10 +117,6 @@ class Player(Entity):
     def reset_lives(self) -> None:
         self.lives = self.max_lives
 
-    def max_hits_per_run(self) -> int:
-        """Número total de golpes que se pueden recibir antes de agotar las vidas."""
-        return self.max_hp * self.max_lives
-
     def respawn(self) -> None:
         """Restaura la salud y otorga invulnerabilidad breve tras revivir."""
         self.hp = self.max_hp
@@ -165,7 +161,6 @@ class Player(Entity):
         self.cooldown_scale = 1.0
         self.hp = self.max_hp
         self.reset_lives()
-        self.hits_taken = 0
         self.invulnerable_timer = 0.0
         self._dash_timer = 0.0
         self._dash_cooldown_timer = 0.0
