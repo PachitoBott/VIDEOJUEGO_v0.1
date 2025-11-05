@@ -663,18 +663,30 @@ class Room:
         if not self.treasure:
             return None
         loot_table: list[dict] = self.treasure.get("loot_table", [])
-        if not loot_table:
+        weighted: list[tuple[dict, float]] = []
+        for entry in loot_table:
+            weight = float(entry.get("weight", 1.0))
+            if weight <= 0:
+                continue
+            weighted.append((entry, weight))
+        if not weighted:
             return None
 
-        attempts = max(1, len(loot_table) * 2)
+        attempts = max(1, len(weighted) * 2)
         has_weapon = getattr(player, "has_weapon", None)
+        population = [entry for entry, _ in weighted]
+        weights = [weight for _, weight in weighted]
         for _ in range(attempts):
-            candidate = random.choice(loot_table)
+            candidate = random.choices(population, weights=weights, k=1)[0]
             if candidate.get("type") == "weapon" and callable(has_weapon):
                 if has_weapon(candidate.get("id", "")):
                     continue
             return candidate
-        return {"name": "Bolsa de oro (+25)", "type": "gold", "amount": 25}
+
+        for entry in population:
+            if entry.get("type") == "gold":
+                return entry
+        return population[0]
 
     def _apply_treasure_reward(self, player, reward: dict) -> bool:
         rtype = reward.get("type")
@@ -714,12 +726,12 @@ class Room:
 
     def _apply_upgrade_reward(self, player, uid: str) -> bool:
         if uid == "hp_up":
-            max_hp = getattr(player, "max_hp", getattr(player, "hp", 3))
-            hp = getattr(player, "hp", max_hp)
-            max_hp += 1
-            hp = min(hp + 1, max_hp)
-            setattr(player, "max_hp", max_hp)
-            setattr(player, "hp", hp)
+            max_lives = getattr(player, "max_lives", getattr(player, "lives", 1))
+            lives = getattr(player, "lives", max_lives)
+            max_lives += 1
+            lives = min(lives + 1, max_lives)
+            setattr(player, "max_lives", max_lives)
+            setattr(player, "lives", lives)
             return True
         if uid == "spd_up":
             speed = getattr(player, "speed", 1.0)
@@ -728,10 +740,13 @@ class Room:
         if uid == "armor_up":
             max_hp = getattr(player, "max_hp", getattr(player, "hp", 3))
             hp = getattr(player, "hp", max_hp)
-            max_hp += 2
-            hp = min(hp + 2, max_hp)
+            max_hp += 1
+            hp = min(hp + 1, max_hp)
             setattr(player, "max_hp", max_hp)
             setattr(player, "hp", hp)
+            if hasattr(player, "_hits_taken_current_life"):
+                hits_taken = max(0, max_hp - hp)
+                setattr(player, "_hits_taken_current_life", hits_taken)
             return True
         if uid == "cdr_charm":
             current = getattr(player, "cooldown_scale", 1.0)

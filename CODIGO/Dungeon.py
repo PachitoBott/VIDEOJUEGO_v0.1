@@ -49,16 +49,17 @@ class Dungeon:
 
         # Tabla de botín compartida para cofres del tesoro
         self._treasure_loot_table: list[dict] = [
-            {"name": "Bolsa de oro (+35)", "type": "gold", "amount": 35},
-            {"name": "Bolsa de oro (+50)", "type": "gold", "amount": 50},
-            {"name": "Aumento de Vida (+1)", "type": "upgrade", "id": "hp_up"},
-            {"name": "Blindaje Reforzado (+2)", "type": "upgrade", "id": "armor_up"},
-            {"name": "Talismán de Recarga (-10%)", "type": "upgrade", "id": "cdr_charm"},
-            {"name": "Aumento de Velocidad (+5%)", "type": "upgrade", "id": "spd_up"},
-            {"name": "Tónico Curativo (+2 HP)", "type": "heal", "amount": 2},
-            {"name": "Pistolas Dobles", "type": "weapon", "id": "dual_pistols"},
-            {"name": "Rifle Ligero", "type": "weapon", "id": "light_rifle"},
-            {"name": "Guantes Tesla", "type": "weapon", "id": "tesla_gloves"},
+            {"name": "Monedas desperdigadas (+20)", "type": "gold", "amount": 20, "weight": 8},
+            {"name": "Bolsa de oro (+40)", "type": "gold", "amount": 40, "weight": 6},
+            {"name": "Saco pesado de oro (+65)", "type": "gold", "amount": 65, "weight": 4},
+            {"name": "Vida extra (+1)", "type": "upgrade", "id": "hp_up", "weight": 5},
+            {"name": "Blindaje reforzado (+1 golpe)", "type": "upgrade", "id": "armor_up", "weight": 3},
+            {"name": "Talismán de recarga (-10%)", "type": "upgrade", "id": "cdr_charm", "weight": 4},
+            {"name": "Aumento de velocidad (+5%)", "type": "upgrade", "id": "spd_up", "weight": 4},
+            {"name": "Tónico curativo (+2 HP)", "type": "heal", "amount": 2, "weight": 3},
+            {"name": "Pistolas dobles", "type": "weapon", "id": "dual_pistols", "weight": 1},
+            {"name": "Rifle ligero", "type": "weapon", "id": "light_rifle", "weight": 1},
+            {"name": "Guantes tesla", "type": "weapon", "id": "tesla_gloves", "weight": 1},
         ]
 
         # 3) Definir puertas según vecinos + tallar corredores
@@ -296,7 +297,7 @@ class Dungeon:
         setattr(room, "type", "shop")     # <<< etiqueta directa en Room
         self.shop_pos = (sx, sy)          # <<< guarda la coordenada para otras clases
 
-    def _place_treasure_rooms(self, max_rooms: int = 2, base_chance: float = 0.28) -> None:
+    def _place_treasure_rooms(self, max_rooms: int = 1, base_chance: float = 0.12) -> None:
         """Selecciona algunas salas y las convierte en cuartos del tesoro."""
         if not self.rooms:
             return
@@ -326,13 +327,9 @@ class Dungeon:
             if depth <= 0:
                 continue
             chance = base_chance + 0.04 * min(depth, 5)
-            if rng() > min(0.75, chance):
+            if rng() > min(0.55, chance):
                 continue
             chosen.append(pos)
-
-        if not chosen and main_candidates:
-            # Garantiza al menos un cuarto si hay candidatos
-            chosen.append(main_candidates[-1])
 
         self.treasure_rooms: set[tuple[int, int]] = set()
         for pos in chosen:
