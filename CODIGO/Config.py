@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Tuple, Optional
+import os
 
 @dataclass(frozen=True)
 class Config:
@@ -16,8 +17,11 @@ class Config:
     ROOM_W_MAX: int = 18
     ROOM_H_MIN: int = 9
     ROOM_H_MAX: int = 13
+    
 
-    TILESET_PATH: Optional[str] = "assets/tileset.png"
+    BASE_DIR = os.path.dirname(os.path.dirname(__file__))  # sube un nivel desde CODIGO/
+    TILESET_PATH = os.path.join(BASE_DIR, "assets", "tileset.png")
+
 
     COLOR_BG: Tuple[int,int,int] = (8, 12, 28)
     COLOR_FLOOR: Tuple[int,int,int] = (20, 26, 46)
