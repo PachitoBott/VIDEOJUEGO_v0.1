@@ -3,20 +3,21 @@ from typing import Tuple, Optional
 
 @dataclass(frozen=True)
 class Config:
-    TILE_SIZE: int = 16
-    MAP_W: int = 60
-    MAP_H: int = 40
+    TILE_SIZE: int = 32
+    SPRITE_SIZE: int = 32
+    MAP_W: int = 30
+    MAP_H: int = 20
     SCREEN_SCALE: int = 2
     FPS: int = 120
 
     PLAYER_START_LIVES: int = 10
     
-    ROOM_W_MIN: int = 24
-    ROOM_W_MAX: int = 36
-    ROOM_H_MIN: int = 18
-    ROOM_H_MAX: int = 26
+    ROOM_W_MIN: int = 12
+    ROOM_W_MAX: int = 18
+    ROOM_H_MIN: int = 9
+    ROOM_H_MAX: int = 13
 
-    TILESET_PATH: Optional[str] = None  # ej: "assets/tileset.png"
+    TILESET_PATH: Optional[str] = "assets/tileset.png"
 
     COLOR_BG: Tuple[int,int,int] = (10, 10, 14)
     COLOR_FLOOR: Tuple[int,int,int] = (36, 36, 46)
@@ -26,7 +27,15 @@ class Config:
     DEBUG_DRAW_DOOR_TRIGGERS: bool = False
 
     FLOOR: int = 0
-    WALL: int = 1
+    WALL: int = 1  # pared genérica (fallback)
+    WALL_TOP: int = 2
+    WALL_BOTTOM: int = 3
+    WALL_LEFT: int = 4
+    WALL_RIGHT: int = 5
+    WALL_CORNER_NW: int = 6
+    WALL_CORNER_NE: int = 7
+    WALL_CORNER_SW: int = 8
+    WALL_CORNER_SE: int = 9
 
     @property
     def SCREEN_W(self) -> int: return self.MAP_W * self.TILE_SIZE
