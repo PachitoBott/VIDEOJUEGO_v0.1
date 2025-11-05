@@ -560,8 +560,8 @@ class Room:
 
         if not drew_with_tileset:
             # Fallback: pintar a color
-            wall = CFG.COLOR_WALL
-            floor = CFG.COLOR_FLOOR
+            wall = (60, 60, 70)
+            floor = (110, 85, 70)
             for ty in range(CFG.MAP_H):
                 for tx in range(CFG.MAP_W):
                     color = floor if self.tiles[ty][tx] == 0 else wall
