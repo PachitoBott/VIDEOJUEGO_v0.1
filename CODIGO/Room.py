@@ -274,6 +274,7 @@ class Room:
         self.enemies: List[Enemy] = []
         self._spawn_done: bool = False
         self._door_width_tiles = 2
+        self._door_corridor_length_tiles = 3
 
         # 🔒 estado de puertas
         self.locked: bool = False
@@ -424,6 +425,7 @@ class Room:
         assert self.bounds is not None
         rx, ry, rw, rh = self.bounds
         self._door_width_tiles = max(1, int(width_tiles))
+        self._door_corridor_length_tiles = max(1, int(length_tiles))
 
         def carve_rect(x: int, y: int, w: int, h: int) -> None:
             for yy in range(y, y + h):
@@ -775,6 +777,10 @@ class Room:
         W = max(1, getattr(self, "_door_width_tiles", 2))
         opening_px = W * ts
         thickness  = max(10, ts // 2)  # profundidad del trigger (hacia fuera/dentro del room)
+        length_tiles = max(1, getattr(self, "_door_corridor_length_tiles", 3))
+        corridor_px = length_tiles * ts
+
+        offset_px = min(ts, max(0, corridor_px - thickness))
 
         # mismos centros en “medios tiles” que en carve_corridors
         center_tx2 = rx * 2 + rw
@@ -791,14 +797,34 @@ class Room:
         rects: dict[str, pygame.Rect] = {}
         # Norte y Sur: horizontal, centrado
         if self.doors.get("N"):
-            rects["N"] = pygame.Rect(left_open_px, top_px - thickness // 2, opening_px, thickness)
+            rects["N"] = pygame.Rect(
+                left_open_px,
+                top_px - thickness - offset_px,
+                opening_px,
+                thickness,
+            )
         if self.doors.get("S"):
-            rects["S"] = pygame.Rect(left_open_px, bottom_px - thickness // 2, opening_px, thickness)
+            rects["S"] = pygame.Rect(
+                left_open_px,
+                bottom_px + offset_px,
+                opening_px,
+                thickness,
+            )
         # Este y Oeste: vertical, centrado
         if self.doors.get("E"):
-            rects["E"] = pygame.Rect(right_px - thickness // 2, top_open_px, thickness, opening_px)
+            rects["E"] = pygame.Rect(
+                right_px + offset_px,
+                top_open_px,
+                thickness,
+                opening_px,
+            )
         if self.doors.get("W"):
-            rects["W"] = pygame.Rect(left_px - thickness // 2, top_open_px, thickness, opening_px)
+            rects["W"] = pygame.Rect(
+                left_px - thickness - offset_px,
+                top_open_px,
+                thickness,
+                opening_px,
+            )
         return rects
 
     # Room.py — reemplaza check_exit por esta versión
