@@ -39,6 +39,10 @@ class Player(Entity):
         self._dash_key_down = False
         self._dash_dir = (0.0, -1.0)
         self._last_move_dir = (0.0, -1.0)
+        self._dash_trail: list[dict[str, float | tuple[float, float]]] = []
+        self._dash_trail_spawn_accum = 0.0
+        self.dash_trail_duration = 0.22
+        self.dash_trail_spawn_interval = 0.02
 
         self._animations: dict[str, list[pygame.Surface]] = {}
         self._animation_state = "idle"
@@ -87,6 +91,8 @@ class Player(Entity):
                     self._dash_cooldown_timer = self.dash_cooldown
                     self.invulnerable_timer = max(self.invulnerable_timer, self.dash_iframe_duration)
                     dash_active = True
+                    self._spawn_dash_trail_segment()
+                    self._dash_trail_spawn_accum = 0.0
             if not dash_active and input_mag > 0:
                 if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
                     speed_scale = self.sprint_multiplier
@@ -98,6 +104,7 @@ class Player(Entity):
                 move_dy /= mag
 
         self.move(move_dx * speed_scale, move_dy * speed_scale, dt, room)
+        self._update_dash_trail(dt, dash_active)
         self._update_animation(dt, input_mag > 0, dash_active)
 
         if self.weapon:
@@ -172,6 +179,7 @@ class Player(Entity):
                 out_projectiles.append(bullet)
 
     def draw(self, surf):
+        self._draw_dash_trail(surf)
         if self._animation_enabled and self._animations:
             frames = self._animations.get(self._animation_state)
             if frames:
@@ -185,6 +193,47 @@ class Player(Entity):
                 return
 
         pygame.draw.rect(surf, CFG.COLOR_PLAYER, self.rect())
+
+    def _update_dash_trail(self, dt: float, dash_active: bool) -> None:
+        for segment in self._dash_trail:
+            segment["timer"] -= dt
+        self._dash_trail = [seg for seg in self._dash_trail if seg["timer"] > 0.0]
+
+        if not dash_active:
+            self._dash_trail_spawn_accum = 0.0
+            return
+
+        self._dash_trail_spawn_accum += dt
+        while self._dash_trail_spawn_accum >= self.dash_trail_spawn_interval:
+            self._dash_trail_spawn_accum -= self.dash_trail_spawn_interval
+            self._spawn_dash_trail_segment()
+
+    def _spawn_dash_trail_segment(self) -> None:
+        self._dash_trail.append(
+            {
+                "pos": (self.x, self.y),
+                "timer": self.dash_trail_duration,
+            }
+        )
+        max_segments = 32
+        if len(self._dash_trail) > max_segments:
+            self._dash_trail = self._dash_trail[-max_segments:]
+
+    def _draw_dash_trail(self, surf) -> None:
+        if not self._dash_trail:
+            return
+        duration = max(0.001, self.dash_trail_duration)
+        for segment in self._dash_trail:
+            remaining = max(0.0, min(duration, segment["timer"]))
+            if remaining <= 0.0:
+                continue
+            alpha = int(255 * (remaining / duration))
+            if alpha <= 0:
+                continue
+            rect = pygame.Rect(int(segment["pos"][0]), int(segment["pos"][1]), self.w, self.h)
+            trail_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+            trail_surf.fill((255, 255, 255, alpha))
+            surf.blit(trail_surf, rect)
 
     # ------------------------------------------------------------------
     # Armas

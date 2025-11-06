@@ -200,10 +200,15 @@ class Game:
         for projectile in self.enemy_projectiles:
             if not projectile.alive:
                 continue
-            if not projectile.rect().colliderect(player_rect):
+            r_proj = projectile.rect()
+            ignore_timer = getattr(projectile, "ignore_player_timer", 0.0)
+            if ignore_timer > 0.0 and r_proj.colliderect(player_rect):
+                continue
+            if not r_proj.colliderect(player_rect):
                 continue
             if player_invulnerable:
-                projectile.alive = False
+                remaining_iframes = getattr(self.player, "invulnerable_timer", 0.0)
+                projectile.ignore_player_timer = max(ignore_timer, max(remaining_iframes, 0.1))
                 continue
             took_hit = False
             if hasattr(self.player, "take_damage"):
