@@ -1,3 +1,4 @@
+import os
 import pygame
 from typing import Dict, Tuple, Optional, List, Type
 from Config import CFG
@@ -58,6 +59,40 @@ ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
 ]
 
 
+_OBSTACLE_SPRITE_CACHE: dict[tuple[int, int], pygame.Surface] = {}
+
+
+def _load_obstacle_sprite(size_tiles: tuple[int, int]) -> pygame.Surface:
+    width_tiles, height_tiles = size_tiles
+    key = (width_tiles, height_tiles)
+    if key in _OBSTACLE_SPRITE_CACHE:
+        return _OBSTACLE_SPRITE_CACHE[key]
+
+    ts = CFG.TILE_SIZE
+    width_px = width_tiles * ts
+    height_px = height_tiles * ts
+
+    asset_dir = os.path.join("assets", "obstacles")
+    filename = f"crate_{width_tiles}x{height_tiles}.png"
+    candidate = os.path.join(asset_dir, filename)
+
+    if os.path.exists(candidate):
+        try:
+            loaded = pygame.image.load(candidate).convert_alpha()
+            if loaded.get_size() != (width_px, height_px):
+                loaded = pygame.transform.smoothscale(loaded, (width_px, height_px))
+            surface = loaded
+        except pygame.error:
+            surface = pygame.Surface((width_px, height_px), pygame.SRCALPHA)
+            surface.fill((124, 92, 64))
+            pygame.draw.rect(surface, (90, 60, 38), surface.get_rect(), 3)
+    else:
+        surface = pygame.Surface((width_px, height_px), pygame.SRCALPHA)
+        surface.fill((124, 92, 64))
+        pygame.draw.rect(surface, (90, 60, 38), surface.get_rect(), 3)
+
+    _OBSTACLE_SPRITE_CACHE[key] = surface
+    return surface
 
 
 class Room:
@@ -98,6 +133,9 @@ class Room:
         self.treasure_message: str = ""
         self.treasure_message_until: int = 0
 
+        self.obstacles: list[dict] = []
+        self._obstacle_tiles: set[tuple[int, int]] = set()
+
 
     # ------------------------------------------------------------------ #
     # Construcción de la habitación
@@ -118,8 +156,85 @@ class Room:
             for x in range(rx, rx + rw):
                 if 0 <= x < CFG.MAP_W and 0 <= y < CFG.MAP_H:
                     self.tiles[y][x] = 0
-                    
-                    
+
+    # ------------------------------------------------------------------ #
+    # Obstáculos
+    # ------------------------------------------------------------------ #
+    def clear_obstacles(self) -> None:
+        self.obstacles.clear()
+        self._obstacle_tiles.clear()
+
+    def _can_place_obstacle(self, tx: int, ty: int, w_tiles: int, h_tiles: int) -> bool:
+        if self.bounds is None:
+            return False
+        rx, ry, rw, rh = self.bounds
+        min_tx = rx + 1
+        min_ty = ry + 1
+        max_tx = rx + rw - w_tiles - 1
+        max_ty = ry + rh - h_tiles - 1
+        if tx < min_tx or ty < min_ty or tx > max_tx or ty > max_ty:
+            return False
+        for dy in range(h_tiles):
+            for dx in range(w_tiles):
+                cx = tx + dx
+                cy = ty + dy
+                if not (0 <= cx < CFG.MAP_W and 0 <= cy < CFG.MAP_H):
+                    return False
+                if self.tiles[cy][cx] != CFG.FLOOR:
+                    return False
+                if (cx, cy) in self._obstacle_tiles:
+                    return False
+        return True
+
+    def _register_obstacle(self, tx: int, ty: int, w_tiles: int, h_tiles: int) -> None:
+        ts = CFG.TILE_SIZE
+        rect = pygame.Rect(tx * ts, ty * ts, w_tiles * ts, h_tiles * ts)
+        tiles = {(tx + dx, ty + dy) for dy in range(h_tiles) for dx in range(w_tiles)}
+        self.obstacles.append({
+            "rect": rect,
+            "tiles": tiles,
+            "size": (w_tiles, h_tiles),
+        })
+        self._obstacle_tiles.update(tiles)
+
+    def generate_obstacles(self, rng: random.Random | None = None, max_density: float = 0.08) -> None:
+        if self.bounds is None:
+            return
+        self.clear_obstacles()
+        rng = rng or random
+
+        rx, ry, rw, rh = self.bounds
+        interior_w = max(0, rw - 2)
+        interior_h = max(0, rh - 2)
+        if interior_w <= 0 or interior_h <= 0:
+            return
+
+        interior_area = interior_w * interior_h
+        max_obstacles = max(0, int(interior_area * max_density))
+        if max_obstacles <= 0:
+            max_obstacles = 1 if interior_area >= 6 else 0
+        if max_obstacles <= 0:
+            return
+
+        attempts = max_obstacles * 6
+        placed = 0
+        while placed < max_obstacles and attempts > 0:
+            attempts -= 1
+            w_tiles, h_tiles = (1, 1)
+            if rng.random() < 0.35:
+                w_tiles, h_tiles = (2, 1)
+            min_tx = rx + 1
+            max_tx = rx + rw - w_tiles - 1
+            min_ty = ry + 1
+            max_ty = ry + rh - h_tiles - 1
+            if max_tx < min_tx or max_ty < min_ty:
+                continue
+            tx = rng.randint(min_tx, max_tx)
+            ty = rng.randint(min_ty, max_ty)
+            if not self._can_place_obstacle(tx, ty, w_tiles, h_tiles):
+                continue
+            self._register_obstacle(tx, ty, w_tiles, h_tiles)
+            placed += 1
 
     # ------------------------------------------------------------------ #
     # Corredores cortos (visuales) hacia las puertas
@@ -331,7 +446,7 @@ class Room:
         if not encounter_factories:
             self._spawn_done = True
             return
-        used_tiles: set[tuple[int, int]] = set()
+        used_tiles: set[tuple[int, int]] = set(self._obstacle_tiles)
         for factory in encounter_factories:
             # Intentar encontrar una baldosa libre para ubicar al enemigo
             for _ in range(12):
@@ -391,7 +506,9 @@ class Room:
         """¿El tile (tx,ty) es sólido (pared)?"""
         if not (0 <= tx < CFG.MAP_W and 0 <= ty < CFG.MAP_H):
             return True
-        return self.tiles[ty][tx] == CFG.WALL
+        if self.tiles[ty][tx] == CFG.WALL:
+            return True
+        return (tx, ty) in self._obstacle_tiles
     
     def has_line_of_sight(self, x0_px: float, y0_px: float, x1_px: float, y1_px: float) -> bool:
         """
@@ -592,6 +709,11 @@ class Room:
                     if row[tx] != CFG.FLOOR and self._wall_adjacent_to_floor(tx, ty):
                         pygame.draw.rect(surf, wall, pygame.Rect(tx * ts, ty * ts, ts, ts))
 
+        if self.obstacles:
+            for obstacle in self.obstacles:
+                sprite = _load_obstacle_sprite(obstacle["size"])
+                surf.blit(sprite, obstacle["rect"].topleft)
+
         if self.type == "treasure" and self.treasure:
             self._draw_treasure(surf)
         # Puertas bloqueadas: dibuja “rejas” rojas en las aberturas
@@ -612,6 +734,7 @@ class Room:
         self.locked = False
         self.treasure_message = ""
         self.treasure_message_until = 0
+        self.clear_obstacles()
 
         if not self.bounds:
             self.build_centered(9, 9)
