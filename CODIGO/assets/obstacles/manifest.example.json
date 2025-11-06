@@ -1,0 +1,11 @@
+{
+  "silla": {
+    "1x1": "silla.png"
+  },
+  "tubo_verde": {
+    "1x2": "tubo_verde_1x2.png"
+  },
+  "pantallas_azules": {
+    "4x2": "pantallas_azules_4x2.png"
+  }
+}
