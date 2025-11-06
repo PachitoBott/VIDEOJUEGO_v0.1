@@ -1,4 +1,5 @@
 import math
+
 import pygame
 
 from Entity import Entity
@@ -39,7 +40,15 @@ class Player(Entity):
         self._dash_dir = (0.0, -1.0)
         self._last_move_dir = (0.0, -1.0)
 
+        self._animations: dict[str, list[pygame.Surface]] = {}
+        self._animation_state = "idle"
+        self._animation_frame_index = 0
+        self._animation_timer = 0.0
+        self._animation_frame_duration = 0.12
+        self._animation_enabled = False
+
         self.reset_loadout()
+        self._init_animation_system()
 
     def update(self, dt: float, room) -> None:
         keys = pygame.key.get_pressed()
@@ -89,6 +98,7 @@ class Player(Entity):
                 move_dy /= mag
 
         self.move(move_dx * speed_scale, move_dy * speed_scale, dt, room)
+        self._update_animation(dt, input_mag > 0, dash_active)
 
         if self.weapon:
             self.weapon.tick(dt)
@@ -162,6 +172,18 @@ class Player(Entity):
                 out_projectiles.append(bullet)
 
     def draw(self, surf):
+        if self._animation_enabled and self._animations:
+            frames = self._animations.get(self._animation_state)
+            if frames:
+                frame = frames[self._animation_frame_index % len(frames)]
+                rect = frame.get_rect()
+                rect.center = (
+                    int(self.x + self.w / 2),
+                    int(self.y + self.h / 2),
+                )
+                surf.blit(frame, rect)
+                return
+
         pygame.draw.rect(surf, CFG.COLOR_PLAYER, self.rect())
 
     # ------------------------------------------------------------------
@@ -214,3 +236,141 @@ class Player(Entity):
         setter = getattr(self.weapon, "set_cooldown_scale", None)
         if callable(setter):
             setter(self.cooldown_scale)
+
+    # ------------------------------------------------------------------
+    # Animaciones y sprites
+    # ------------------------------------------------------------------
+    def _init_animation_system(self) -> None:
+        """Carga sprites si existen y activa el renderizado animado."""
+        try:
+            animations = self._build_animations()
+        except FileNotFoundError as exc:
+            # Se imprime una vez para facilitar el diagnóstico sin romper el juego.
+            print(f"[Player] {exc}")
+            self._animations = {}
+            self._animation_enabled = False
+            return
+
+        self._animations = animations
+        self._animation_enabled = bool(self._animations)
+        if not self._animation_enabled:
+            return
+
+        if self._animation_state not in self._animations:
+            self._animation_state = next(iter(self._animations))
+        self._animation_frame_index = 0
+        self._animation_timer = 0.0
+
+    def _update_animation(self, dt: float, moving: bool, dashing: bool) -> None:
+        if not self._animation_enabled:
+            return
+
+        state = self._select_animation_state(moving, dashing)
+        if state != self._animation_state:
+            self._animation_state = state
+            self._animation_frame_index = 0
+            self._animation_timer = 0.0
+
+        frames = self._animations.get(self._animation_state)
+        if not frames:
+            return
+
+        duration = max(0.016, self._animation_frame_duration)
+        self._animation_timer += dt
+        while self._animation_timer >= duration:
+            self._animation_timer -= duration
+            self._animation_frame_index = (self._animation_frame_index + 1) % len(frames)
+
+    def _select_animation_state(self, moving: bool, dashing: bool) -> str:
+        if not self._animations:
+            return self._animation_state
+
+        if dashing:
+            for candidate in ("dash", "roll", "sprint"):
+                if candidate in self._animations:
+                    return candidate
+
+        if moving:
+            for candidate in ("run", "walk", "move"):
+                if candidate in self._animations:
+                    return candidate
+
+        if "idle" in self._animations:
+            return "idle"
+
+        return next(iter(self._animations))
+
+    def _build_animations(self) -> dict[str, list[pygame.Surface]]:
+        asset_dir = CFG.asset_path("player")
+        if not asset_dir.exists():
+            print(
+                "[Player] Carpeta de sprites no encontrada en",
+                asset_dir,
+                "→ se usará el placeholder por defecto.",
+            )
+            return {}
+
+        pattern = "player_*.png"
+        sprite_paths = sorted(asset_dir.glob(pattern))
+        if not sprite_paths:
+            print(
+                "[Player] No se hallaron sprites con el patrón",
+                pattern,
+                "en",
+                asset_dir,
+                "→ se usará el placeholder por defecto.",
+            )
+            return {}
+
+        grouped: dict[str, dict[int, pygame.Surface]] = {}
+        for sprite_path in sprite_paths:
+            suffix = sprite_path.stem[7:]
+            if not suffix:
+                continue
+
+            parts = suffix.split("_")
+            frame_index = 0
+            if parts[-1].isdigit():
+                frame_index = int(parts[-1])
+                state_name = "_".join(parts[:-1]) or "idle"
+            else:
+                state_name = "_".join(parts)
+
+            state_name = state_name.lower().strip()
+            if not state_name:
+                continue
+
+            try:
+                surface = pygame.image.load(str(sprite_path)).convert_alpha()
+            except (pygame.error, FileNotFoundError) as exc:
+                print(
+                    f"[Player] Falló la carga de '{sprite_path.name}': {exc}. Se ignora el archivo.",
+                )
+                continue
+
+            frames = grouped.setdefault(state_name, {})
+            frames[frame_index] = surface
+
+        animations: dict[str, list[pygame.Surface]] = {}
+        for state, frames in grouped.items():
+            ordered = [frames[idx] for idx in sorted(frames)]
+            if ordered:
+                animations[state] = ordered
+
+        if not animations:
+            print(
+                "[Player] Los sprites del jugador no produjeron animaciones válidas → se usará el placeholder por defecto.",
+            )
+            return {}
+
+        if "idle" not in animations:
+            first_state, first_frames = next(iter(animations.items()))
+            print(
+                "[Player] No se encontró una animación 'idle'.",
+                "Se reutilizará la animación",
+                repr(first_state),
+                "como base.",
+            )
+            animations["idle"] = first_frames
+
+        return animations

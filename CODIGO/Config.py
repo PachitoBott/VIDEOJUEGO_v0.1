@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from typing import Tuple, Optional
-import os
+from pathlib import Path
+from typing import Tuple
 
 @dataclass(frozen=True)
 class Config:
@@ -19,8 +19,9 @@ class Config:
     ROOM_H_MAX: int = 13
     
 
-    BASE_DIR = os.path.dirname(os.path.dirname(__file__))  # sube un nivel desde CODIGO/
-    TILESET_PATH = os.path.join(BASE_DIR, "assets", "tileset.png")
+    BASE_DIR: Path = Path(__file__).resolve().parent.parent  # sube un nivel desde CODIGO/
+    ASSETS_DIR: Path = BASE_DIR / "assets"
+    TILESET_PATH: Path = ASSETS_DIR / "tileset.png"
 
 
     COLOR_BG: Tuple[int,int,int] = (8, 12, 28)
@@ -56,5 +57,9 @@ class Config:
             "branch_min": 2,
             "branch_max": 4,
         }
+
+    def asset_path(self, *relative: str | Path) -> Path:
+        """Construye rutas absolutas a partir del directorio de assets."""
+        return self.ASSETS_DIR.joinpath(*map(Path, relative))
 
 CFG = Config()
