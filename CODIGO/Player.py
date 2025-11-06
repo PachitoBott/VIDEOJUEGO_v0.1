@@ -103,6 +103,8 @@ class Player(Entity):
         # Rastro visual del dash
         self.dash_trail_lifetime = 0.22
         self.dash_trail_interval = 0.02
+        self.dash_trail_size = max(8, int(self.w * 0.75))
+        self.dash_trail_vertical_offset = 14
         self._dash_trail_timer = 0.0
         self._dash_trail: list[DashTrailSegment] = []
 
@@ -418,7 +420,12 @@ class Player(Entity):
         if dash_active and self._dash_trail_timer <= 0.0:
             self._dash_trail_timer = self.dash_trail_interval
             cx = self.x + self.w / 2
-            cy = self.y + self.h / 2 - PLAYER_SPRITE_CENTER_OFFSET_Y
+            cy = (
+                self.y
+                + self.h / 2
+                - PLAYER_SPRITE_CENTER_OFFSET_Y
+                + self.dash_trail_vertical_offset
+            )
             self._dash_trail.append(DashTrailSegment(pos=(cx, cy), life=self.dash_trail_lifetime))
 
     def _draw_dash_trail(self, surf) -> None:
@@ -426,15 +433,14 @@ class Player(Entity):
             return
 
         max_life = self.dash_trail_lifetime if self.dash_trail_lifetime > 0 else 0.0001
-        radius = max(10, int(self.w * 0.9))
-        diameter = radius * 2
+        size = self.dash_trail_size
         for segment in self._dash_trail:
             life = segment.life
             alpha = max(0, min(255, int(255 * (life / max_life))))
-            trail_surface = pygame.Surface((diameter, diameter), pygame.SRCALPHA)
-            pygame.draw.circle(trail_surface, (255, 255, 255, alpha), (radius, radius), radius)
+            trail_surface = pygame.Surface((size, size), pygame.SRCALPHA)
+            trail_surface.fill((255, 255, 255, alpha))
             pos_x, pos_y = segment.pos
-            surf.blit(trail_surface, (pos_x - radius, pos_y - radius))
+            surf.blit(trail_surface, (pos_x - size / 2, pos_y - size / 2))
 
     # ------------------------------------------------------------------
     # Armas
