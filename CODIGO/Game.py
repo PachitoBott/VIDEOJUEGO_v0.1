@@ -196,26 +196,25 @@ class Game:
                     projectile.alive = False
                     break
         player_rect = self.player.rect()
-        player_invulnerable = getattr(self.player, "is_invulnerable", lambda: False)()
         for projectile in self.enemy_projectiles:
             if not projectile.alive:
                 continue
             r_proj = projectile.rect()
-            ignore_timer = getattr(projectile, "ignore_player_timer", 0.0)
-            if ignore_timer > 0.0 and r_proj.colliderect(player_rect):
-                continue
             if not r_proj.colliderect(player_rect):
                 continue
-            if player_invulnerable:
+            ignore_timer = getattr(projectile, "ignore_player_timer", 0.0)
+            if ignore_timer > 0.0:
+                continue
+            if getattr(self.player, "is_invulnerable", lambda: False)():
                 remaining_iframes = getattr(self.player, "invulnerable_timer", 0.0)
-                projectile.ignore_player_timer = max(ignore_timer, max(remaining_iframes, 0.1))
+                min_duration = max(remaining_iframes + 0.05, 0.15)
+                projectile.ignore_player_timer = max(ignore_timer, min_duration)
                 continue
             took_hit = False
             if hasattr(self.player, "take_damage"):
                 took_hit = bool(self.player.take_damage(1))
             if took_hit:
                 projectile.alive = False
-                player_invulnerable = getattr(self.player, "is_invulnerable", lambda: False)()
             else:
                 projectile.alive = False
 
