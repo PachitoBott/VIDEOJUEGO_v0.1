@@ -77,10 +77,12 @@ class Game:
         # Jugador (crear o reubicar al centro del cuarto actual)
         room = self.dungeon.current_room
         px, py = room.center_px()
+        spawn_x = px - Player.HITBOX_SIZE[0] / 2
+        spawn_y = py - Player.HITBOX_SIZE[1] / 2
         if not hasattr(self, "player"):
-            self.player = Player(px - 6, py - 6)
+            self.player = Player(spawn_x, spawn_y)
         else:
-            self.player.x, self.player.y = px - 6, py - 6
+            self.player.x, self.player.y = spawn_x, spawn_y
         if hasattr(self.player, "reset_loadout"):
             self.player.reset_loadout()
         setattr(self.player, "gold", 0)
@@ -124,7 +126,7 @@ class Game:
             elif e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE:
                     self.running = False
-                elif e.key == pygame.K_r:
+                elif e.key == pygame.K_m:
                     self.start_new_run(seed=self.current_seed)
                 elif e.key == pygame.K_n:
                     self.start_new_run(seed=None)

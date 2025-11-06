@@ -61,6 +61,18 @@ class Weapon:
         remaining = max(0.0, min(self.spec.reload_time, self._reload_timer))
         return 1.0 - remaining / self.spec.reload_time
 
+    def start_reload(self) -> bool:
+        """Inicia una recarga manual si es posible."""
+        if self.spec.reload_time <= 0.0:
+            return False
+        if self._reload_timer > 0.0:
+            return False
+        if self._shots_in_mag >= self.spec.magazine_size:
+            return False
+        self._reload_timer = self.spec.reload_time
+        self._shots_in_mag = 0
+        return True
+
     # ------------------------ Generación balas -----------------------
     def fire(self, origin: tuple[float, float], target: tuple[float, float]) -> List[Projectile]:
         if not self.can_fire():
