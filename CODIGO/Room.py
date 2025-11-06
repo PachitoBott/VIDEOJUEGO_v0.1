@@ -1,3 +1,4 @@
+import json
 import os
 import pygame
 from typing import Dict, Tuple, Optional, List, Type
@@ -59,7 +60,12 @@ ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
 ]
 
 
+_OBSTACLE_ASSET_DIR = os.path.join("assets", "obstacles")
+os.makedirs(_OBSTACLE_ASSET_DIR, exist_ok=True)
+
+
 _OBSTACLE_SPRITE_CACHE: dict[tuple[tuple[int, int], str], pygame.Surface] = {}
+_OBSTACLE_SPRITE_PATHS: dict[tuple[tuple[int, int], str], str] = {}
 
 
 _OBSTACLE_VARIANTS: dict[tuple[int, int], list[str]] = {
@@ -92,6 +98,99 @@ _OBSTACLE_FALLBACK_COLORS: dict[str, tuple[tuple[int, int, int], tuple[int, int,
 }
 
 
+def _register_obstacle_sprite_path(size_tiles: tuple[int, int], variant: str, path: str) -> None:
+    key = (tuple(size_tiles), variant.lower().strip())
+    if not key[1]:
+        key = (key[0], "default")
+    _OBSTACLE_SPRITE_PATHS[key] = path
+    _OBSTACLE_SPRITE_CACHE.pop(key, None)
+
+
+def register_obstacle_sprite(
+    size_tiles: tuple[int, int],
+    variant: str,
+    filename: str,
+) -> None:
+    """Registra explícitamente un sprite personalizado para un obstáculo.
+
+    Parameters
+    ----------
+    size_tiles:
+        Tamaño (ancho, alto) en tiles del obstáculo al que aplica el sprite.
+    variant:
+        Nombre de la variante (por ejemplo "silla" o "tubo_verde").
+    filename:
+        Ruta al archivo PNG. Si es relativa se toma desde ``assets/obstacles``.
+    """
+
+    if not variant:
+        raise ValueError("variant no puede ser vacío al registrar un sprite")
+
+    norm_variant = variant.lower().strip()
+    if os.path.isabs(filename):
+        path = filename
+    else:
+        path = os.path.join(_OBSTACLE_ASSET_DIR, filename)
+    _register_obstacle_sprite_path(tuple(size_tiles), norm_variant, path)
+
+
+def clear_obstacle_sprite_cache() -> None:
+    """Vacia el caché interno para volver a cargar sprites personalizados."""
+
+    _OBSTACLE_SPRITE_CACHE.clear()
+
+
+def _load_obstacle_manifest() -> None:
+    manifest_path = os.path.join(_OBSTACLE_ASSET_DIR, "manifest.json")
+    if not os.path.exists(manifest_path):
+        return
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as fh:
+            manifest = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return
+
+    if not isinstance(manifest, dict):
+        return
+
+    for variant, entries in manifest.items():
+        if not isinstance(entries, dict):
+            continue
+        norm_variant = str(variant).lower().strip()
+        for size_key, path in entries.items():
+            if not isinstance(path, str):
+                continue
+            size_key = str(size_key).lower().strip()
+            if size_key == "default":
+                size_tuple = (0, 0)
+            else:
+                try:
+                    w_str, h_str = size_key.split("x", 1)
+                    size_tuple = (int(w_str), int(h_str))
+                except (ValueError, TypeError):
+                    continue
+            if os.path.isabs(path):
+                resolved = path
+            else:
+                resolved = os.path.join(_OBSTACLE_ASSET_DIR, path)
+            _register_obstacle_sprite_path(size_tuple, norm_variant, resolved)
+
+
+_load_obstacle_manifest()
+
+
+def _resolve_registered_path(size_tiles: tuple[int, int], variant_slug: str) -> Optional[str]:
+    specific_key = (size_tiles, variant_slug)
+    path = _OBSTACLE_SPRITE_PATHS.get(specific_key)
+    if path and os.path.exists(path):
+        return path
+    default_key = ((0, 0), variant_slug)
+    path = _OBSTACLE_SPRITE_PATHS.get(default_key)
+    if path and os.path.exists(path):
+        return path
+    return None
+
+
 def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = None) -> pygame.Surface:
     width_tiles, height_tiles = size_tiles
     variant_slug = (variant or "").lower().strip() or "default"
@@ -103,8 +202,13 @@ def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = Non
     width_px = width_tiles * ts
     height_px = height_tiles * ts
 
-    asset_dir = os.path.join("assets", "obstacles")
+    asset_dir = _OBSTACLE_ASSET_DIR
+    os.makedirs(asset_dir, exist_ok=True)
+
     filenames: list[str] = []
+    registered_path = _resolve_registered_path(size_tiles, variant_slug)
+    if registered_path:
+        filenames.append(registered_path)
     if variant_slug and variant_slug != "default":
         filenames.extend([
             f"obstacle_{variant_slug}_{width_tiles}x{height_tiles}.png",
@@ -119,7 +223,10 @@ def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = Non
 
     surface: pygame.Surface | None = None
     for filename in filenames:
-        candidate = os.path.join(asset_dir, filename)
+        if os.path.isabs(filename):
+            candidate = filename
+        else:
+            candidate = os.path.join(asset_dir, filename)
         if not os.path.exists(candidate):
             continue
         try:
