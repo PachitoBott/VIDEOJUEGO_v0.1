@@ -59,12 +59,43 @@ ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
 ]
 
 
-_OBSTACLE_SPRITE_CACHE: dict[tuple[int, int], pygame.Surface] = {}
+_OBSTACLE_SPRITE_CACHE: dict[tuple[tuple[int, int], str], pygame.Surface] = {}
 
 
-def _load_obstacle_sprite(size_tiles: tuple[int, int]) -> pygame.Surface:
+_OBSTACLE_VARIANTS: dict[tuple[int, int], list[str]] = {
+    (1, 1): ["silla", "hoyo", "caneca"],
+    (1, 2): ["tubo_verde"],
+    (2, 1): ["pantalla", "impresora"],
+    (2, 2): ["pantallas"],
+    (4, 2): ["pantallas_azules"],
+}
+
+
+_OBSTACLE_SIZE_WEIGHTS: list[tuple[tuple[int, int], float]] = [
+    ((1, 1), 0.38),
+    ((2, 1), 0.24),
+    ((1, 2), 0.14),
+    ((2, 2), 0.14),
+    ((4, 2), 0.10),
+]
+
+
+_OBSTACLE_FALLBACK_COLORS: dict[str, tuple[tuple[int, int, int], tuple[int, int, int]]] = {
+    "silla": ((148, 108, 74), (96, 68, 44)),
+    "hoyo": ((28, 28, 32), (10, 10, 12)),
+    "caneca": ((54, 102, 176), (32, 62, 118)),
+    "tubo_verde": ((56, 142, 60), (32, 82, 36)),
+    "pantalla": ((82, 188, 242), (36, 90, 126)),
+    "impresora": ((210, 210, 210), (128, 128, 128)),
+    "pantallas": ((120, 160, 196), (70, 100, 132)),
+    "pantallas_azules": ((74, 142, 212), (28, 68, 128)),
+}
+
+
+def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = None) -> pygame.Surface:
     width_tiles, height_tiles = size_tiles
-    key = (width_tiles, height_tiles)
+    variant_slug = (variant or "").lower().strip() or "default"
+    key = (size_tiles, variant_slug)
     if key in _OBSTACLE_SPRITE_CACHE:
         return _OBSTACLE_SPRITE_CACHE[key]
 
@@ -73,23 +104,45 @@ def _load_obstacle_sprite(size_tiles: tuple[int, int]) -> pygame.Surface:
     height_px = height_tiles * ts
 
     asset_dir = os.path.join("assets", "obstacles")
-    filename = f"crate_{width_tiles}x{height_tiles}.png"
-    candidate = os.path.join(asset_dir, filename)
+    filenames: list[str] = []
+    if variant_slug and variant_slug != "default":
+        filenames.extend([
+            f"obstacle_{variant_slug}_{width_tiles}x{height_tiles}.png",
+            f"{variant_slug}_{width_tiles}x{height_tiles}.png",
+            f"obstacle_{variant_slug}.png",
+            f"{variant_slug}.png",
+        ])
+    filenames.extend([
+        f"crate_{width_tiles}x{height_tiles}.png",
+        "crate.png",
+    ])
 
-    if os.path.exists(candidate):
+    surface: pygame.Surface | None = None
+    for filename in filenames:
+        candidate = os.path.join(asset_dir, filename)
+        if not os.path.exists(candidate):
+            continue
         try:
             loaded = pygame.image.load(candidate).convert_alpha()
-            if loaded.get_size() != (width_px, height_px):
-                loaded = pygame.transform.smoothscale(loaded, (width_px, height_px))
-            surface = loaded
         except pygame.error:
-            surface = pygame.Surface((width_px, height_px), pygame.SRCALPHA)
-            surface.fill((124, 92, 64))
-            pygame.draw.rect(surface, (90, 60, 38), surface.get_rect(), 3)
-    else:
+            continue
+        if loaded.get_size() != (width_px, height_px):
+            loaded = pygame.transform.smoothscale(loaded, (width_px, height_px))
+        surface = loaded
+        break
+
+    if surface is None:
+        base_color, border_color = _OBSTACLE_FALLBACK_COLORS.get(
+            variant_slug,
+            ((124, 92, 64), (90, 60, 38)),
+        )
         surface = pygame.Surface((width_px, height_px), pygame.SRCALPHA)
-        surface.fill((124, 92, 64))
-        pygame.draw.rect(surface, (90, 60, 38), surface.get_rect(), 3)
+        surface.fill(base_color)
+        pygame.draw.rect(surface, border_color, surface.get_rect(), 3)
+        if width_tiles >= 2 or height_tiles >= 2:
+            inner = surface.get_rect().inflate(-ts // 2, -ts // 2)
+            if inner.width > 0 and inner.height > 0:
+                pygame.draw.rect(surface, border_color, inner, 1)
 
     _OBSTACLE_SPRITE_CACHE[key] = surface
     return surface
@@ -186,7 +239,14 @@ class Room:
                     return False
         return True
 
-    def _register_obstacle(self, tx: int, ty: int, w_tiles: int, h_tiles: int) -> None:
+    def _register_obstacle(
+        self,
+        tx: int,
+        ty: int,
+        w_tiles: int,
+        h_tiles: int,
+        variant: str | None = None,
+    ) -> None:
         ts = CFG.TILE_SIZE
         rect = pygame.Rect(tx * ts, ty * ts, w_tiles * ts, h_tiles * ts)
         tiles = {(tx + dx, ty + dy) for dy in range(h_tiles) for dx in range(w_tiles)}
@@ -194,6 +254,7 @@ class Room:
             "rect": rect,
             "tiles": tiles,
             "size": (w_tiles, h_tiles),
+            "variant": (variant or "").lower().strip() or "default",
         })
         self._obstacle_tiles.update(tiles)
 
@@ -216,13 +277,20 @@ class Room:
         if max_obstacles <= 0:
             return
 
+        available_sizes = [
+            (size, weight)
+            for size, weight in _OBSTACLE_SIZE_WEIGHTS
+            if interior_w >= size[0] and interior_h >= size[1]
+        ]
+        if not available_sizes:
+            available_sizes = [((1, 1), 1.0)]
+
         attempts = max_obstacles * 6
         placed = 0
         while placed < max_obstacles and attempts > 0:
             attempts -= 1
-            w_tiles, h_tiles = (1, 1)
-            if rng.random() < 0.35:
-                w_tiles, h_tiles = (2, 1)
+            sizes, weights = zip(*available_sizes)
+            w_tiles, h_tiles = rng.choices(sizes, weights=weights, k=1)[0]
             min_tx = rx + 1
             max_tx = rx + rw - w_tiles - 1
             min_ty = ry + 1
@@ -233,7 +301,9 @@ class Room:
             ty = rng.randint(min_ty, max_ty)
             if not self._can_place_obstacle(tx, ty, w_tiles, h_tiles):
                 continue
-            self._register_obstacle(tx, ty, w_tiles, h_tiles)
+            variant_choices = _OBSTACLE_VARIANTS.get((w_tiles, h_tiles), ["default"])
+            variant = rng.choice(variant_choices)
+            self._register_obstacle(tx, ty, w_tiles, h_tiles, variant=variant)
             placed += 1
 
     # ------------------------------------------------------------------ #
@@ -711,7 +781,7 @@ class Room:
 
         if self.obstacles:
             for obstacle in self.obstacles:
-                sprite = _load_obstacle_sprite(obstacle["size"])
+                sprite = _load_obstacle_sprite(obstacle["size"], obstacle.get("variant"))
                 surf.blit(sprite, obstacle["rect"].topleft)
 
         if self.type == "treasure" and self.treasure:
