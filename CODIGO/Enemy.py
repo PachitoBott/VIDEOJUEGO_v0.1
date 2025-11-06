@@ -30,18 +30,33 @@ class Enemy(Entity):
 
         # timers internos
         self._los_timer = 0.0
+        self.reaction_delay = 0.35
+        self.alert_timer = 0.0
+
+        # Control de aturdimiento/knockback
+        self.stun_timer = 0.0
+        self._knockback_dir = (0.0, 0.0)
+        self._knockback_speed = 0.0
+        self.knockback_decay = 420.0
+
+        # Daño por contacto (override en subclases que lo requieran)
+        self.contact_damage = 0
 
     def _center(self):
         return (self.x + self.w/2, self.y + self.h/2)
 
     # ---------- loop ----------
     def update(self, dt: float, player, room) -> None:
+        self.alert_timer = max(0.0, self.alert_timer - dt)
         ex, ey = self._center()
         px, py = (player.x + player.w/2, player.y + player.h/2)
 
         dx, dy = (px - ex), (py - ey)
         dist   = math.hypot(dx, dy)
         has_los = room.has_line_of_sight(ex, ey, px, py)
+
+        stunned = self.stun_timer > 0.0
+        prev_state = self.state
 
         # Cambios de estado (LoS + histéresis)
         if self.state != CHASE:
@@ -57,6 +72,17 @@ class Enemy(Entity):
                 self._pick_wander()
                 self.state = WANDER
 
+        if prev_state != CHASE and self.state == CHASE:
+            self.alert_timer = max(self.alert_timer, self.reaction_delay)
+
+        if stunned:
+            self.stun_timer = max(0.0, self.stun_timer - dt)
+            self._apply_knockback(dt, room)
+            return
+
+        self.stun_timer = max(0.0, self.stun_timer - dt)
+        self._apply_knockback(dt, room)
+
         # Ejecutar estado
         if self.state == IDLE:
             self._update_idle(dt)
@@ -68,6 +94,39 @@ class Enemy(Entity):
     def maybe_shoot(self, dt: float, player, room, out_bullets: list) -> None:
         """Por defecto, los enemigos base NO disparan."""
         return
+
+    def is_stunned(self) -> bool:
+        return self.stun_timer > 0.0
+
+    def take_damage(
+        self,
+        amount: int,
+        knockback_dir: tuple[float, float] | None = None,
+        stun_duration: float = 0.22,
+        knockback_strength: float = 150.0,
+    ) -> bool:
+        if amount > 0:
+            self.hp -= amount
+        alive = self.hp > 0
+        if alive:
+            if stun_duration > 0.0:
+                self.stun_timer = max(self.stun_timer, stun_duration)
+            if knockback_dir is not None and knockback_strength > 0.0:
+                nx, ny = knockback_dir
+                mag = math.hypot(nx, ny)
+                if mag > 0.0:
+                    self._knockback_dir = (nx / mag, ny / mag)
+                    self._knockback_speed = max(self._knockback_speed, knockback_strength)
+        return self.hp <= 0 and amount > 0
+
+    def _apply_knockback(self, dt: float, room) -> None:
+        if self._knockback_speed <= 0.0:
+            return
+        scale = self._knockback_speed / max(1e-6, self.speed)
+        self.move(self._knockback_dir[0], self._knockback_dir[1], dt * scale, room)
+        self._knockback_speed = max(0.0, self._knockback_speed - self.knockback_decay * dt)
+        if self._knockback_speed <= 0.0:
+            self._knockback_dir = (0.0, 0.0)
 
     # ---------- estados ----------
     def _update_idle(self, dt: float) -> None:
@@ -114,6 +173,8 @@ class FastChaserEnemy(Enemy):
         self.wander_speed = 80.0
         self.detect_radius = 100.0
         self.lose_radius   = 150.0
+        self.reaction_delay = 0.0
+        self.contact_damage = 1
 
     def draw(self, surf):
         color = (0, 255, 0) if self.state == CHASE else (0, 255, 0)
@@ -147,12 +208,15 @@ class ShooterEnemy(Enemy):
         self._fire_timer   = 0.0
         self.fire_range    = 260.0
         self.bullet_speed  = 200.0
+        self.reaction_delay = 0.55
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
         self._fire_timer = max(0.0, self._fire_timer - dt)
 
     def maybe_shoot(self, dt, player, room, out_bullets: list) -> None:
+        if self.alert_timer > 0.0 or self.is_stunned():
+            return
         if self._fire_timer > 0.0:
             return
         # Solo dispara si está en CHASE, hay LoS y dentro de rango
@@ -222,12 +286,15 @@ class BasicEnemy(Enemy):
         self._fire_timer = 0.0
         self.fire_range = 210.0
         self.bullet_speed = 240.0
+        self.reaction_delay = 0.45
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
         self._fire_timer = max(0.0, getattr(self, "_fire_timer", 0.0) - dt)
 
     def maybe_shoot(self, dt, player, room, out_bullets) -> None:
+        if self.alert_timer > 0.0 or self.is_stunned():
+            return
         if getattr(self, "_fire_timer", 0.0) > 0.0:
             return
 
@@ -282,12 +349,15 @@ class TankEnemy(Enemy):
         self.bullet_speed = 190.0
         self.pellets = 7
         self.spread_radians = math.radians(28)
+        self.reaction_delay = 0.65
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
         self._fire_timer = max(0.0, getattr(self, "_fire_timer", 0.0) - dt)
 
     def maybe_shoot(self, dt, player, room, out_bullets) -> None:
+        if self.alert_timer > 0.0 or self.is_stunned():
+            return
         if getattr(self, "_fire_timer", 0.0) > 0.0:
             return
 

@@ -199,11 +199,28 @@ class Game:
             r_proj = projectile.rect()
             for enemy in room.enemies:
                 if r_proj.colliderect(enemy.rect()):
-                    enemy.hp -= 1
+                    if hasattr(enemy, "take_damage"):
+                        enemy.take_damage(1, (projectile.dx, projectile.dy))
+                    else:
+                        enemy.hp -= 1
                     projectile.alive = False
                     break
         player_rect = self.player.rect()
         player_invulnerable = getattr(self.player, "is_invulnerable", lambda: False)()
+        for enemy in room.enemies:
+            if not player_rect.colliderect(enemy.rect()):
+                continue
+            self._separate_player_enemy(enemy, room)
+            contact_damage = getattr(enemy, "contact_damage", 0)
+            if contact_damage <= 0:
+                continue
+            if player_invulnerable:
+                continue
+            took_hit = False
+            if hasattr(self.player, "take_damage"):
+                took_hit = bool(self.player.take_damage(contact_damage))
+            if took_hit:
+                player_invulnerable = getattr(self.player, "is_invulnerable", lambda: False)()
         for projectile in self.enemy_projectiles:
             if not projectile.alive:
                 continue
@@ -246,6 +263,62 @@ class Game:
             self._handle_player_death(room)
             return True
         return False
+
+    def _separate_player_enemy(self, enemy, room) -> None:
+        player_rect = self.player.rect()
+        if not player_rect.colliderect(enemy.rect()):
+            return
+
+        enemy_rect = enemy.rect()
+        px, py = player_rect.center
+        ex, ey = enemy_rect.center
+        primary_axis = 'x' if abs(ex - px) >= abs(ey - py) else 'y'
+
+        for axis in (primary_axis, 'y' if primary_axis == 'x' else 'x'):
+            original_pos = enemy.x if axis == 'x' else enemy.y
+            direction = 1 if ((ex - px) if axis == 'x' else (ey - py)) >= 0 else -1
+            moved = False
+            limit = max(enemy.w, enemy.h) + 2
+            for _ in range(limit):
+                if axis == 'x':
+                    enemy.x += direction
+                else:
+                    enemy.y += direction
+                if enemy._collides(room):
+                    if axis == 'x':
+                        enemy.x -= direction
+                    else:
+                        enemy.y -= direction
+                    break
+                if not player_rect.colliderect(enemy.rect()):
+                    moved = True
+                    break
+            if moved:
+                push_dir = (
+                    enemy.rect().centerx - player_rect.centerx,
+                    enemy.rect().centery - player_rect.centery,
+                )
+                if hasattr(enemy, "take_damage"):
+                    enemy.take_damage(0, push_dir, stun_duration=0.0, knockback_strength=120.0)
+                return
+            if axis == 'x':
+                enemy.x = original_pos
+            else:
+                enemy.y = original_pos
+
+        # Último recurso: reposicionar a borde del jugador
+        enemy_rect = enemy.rect()
+        ex, ey = enemy_rect.center
+        if abs(ex - px) >= abs(ey - py):
+            if ex >= px:
+                enemy.x = player_rect.right
+            else:
+                enemy.x = player_rect.left - enemy.w
+        else:
+            if ey >= py:
+                enemy.y = player_rect.bottom
+            else:
+                enemy.y = player_rect.top - enemy.h
 
     def _handle_player_death(self, room) -> None:
         if not hasattr(self.player, "lose_life"):
