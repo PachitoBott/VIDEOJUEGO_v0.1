@@ -303,17 +303,24 @@ class Player(Entity):
     def _build_animations(self) -> dict[str, list[pygame.Surface]]:
         asset_dir = CFG.asset_path("player")
         if not asset_dir.exists():
-            raise FileNotFoundError(
-                f"No se encontró la carpeta de sprites del jugador: {asset_dir}"
+            print(
+                "[Player] Carpeta de sprites no encontrada en",
+                asset_dir,
+                "→ se usará el placeholder por defecto.",
             )
+            return {}
 
         pattern = "player_*.png"
         sprite_paths = sorted(asset_dir.glob(pattern))
         if not sprite_paths:
-            raise FileNotFoundError(
-                "No se encontraron sprites para el jugador en "
-                f"{asset_dir}. Añade archivos tipo 'player_idle.png' o 'player_idle_0.png'."
+            print(
+                "[Player] No se hallaron sprites con el patrón",
+                pattern,
+                "en",
+                asset_dir,
+                "→ se usará el placeholder por defecto.",
             )
+            return {}
 
         grouped: dict[str, dict[int, pygame.Surface]] = {}
         for sprite_path in sprite_paths:
@@ -329,15 +336,17 @@ class Player(Entity):
             else:
                 state_name = "_".join(parts)
 
+            state_name = state_name.lower().strip()
             if not state_name:
                 continue
 
             try:
                 surface = pygame.image.load(str(sprite_path)).convert_alpha()
             except (pygame.error, FileNotFoundError) as exc:
-                raise FileNotFoundError(
-                    f"No se pudo cargar el sprite '{sprite_path.name}': {exc}"
-                ) from exc
+                print(
+                    f"[Player] Falló la carga de '{sprite_path.name}': {exc}. Se ignora el archivo.",
+                )
+                continue
 
             frames = grouped.setdefault(state_name, {})
             frames[frame_index] = surface
@@ -349,16 +358,19 @@ class Player(Entity):
                 animations[state] = ordered
 
         if not animations:
-            raise FileNotFoundError(
-                "Los sprites del jugador existen pero no se pudieron organizar en animaciones válidas."
-                f" Revisa los nombres dentro de {asset_dir}."
+            print(
+                "[Player] Los sprites del jugador no produjeron animaciones válidas → se usará el placeholder por defecto.",
             )
+            return {}
 
         if "idle" not in animations:
-            available = ", ".join(sorted(animations.keys())) or "ninguna"
-            raise FileNotFoundError(
-                "No se encontró el sprite base de idle. Se esperaba 'player_idle.png' o 'player_idle_0.png'. "
-                f"Animaciones detectadas: {available}."
+            first_state, first_frames = next(iter(animations.items()))
+            print(
+                "[Player] No se encontró una animación 'idle'.",
+                "Se reutilizará la animación",
+                repr(first_state),
+                "como base.",
             )
+            animations["idle"] = first_frames
 
         return animations
