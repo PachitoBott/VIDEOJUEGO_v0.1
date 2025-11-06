@@ -101,6 +101,9 @@ class Dungeon:
         # <<< NUEVO: ubicar salas de tesoro en el recorrido
         self._place_treasure_rooms()
 
+        # Obstáculos en salas hostiles
+        self._populate_hostile_obstacles()
+
 
         # marcar inicial como explorado
         self.explored.add((self.i, self.j))
@@ -366,6 +369,31 @@ class Dungeon:
             if hasattr(room, "setup_treasure_room"):
                 room.setup_treasure_room(list(self._treasure_loot_table))
                 self.treasure_rooms.add(pos)
+
+    def _populate_hostile_obstacles(self) -> None:
+        if not self.rooms:
+            return
+
+        salt = 0xC0BB1E
+        safe_types = {"shop", "treasure"}
+
+        for pos, room in sorted(self.rooms.items()):
+            if pos == self.start:
+                continue
+            rtype = getattr(room, "type", "normal")
+            if rtype in safe_types:
+                if hasattr(room, "clear_obstacles"):
+                    room.clear_obstacles()
+                continue
+            if getattr(room, "no_spawn", False) or getattr(room, "safe", False):
+                if hasattr(room, "clear_obstacles"):
+                    room.clear_obstacles()
+                continue
+            if not hasattr(room, "generate_obstacles"):
+                continue
+            seed_value = (pos[0] * 73856093) ^ (pos[1] * 19349663) ^ self.seed ^ salt
+            room_rng = random.Random(seed_value & 0xFFFFFFFF)
+            room.generate_obstacles(rng=room_rng)
     # Dungeon.py (añade estos métodos)
 
     def move_and_enter(self, direction: str, player, cfg, ShopkeeperCls=None) -> bool:
