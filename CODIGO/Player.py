@@ -39,6 +39,13 @@ class Player(Entity):
         self._dash_key_down = False
         self._dash_dir = (0.0, -1.0)
         self._last_move_dir = (0.0, -1.0)
+        self._dash_trail: list[dict[str, float | tuple[float, float]]] = []
+        self.dash_trail_duration = 0.22
+        self.dash_trail_spacing = 6.0
+        self.dash_trail_max_segments = 48
+        self._dash_trail_last_center = (self.x + self.w / 2, self.y + self.h / 2)
+        self._dash_trail_distance_accum = 0.0
+        self._reset_dash_trail_state()
 
         self._animations: dict[str, list[pygame.Surface]] = {}
         self._animation_state = "idle"
@@ -70,6 +77,8 @@ class Player(Entity):
         move_dx, move_dy = dx, dy
         speed_scale = 1.0
 
+        prev_center = self._player_center()
+
         dash_active = self._dash_timer > 0.0
         if dash_active:
             move_dx, move_dy = self._dash_dir
@@ -87,6 +96,9 @@ class Player(Entity):
                     self._dash_cooldown_timer = self.dash_cooldown
                     self.invulnerable_timer = max(self.invulnerable_timer, self.dash_iframe_duration)
                     dash_active = True
+                    self._dash_trail_last_center = prev_center
+                    self._dash_trail_distance_accum = 0.0
+                    self._spawn_dash_trail_segment(prev_center)
             if not dash_active and input_mag > 0:
                 if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
                     speed_scale = self.sprint_multiplier
@@ -98,6 +110,8 @@ class Player(Entity):
                 move_dy /= mag
 
         self.move(move_dx * speed_scale, move_dy * speed_scale, dt, room)
+        current_center = self._player_center()
+        self._update_dash_trail(dt, dash_active, current_center)
         self._update_animation(dt, input_mag > 0, dash_active)
 
         if self.weapon:
@@ -148,6 +162,7 @@ class Player(Entity):
         self._dash_key_down = False
         self._dash_dir = (0.0, -1.0)
         self._last_move_dir = (0.0, -1.0)
+        self._reset_dash_trail_state()
 
     def try_shoot(self, mouse_world_pos, out_projectiles) -> None:
         """Dispara hacia mouse si se pulsa y cooldown listo."""
@@ -172,6 +187,7 @@ class Player(Entity):
                 out_projectiles.append(bullet)
 
     def draw(self, surf):
+        self._draw_dash_trail(surf)
         if self._animation_enabled and self._animations:
             frames = self._animations.get(self._animation_state)
             if frames:
@@ -185,6 +201,87 @@ class Player(Entity):
                 return
 
         pygame.draw.rect(surf, CFG.COLOR_PLAYER, self.rect())
+
+    def _player_center(self) -> tuple[float, float]:
+        return (self.x + self.w / 2, self.y + self.h / 2)
+
+    def _update_dash_trail(
+        self,
+        dt: float,
+        dash_active: bool,
+        current_center: tuple[float, float],
+    ) -> None:
+        for segment in self._dash_trail:
+            segment["timer"] -= dt
+        self._dash_trail = [seg for seg in self._dash_trail if seg["timer"] > 0.0]
+
+        if not dash_active:
+            self._dash_trail_distance_accum = 0.0
+            self._dash_trail_last_center = current_center
+            return
+
+        spacing = max(1.0, self.dash_trail_spacing)
+        start_x, start_y = self._dash_trail_last_center
+        dx = current_center[0] - start_x
+        dy = current_center[1] - start_y
+        distance = math.hypot(dx, dy)
+        if distance > 0.0:
+            dir_x = dx / distance
+            dir_y = dy / distance
+            travelled = distance
+            pos_x, pos_y = start_x, start_y
+            accum = self._dash_trail_distance_accum
+            while accum + travelled >= spacing:
+                needed = spacing - accum
+                pos_x += dir_x * needed
+                pos_y += dir_y * needed
+                self._spawn_dash_trail_segment((pos_x, pos_y))
+                travelled -= needed
+                accum = 0.0
+            self._dash_trail_distance_accum = accum + travelled
+        else:
+            self._dash_trail_distance_accum = min(self._dash_trail_distance_accum, spacing)
+
+        self._dash_trail_last_center = current_center
+
+    def _spawn_dash_trail_segment(self, center: tuple[float, float]) -> None:
+        segment = {
+            "pos": (float(center[0]), float(center[1])),
+            "timer": self.dash_trail_duration,
+        }
+        self._dash_trail.append(segment)
+        if len(self._dash_trail) > self.dash_trail_max_segments:
+            self._dash_trail = self._dash_trail[-self.dash_trail_max_segments:]
+
+    def _reset_dash_trail_state(self) -> None:
+        self._dash_trail.clear()
+        self._dash_trail_distance_accum = 0.0
+        self._dash_trail_last_center = self._player_center()
+
+    def _draw_dash_trail(self, surf) -> None:
+        if not self._dash_trail:
+            return
+        duration = max(0.001, self.dash_trail_duration)
+        for segment in self._dash_trail:
+            remaining = max(0.0, min(duration, segment["timer"]))
+            if remaining <= 0.0:
+                continue
+            fade = remaining / duration
+            alpha = int(220 * fade)
+            alpha = max(35, min(alpha, 230))
+            cx, cy = segment["pos"]
+            width = self.w + 4
+            height = self.h + 4
+            trail_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+            pygame.draw.rect(
+                trail_surf,
+                (255, 255, 255, alpha),
+                trail_surf.get_rect(),
+                border_radius=4,
+            )
+            rect = trail_surf.get_rect()
+            rect.center = (int(cx), int(cy))
+            surf.blit(trail_surf, rect)
 
     # ------------------------------------------------------------------
     # Armas
@@ -204,6 +301,7 @@ class Player(Entity):
         self._last_move_dir = (0.0, -1.0)
         self._grant_weapon("short_rifle")
         self.equip_weapon("short_rifle")
+        self._reset_dash_trail_state()
 
     def has_weapon(self, weapon_id: str) -> bool:
         return weapon_id in self._owned_weapons
