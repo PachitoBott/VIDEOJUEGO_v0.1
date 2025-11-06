@@ -20,8 +20,6 @@ class Config:
     TILESET_PATH: Optional[str] = "assets/tileset.png"
     PLAYER_SPRITES_PATH: Optional[str] = "assets/player"
     PLAYER_SPRITE_PREFIX: str = "player"
-    PLAYER_DRAW_SCALE: float = 1.5
-
     COLOR_BG: Tuple[int,int,int] = (8, 12, 28)
     COLOR_FLOOR: Tuple[int,int,int] = (20, 26, 46)
     COLOR_WALL: Tuple[int,int,int] = (118, 121, 146)

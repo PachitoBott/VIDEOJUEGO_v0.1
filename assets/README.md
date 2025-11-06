@@ -6,7 +6,7 @@ Los sprites deben organizarse en una sola fila de celdas de 32×32 píxeles en e
 
 ## Sprites del jugador
 
-Las animaciones del jugador se cargan desde la carpeta indicada en `Config.PLAYER_SPRITES_PATH` (`assets/player` por defecto). Cada imagen debe medir 32×32 píxeles (si no, se reescalará automáticamente) y seguir la convención de nombres `player_<estado>_<frame>.png`.
+Las animaciones del jugador se cargan desde la carpeta indicada en `Config.PLAYER_SPRITES_PATH` (`assets/player` por defecto). Cada imagen debe exportarse exactamente en 96×96 píxeles (no se aplica ningún reescalado automático) y seguir la convención de nombres `player_<estado>_<frame>.png`.
 
 - Idle: `player_idle.png` (también se acepta `player_idle_0.png`).
 - Correr: `player_run_0.png` a `player_run_3.png`.

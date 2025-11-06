@@ -9,6 +9,9 @@ from Config import CFG
 from Weapons import WeaponFactory
 
 
+PLAYER_SPRITE_SIZE = (96, 96)
+
+
 @dataclass
 class FrameAnimation:
     frames: list[pygame.Surface]
@@ -88,7 +91,6 @@ class Player(Entity):
         self._current_animation = "idle"
         self._animation_override: str | None = None
         self._was_reloading = False
-        self._sprite_scale = max(0.1, getattr(CFG, "PLAYER_DRAW_SCALE", 1.0))
         self._facing_left = False
 
         self.reset_loadout()
@@ -229,11 +231,6 @@ class Player(Entity):
 
     def _prepare_sprite(self, base_sprite: pygame.Surface) -> pygame.Surface:
         sprite = base_sprite
-        if self._sprite_scale != 1.0:
-            width = max(1, int(round(base_sprite.get_width() * self._sprite_scale)))
-            height = max(1, int(round(base_sprite.get_height() * self._sprite_scale)))
-            if (width, height) != base_sprite.get_size():
-                sprite = pygame.transform.smoothscale(base_sprite, (width, height))
         if self._facing_left:
             sprite = pygame.transform.flip(sprite, True, False)
         return sprite
@@ -272,7 +269,6 @@ class Player(Entity):
     # Animaciones
     # ------------------------------------------------------------------
     def _build_animations(self) -> dict[str, FrameAnimation]:
-        size = CFG.SPRITE_SIZE
         sprite_dir = Path(CFG.PLAYER_SPRITES_PATH) if CFG.PLAYER_SPRITES_PATH else None
         sprite_prefix = getattr(CFG, "PLAYER_SPRITE_PREFIX", "player")
 
@@ -281,8 +277,12 @@ class Player(Entity):
                 image = pygame.image.load(path.as_posix()).convert_alpha()
             except (FileNotFoundError, pygame.error):
                 return None
-            if image.get_size() != (size, size):
-                image = pygame.transform.smoothscale(image, (size, size))
+            expected_w, expected_h = PLAYER_SPRITE_SIZE
+            if image.get_size() != PLAYER_SPRITE_SIZE:
+                width, height = image.get_size()
+                raise ValueError(
+                    f"El sprite '{path.as_posix()}' debe medir {expected_w}x{expected_h} píxeles (actual {width}x{height})"
+                )
             return image
 
         def load_animation(state: str, expected_frames: int) -> list[pygame.Surface]:
