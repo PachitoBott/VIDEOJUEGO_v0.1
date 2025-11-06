@@ -6,7 +6,7 @@ Los sprites deben organizarse en una sola fila de celdas de 32×32 píxeles en e
 
 ## Sprites del jugador
 
-Las animaciones del jugador se cargan desde la carpeta indicada en `Config.PLAYER_SPRITES_PATH` (`assets/player` por defecto). Cada imagen debe exportarse exactamente en 96×96 píxeles (no se aplica ningún reescalado automático) y seguir la convención de nombres `player_<estado>_<frame>.png`.
+Las animaciones del jugador se cargan desde la carpeta indicada en `Config.PLAYER_SPRITES_PATH` (`assets/player` por defecto). Cada imagen debe exportarse exactamente en 64×64 píxeles (no se aplica ningún reescalado automático) y seguir la convención de nombres `player_<estado>_<frame>.png`.
 
 - Idle: `player_idle.png` (también se acepta `player_idle_0.png`).
 - Correr: `player_run_0.png` a `player_run_3.png`.
@@ -14,5 +14,7 @@ Las animaciones del jugador se cargan desde la carpeta indicada en `Config.PLAYE
 - Disparar: `player_shoot_0.png` a `player_shoot_3.png`.
 
 > **Importante:** El juego ya no genera sprites de respaldo; si falta alguno de los archivos anteriores, la carga del jugador fallará. Asegúrate de exportar cada frame como un PNG independiente con ese nombre y colocarlo en la carpeta configurada.
+
+> **Hitbox:** El rectángulo de colisión del jugador ocupa 18×24 píxeles y está alineado al centro inferior del sprite de 64×64.
 
 Puedes cambiar el prefijo (`player`) modificando `Config.PLAYER_SPRITE_PREFIX` si necesitas organizar varios personajes.

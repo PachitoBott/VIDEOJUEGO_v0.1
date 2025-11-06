@@ -9,7 +9,12 @@ from Config import CFG
 from Weapons import WeaponFactory
 
 
-PLAYER_SPRITE_SIZE = (96, 96)
+PLAYER_SPRITE_SIZE = (64, 64)
+PLAYER_HITBOX_SIZE = (18, 24)
+PLAYER_HITBOX_OFFSET = (23, 40)
+PLAYER_SPRITE_CENTER_OFFSET_Y = (
+    PLAYER_HITBOX_OFFSET[1] + PLAYER_HITBOX_SIZE[1] // 2 - PLAYER_SPRITE_SIZE[1] // 2
+)
 
 
 @dataclass
@@ -49,8 +54,10 @@ class FrameAnimation:
 
 
 class Player(Entity):
+    HITBOX_SIZE = PLAYER_HITBOX_SIZE
+
     def __init__(self, x: float, y: float) -> None:
-        super().__init__(x, y, w=12, h=12, speed=120.0)
+        super().__init__(x, y, w=PLAYER_HITBOX_SIZE[0], h=PLAYER_HITBOX_SIZE[1], speed=120.0)
         self.gold = 0
         self.cooldown_scale = 1.0
         self._weapon_factory = WeaponFactory()
@@ -92,6 +99,7 @@ class Player(Entity):
         self._animation_override: str | None = None
         self._was_reloading = False
         self._facing_left = False
+        self._reload_key_down = False
 
         self.reset_loadout()
 
@@ -107,6 +115,11 @@ class Player(Entity):
         if input_mag > 0:
             dx, dy = dx / input_mag, dy / input_mag
             self._last_move_dir = (dx, dy)
+
+        reload_pressed = keys[pygame.K_r]
+        if reload_pressed and not self._reload_key_down:
+            self._try_manual_reload()
+        self._reload_key_down = reload_pressed
 
         dash_pressed = keys[pygame.K_SPACE]
         dash_just_pressed = dash_pressed and not self._dash_key_down
@@ -197,6 +210,7 @@ class Player(Entity):
         self._dash_key_down = False
         self._dash_dir = (0.0, -1.0)
         self._last_move_dir = (0.0, -1.0)
+        self._reload_key_down = False
 
     def try_shoot(self, mouse_world_pos, out_projectiles) -> None:
         """Dispara hacia mouse si se pulsa y cooldown listo."""
@@ -226,7 +240,8 @@ class Player(Entity):
         animation = self._animations[self._current_animation]
         sprite = self._prepare_sprite(animation.current_frame())
         sprite_rect = sprite.get_rect()
-        sprite_rect.center = (self.x + self.w / 2, self.y + self.h / 2)
+        sprite_rect.centerx = int(round(self.x + self.w / 2))
+        sprite_rect.centery = int(round(self.y + self.h / 2 - PLAYER_SPRITE_CENTER_OFFSET_Y))
         surf.blit(sprite, sprite_rect)
 
     def _prepare_sprite(self, base_sprite: pygame.Surface) -> pygame.Surface:
@@ -264,6 +279,12 @@ class Player(Entity):
         scale = scale if scale else 1
         mx = mx / scale
         self._face_towards_x(mx)
+
+    def _try_manual_reload(self) -> None:
+        if not self.weapon:
+            return
+        if self.weapon.start_reload():
+            self._start_reload_animation()
 
     # ------------------------------------------------------------------
     # Animaciones
