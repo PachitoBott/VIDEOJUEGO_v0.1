@@ -18,7 +18,8 @@ class Config:
     ROOM_H_MAX: int = 13
 
     TILESET_PATH: Optional[str] = "assets/tileset.png"
-
+    PLAYER_SPRITES_PATH: Optional[str] = "assets/player"
+    PLAYER_SPRITE_PREFIX: str = "player"
     COLOR_BG: Tuple[int,int,int] = (8, 12, 28)
     COLOR_FLOOR: Tuple[int,int,int] = (20, 26, 46)
     COLOR_WALL: Tuple[int,int,int] = (118, 121, 146)
