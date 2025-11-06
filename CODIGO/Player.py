@@ -53,6 +53,12 @@ class FrameAnimation:
         return self.frames[self.index]
 
 
+@dataclass
+class DashTrailSegment:
+    pos: tuple[float, float]
+    life: float
+
+
 class Player(Entity):
     HITBOX_SIZE = PLAYER_HITBOX_SIZE
 
@@ -93,6 +99,12 @@ class Player(Entity):
         self._dash_key_down = False
         self._dash_dir = (0.0, -1.0)
         self._last_move_dir = (0.0, -1.0)
+
+        # Rastro visual del dash
+        self.dash_trail_lifetime = 0.22
+        self.dash_trail_interval = 0.02
+        self._dash_trail_timer = 0.0
+        self._dash_trail: list[DashTrailSegment] = []
 
         self._animations = self._build_animations()
         self._current_animation = "idle"
@@ -159,6 +171,8 @@ class Player(Entity):
 
         self.move(move_dx * speed_scale, move_dy * speed_scale, dt, room)
 
+        self._update_dash_trail(dt, dash_active)
+
         if self.weapon:
             self.weapon.tick(dt)
 
@@ -211,6 +225,8 @@ class Player(Entity):
         self._dash_dir = (0.0, -1.0)
         self._last_move_dir = (0.0, -1.0)
         self._reload_key_down = False
+        self._dash_trail.clear()
+        self._dash_trail_timer = 0.0
 
     def try_shoot(self, mouse_world_pos, out_projectiles) -> None:
         """Dispara hacia mouse si se pulsa y cooldown listo."""
@@ -237,6 +253,7 @@ class Player(Entity):
                 out_projectiles.append(bullet)
 
     def draw(self, surf):
+        self._draw_dash_trail(surf)
         animation = self._animations[self._current_animation]
         sprite = self._prepare_sprite(animation.current_frame())
         sprite_rect = sprite.get_rect()
@@ -390,6 +407,35 @@ class Player(Entity):
             if not reloading and animation.finished:
                 self._animation_override = None
 
+    def _update_dash_trail(self, dt: float, dash_active: bool) -> None:
+        # Reducir vida de los rastros existentes
+        for segment in self._dash_trail:
+            segment.life -= dt
+        self._dash_trail = [seg for seg in self._dash_trail if seg.life > 0.0]
+
+        # Controlar el spawn de nuevos rastros mientras dura el dash
+        self._dash_trail_timer = max(0.0, self._dash_trail_timer - dt)
+        if dash_active and self._dash_trail_timer <= 0.0:
+            self._dash_trail_timer = self.dash_trail_interval
+            cx = self.x + self.w / 2
+            cy = self.y + self.h / 2 - PLAYER_SPRITE_CENTER_OFFSET_Y
+            self._dash_trail.append(DashTrailSegment(pos=(cx, cy), life=self.dash_trail_lifetime))
+
+    def _draw_dash_trail(self, surf) -> None:
+        if not self._dash_trail:
+            return
+
+        max_life = self.dash_trail_lifetime if self.dash_trail_lifetime > 0 else 0.0001
+        radius = max(10, int(self.w * 0.9))
+        diameter = radius * 2
+        for segment in self._dash_trail:
+            life = segment.life
+            alpha = max(0, min(255, int(255 * (life / max_life))))
+            trail_surface = pygame.Surface((diameter, diameter), pygame.SRCALPHA)
+            pygame.draw.circle(trail_surface, (255, 255, 255, alpha), (radius, radius), radius)
+            pos_x, pos_y = segment.pos
+            surf.blit(trail_surface, (pos_x - radius, pos_y - radius))
+
     # ------------------------------------------------------------------
     # Armas
     # ------------------------------------------------------------------
@@ -409,6 +455,8 @@ class Player(Entity):
         self._dash_key_down = False
         self._dash_dir = (0.0, -1.0)
         self._last_move_dir = (0.0, -1.0)
+        self._dash_trail.clear()
+        self._dash_trail_timer = 0.0
         self.sprint_multiplier = self.base_sprint_multiplier
         self.dash_duration = self.base_dash_duration
         self.dash_cooldown = self.base_dash_cooldown
