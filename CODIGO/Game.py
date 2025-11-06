@@ -23,6 +23,8 @@ class Game:
         pygame.display.set_caption("Roguelike — Dungeon + Minimap")
         self.clock = pygame.time.Clock()
         self.world = pygame.Surface((cfg.SCREEN_W, cfg.SCREEN_H))
+        pygame.mouse.set_visible(False)
+        self._cursor_surface = self._create_cursor_surface()
 
         # ---------- UI ----------
         self.ui_font = pygame.font.SysFont(None, 18)
@@ -115,6 +117,7 @@ class Game:
             self._update(dt, events)
             self._render()
 
+        pygame.mouse.set_visible(True)
         pygame.quit()
         sys.exit(0)
 
@@ -468,4 +471,22 @@ class Game:
             (self.screen.get_width() - minimap_surface.get_width() - margin, 100)
         )
 
+        mx, my = pygame.mouse.get_pos()
+        cursor_rect = self._cursor_surface.get_rect(center=(mx, my))
+        self.screen.blit(self._cursor_surface, cursor_rect.topleft)
+
         pygame.display.flip()
+
+    def _create_cursor_surface(self) -> pygame.Surface:
+        surface = pygame.Surface((32, 32), pygame.SRCALPHA)
+        center = (16, 16)
+        outer_radius = 12
+        inner_radius = 4
+        color = (60, 170, 255)
+        pygame.draw.circle(surface, color, center, outer_radius, 2)
+        pygame.draw.circle(surface, color, center, inner_radius, 0)
+        pygame.draw.line(surface, color, (center[0] - outer_radius, center[1]), (center[0] - inner_radius - 1, center[1]), 2)
+        pygame.draw.line(surface, color, (center[0] + outer_radius, center[1]), (center[0] + inner_radius + 1, center[1]), 2)
+        pygame.draw.line(surface, color, (center[0], center[1] - outer_radius), (center[0], center[1] - inner_radius - 1), 2)
+        pygame.draw.line(surface, color, (center[0], center[1] + outer_radius), (center[0], center[1] + inner_radius + 1), 2)
+        return surface
