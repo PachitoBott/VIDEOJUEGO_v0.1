@@ -8,7 +8,7 @@ class Tileset:
         self.rects = {}
         if CFG.TILESET_PATH:
             try:
-                img = pygame.image.load(CFG.TILESET_PATH).convert_alpha()
+                img = pygame.image.load(str(CFG.TILESET_PATH)).convert_alpha()
                 tile_defs: dict[int, tuple[int, int]] = {
                     CFG.FLOOR: (0, 0),
                     CFG.WALL: (1, 0),
