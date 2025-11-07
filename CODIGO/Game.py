@@ -42,6 +42,9 @@ class Game:
         self.hud_panels = HudPanels()
         # Ajusta posiciones/escala desde fuera, por ejemplo:
         # self.hud_panels.inventory_panel_position.update(nuevo_x, nuevo_y)
+        if hasattr(self.hud_panels, "set_minimap_anchor"):
+            # Centra el minimapa dentro del panel de esquina para que quede cubierto.
+            self.hud_panels.set_minimap_anchor("corner")
 
         # ---------- Recursos ----------
         self.tileset = Tileset()
@@ -485,11 +488,7 @@ class Game:
         self.screen.blit(help_text, (text_x, text_y))
 
         minimap_surface = self.minimap.render(self.dungeon)
-        margin = 16
-        minimap_position = (
-            self.screen.get_width() - minimap_surface.get_width() - margin,
-            100,
-        )
+        minimap_position = self.hud_panels.compute_minimap_position(self.screen, minimap_surface)
         self.hud_panels.blit_minimap_panel(self.screen, minimap_surface, minimap_position)
 
         self.hud_panels.blit_corner_panel(self.screen)
