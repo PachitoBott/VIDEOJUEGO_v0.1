@@ -35,7 +35,7 @@ class HudPanels:
     MINIMAP_FILENAME = "panel_minimapa.png"
     CORNER_FILENAME = "panel_esquina.png"
 
-    def __init__(self, *, scale: float = 1.0, assets_dir: str | Path | None = None) -> None:
+    def __init__(self, *, scale: float = 0.5, assets_dir: str | Path | None = None) -> None:
         self.scale = scale
         self.assets_dir = Path(assets_dir) if assets_dir is not None else Path("assets/ui")
 
@@ -43,9 +43,9 @@ class HudPanels:
         self.minimap_scale = scale
         self.corner_scale = scale
 
-        self.inventory_panel_position = pygame.Vector2(16, 16)
+        self.inventory_panel_position = pygame.Vector2(16, 70)
         self.inventory_content_offset = pygame.Vector2(28, 36)
-        self.minimap_panel_offset = pygame.Vector2(-20, -20)
+        self.minimap_panel_offset = pygame.Vector2(-80, -50)
         self.corner_panel_margin = pygame.Vector2(16, 16)
 
         self._inventory_original: pygame.Surface | None = None
