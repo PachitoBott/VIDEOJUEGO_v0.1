@@ -9,6 +9,7 @@ from Minimap import Minimap
 from Projectile import ProjectileGroup
 from Shop import Shop
 from Shopkeeper import Shopkeeper
+from HudPanels import HudPanels
 
 
 class Game:
@@ -33,9 +34,14 @@ class Game:
         pygame.draw.circle(self._coin_icon, (160, 120, 0), (8, 8), 6, 1)
         pygame.draw.line(self._coin_icon, (160, 120, 0), (6, 8), (10, 8), 1)
         self.current_seed: int | None = None
-        
+
         # --- Tienda ---
         self.shop = Shop(font=self.ui_font)
+
+        # --- HUD ---
+        self.hud_panels = HudPanels()
+        # Ajusta posiciones/escala desde fuera, por ejemplo:
+        # self.hud_panels.inventory_panel_position.update(nuevo_x, nuevo_y)
 
         # ---------- Recursos ----------
         self.tileset = Tileset()
@@ -438,13 +444,13 @@ class Game:
         )
         self.screen.blit(scaled, (0, 0))
 
+        self.hud_panels.blit_inventory_panel(self.screen)
+
         lives_remaining = getattr(self.player, "lives", 0)
         max_lives = getattr(self.player, "max_lives", self.cfg.PLAYER_START_LIVES)
         lives_text = self.ui_font.render(
             f"Vidas: {lives_remaining}/{max_lives}", True, (255, 120, 120)
         )
-        self.screen.blit(lives_text, (5, 260))
-
         hits_remaining_life_fn = getattr(self.player, "hits_remaining_this_life", None)
         if callable(hits_remaining_life_fn):
             hits_remaining = hits_remaining_life_fn()
@@ -453,23 +459,40 @@ class Game:
         hits_text = self.ui_font.render(
             f"Golpes restantes vida: {hits_remaining}", True, (255, 180, 120)
         )
-        self.screen.blit(hits_text, (5, 290))
-
         gold_amount = getattr(self.player, "gold", 0)
         gold_text = self.ui_font.render(f"Monedas: {gold_amount}", True, (255, 240, 180))
-        self.screen.blit(self._coin_icon, (305, 100))
-        self.screen.blit(gold_text, (320, 100))
         seed_text = self.ui_font.render(f"Seed: {self.current_seed}", True, (230, 230, 230))
         help_text = self.ui_font.render("R: rejugar seed  |  N: nueva seed", True, (200, 200, 200))
-        self.screen.blit(seed_text, (200, 100))
-        self.screen.blit(help_text, (0, 100))
+
+        text_x, text_y = self.hud_panels.inventory_content_anchor()
+        line_gap = 6
+
+        self.screen.blit(lives_text, (text_x, text_y))
+        text_y += lives_text.get_height() + line_gap
+
+        self.screen.blit(hits_text, (text_x, text_y))
+        text_y += hits_text.get_height() + line_gap
+
+        coin_x = text_x
+        coin_y = text_y
+        self.screen.blit(self._coin_icon, (coin_x, coin_y))
+        self.screen.blit(gold_text, (coin_x + self._coin_icon.get_width() + 6, coin_y))
+        text_y += max(self._coin_icon.get_height(), gold_text.get_height()) + line_gap
+
+        self.screen.blit(seed_text, (text_x, text_y))
+        text_y += seed_text.get_height() + line_gap
+
+        self.screen.blit(help_text, (text_x, text_y))
 
         minimap_surface = self.minimap.render(self.dungeon)
         margin = 16
-        self.screen.blit(
-            minimap_surface,
-            (self.screen.get_width() - minimap_surface.get_width() - margin, 100)
+        minimap_position = (
+            self.screen.get_width() - minimap_surface.get_width() - margin,
+            100,
         )
+        self.hud_panels.blit_minimap_panel(self.screen, minimap_surface, minimap_position)
+
+        self.hud_panels.blit_corner_panel(self.screen)
 
         mx, my = pygame.mouse.get_pos()
         cursor_rect = self._cursor_surface.get_rect(center=(mx, my))
