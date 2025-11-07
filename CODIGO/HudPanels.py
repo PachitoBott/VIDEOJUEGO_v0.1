@@ -46,6 +46,8 @@ class HudPanels:
         self.inventory_panel_position = pygame.Vector2(10, 110)
         self.inventory_content_offset = pygame.Vector2(28, 36)
         self.minimap_panel_offset = pygame.Vector2(-120, 60)
+        self.minimap_margin = pygame.Vector2(16, 100)
+        self.minimap_anchor = "top-right"
         self.corner_panel_margin = pygame.Vector2(-90, 80)
 
         self._inventory_original: pygame.Surface | None = None
@@ -92,6 +94,23 @@ class HudPanels:
     def set_minimap_scale(self, scale: float) -> None:
         self.minimap_scale = scale
         self._apply_scale()
+
+    def set_minimap_anchor(self, anchor: str, margin: Tuple[float, float] | pygame.Vector2 | None = None) -> None:
+        """Define la esquina/base desde la que se posiciona el minimapa.
+
+        ``anchor`` puede ser uno de ``"top-left"``, ``"top-right"``,
+        ``"bottom-left"``, ``"bottom-right"`` o ``"corner"``. Este
+        último centra el panel del minimapa dentro del panel de esquina
+        (si existe) y permite aplicar un ``margin`` adicional como ajuste
+        fino.
+        """
+
+        self.minimap_anchor = anchor
+        if margin is not None:
+            if isinstance(margin, pygame.Vector2):
+                self.minimap_margin.update(margin)
+            else:
+                self.minimap_margin.update(*margin)
 
     def set_corner_scale(self, scale: float) -> None:
         self.corner_scale = scale
@@ -150,12 +169,56 @@ class HudPanels:
         surface.blit(minimap_surface, minimap_rect.topleft)
         return minimap_rect
 
-    def blit_corner_panel(self, surface: pygame.Surface) -> pygame.Rect:
+    def corner_panel_rect(self, surface: pygame.Surface) -> pygame.Rect:
         panel_surface = self.corner_panel
         if panel_surface is None:
             return pygame.Rect(0, 0, 0, 0)
         x = int(self.corner_panel_margin.x)
         y = surface.get_height() - panel_surface.get_height() - int(self.corner_panel_margin.y)
-        rect = panel_surface.get_rect(topleft=(x, y))
-        surface.blit(panel_surface, rect.topleft)
+        return panel_surface.get_rect(topleft=(x, y))
+
+    def blit_corner_panel(self, surface: pygame.Surface) -> pygame.Rect:
+        rect = self.corner_panel_rect(surface)
+        if rect.width and rect.height and self.corner_panel is not None:
+            surface.blit(self.corner_panel, rect.topleft)
         return rect
+
+    def compute_minimap_position(
+        self,
+        target_surface: pygame.Surface,
+        minimap_surface: pygame.Surface,
+    ) -> Tuple[int, int]:
+        """Calcula la posición topleft para el minimapa según el anchor."""
+
+        sw, sh = target_surface.get_size()
+        mw, mh = minimap_surface.get_size()
+        margin_x = int(self.minimap_margin.x)
+        margin_y = int(self.minimap_margin.y)
+        anchor = (self.minimap_anchor or "top-right").lower()
+
+        if anchor == "top-left":
+            x = margin_x
+            y = margin_y
+        elif anchor == "top-right":
+            x = sw - mw - margin_x
+            y = margin_y
+        elif anchor == "bottom-left":
+            x = margin_x
+            y = sh - mh - margin_y
+        elif anchor == "corner":
+            corner_rect = self.corner_panel_rect(target_surface)
+            panel_surface = self.minimap_panel
+            if panel_surface is not None and corner_rect.width and corner_rect.height:
+                panel_w, panel_h = panel_surface.get_size()
+                offset_x = int(self.minimap_panel_offset.x)
+                offset_y = int(self.minimap_panel_offset.y)
+                x = corner_rect.left + (corner_rect.width - panel_w) // 2 - offset_x + margin_x
+                y = corner_rect.top + (corner_rect.height - panel_h) // 2 - offset_y + margin_y
+            else:
+                x = sw - mw - margin_x
+                y = margin_y
+        else:  # bottom-right por defecto / fallback
+            x = sw - mw - margin_x
+            y = sh - mh - margin_y
+
+        return (x, y)
