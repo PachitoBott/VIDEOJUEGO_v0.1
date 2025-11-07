@@ -16,23 +16,36 @@ class HudPanels:
     * ``panel_esquina.png`` — adorno decorativo para la esquina inferior izquierda.
 
     Una vez instanciada, puedes ajustar la escala o las posiciones modificando los
-    atributos públicos ``scale``, ``inventory_panel_position``,
-    ``inventory_content_offset``, ``minimap_panel_offset`` y
-    ``corner_panel_margin``. Llama a :meth:`set_scale` después de cambiar
-    ``scale`` para regenerar las superficies.
+    atributos públicos ``inventory_panel_position``, ``inventory_content_offset``,
+    ``minimap_panel_offset`` y ``corner_panel_margin``.
+
+    Para la escala, hay tres multiplicadores independientes:
+
+    * :attr:`inventory_scale`
+    * :attr:`minimap_scale`
+    * :attr:`corner_scale`
+
+    Usa :meth:`set_inventory_scale`, :meth:`set_minimap_scale` y
+    :meth:`set_corner_scale` para recalcular cada superficie de manera
+    individual, o :meth:`set_scale` para aplicar el mismo factor a los tres
+    paneles a la vez.
     """
 
     INVENTORY_FILENAME = "panel_inventario.png"
     MINIMAP_FILENAME = "panel_minimapa.png"
     CORNER_FILENAME = "panel_esquina.png"
 
-    def __init__(self, *, scale: float = 1.0, assets_dir: str | Path | None = None) -> None:
+    def __init__(self, *, scale: float = 0.5, assets_dir: str | Path | None = None) -> None:
         self.scale = scale
         self.assets_dir = Path(assets_dir) if assets_dir is not None else Path("assets/ui")
 
-        self.inventory_panel_position = pygame.Vector2(16, 16)
+        self.inventory_scale = scale
+        self.minimap_scale = scale
+        self.corner_scale = scale
+
+        self.inventory_panel_position = pygame.Vector2(16, 70)
         self.inventory_content_offset = pygame.Vector2(28, 36)
-        self.minimap_panel_offset = pygame.Vector2(-20, -20)
+        self.minimap_panel_offset = pygame.Vector2(-80, -50)
         self.corner_panel_margin = pygame.Vector2(16, 16)
 
         self._inventory_original: pygame.Surface | None = None
@@ -67,20 +80,35 @@ class HudPanels:
 
     def set_scale(self, scale: float) -> None:
         self.scale = scale
+        self.inventory_scale = scale
+        self.minimap_scale = scale
+        self.corner_scale = scale
+        self._apply_scale()
+
+    def set_inventory_scale(self, scale: float) -> None:
+        self.inventory_scale = scale
+        self._apply_scale()
+
+    def set_minimap_scale(self, scale: float) -> None:
+        self.minimap_scale = scale
+        self._apply_scale()
+
+    def set_corner_scale(self, scale: float) -> None:
+        self.corner_scale = scale
         self._apply_scale()
 
     def _apply_scale(self) -> None:
-        self.inventory_panel = self._scale_surface(self._inventory_original)
-        self.minimap_panel = self._scale_surface(self._minimap_original)
-        self.corner_panel = self._scale_surface(self._corner_original)
+        self.inventory_panel = self._scale_surface(self._inventory_original, self.inventory_scale)
+        self.minimap_panel = self._scale_surface(self._minimap_original, self.minimap_scale)
+        self.corner_panel = self._scale_surface(self._corner_original, self.corner_scale)
 
-    def _scale_surface(self, surface: pygame.Surface | None) -> pygame.Surface | None:
+    def _scale_surface(self, surface: pygame.Surface | None, scale: float) -> pygame.Surface | None:
         if surface is None:
             return None
-        if self.scale == 1.0:
+        if scale == 1.0:
             return surface.copy()
-        width = max(1, int(surface.get_width() * self.scale))
-        height = max(1, int(surface.get_height() * self.scale))
+        width = max(1, int(surface.get_width() * scale))
+        height = max(1, int(surface.get_height() * scale))
         return pygame.transform.smoothscale(surface, (width, height))
 
     # ------------------------------------------------------------------
