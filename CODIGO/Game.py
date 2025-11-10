@@ -48,7 +48,7 @@ class Game:
         # self.hud_panels.inventory_panel_position.update(nuevo_x, nuevo_y)
         if hasattr(self.hud_panels, "set_minimap_anchor"):
             # Centra el minimapa dentro del panel de esquina para que quede cubierto.
-            self.hud_panels.set_minimap_anchor("corner")
+            self.hud_panels.set_minimap_anchor("top-right",  margin=(80, 140))
 
         # ---------- Recursos ----------
         self.tileset = Tileset()

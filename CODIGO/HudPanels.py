@@ -43,9 +43,9 @@ class HudPanels:
         self.minimap_scale = 0.6
         self.corner_scale = 0.8
 
-        self.inventory_panel_position = pygame.Vector2(10, 110)
+        self.inventory_panel_position = pygame.Vector2(10, 120)
         self.inventory_content_offset = pygame.Vector2(28, 36)
-        self.minimap_panel_offset = pygame.Vector2(-120, 60)
+        self.minimap_panel_offset = pygame.Vector2(-80, 20)
         self.minimap_margin = pygame.Vector2(16, 100)
         self.minimap_anchor = "top-right"
         self.corner_panel_margin = pygame.Vector2(-90, 80)
@@ -160,13 +160,14 @@ class HudPanels:
         panel_surface = self.minimap_panel
         offset = self.minimap_panel_offset
         minimap_rect = minimap_surface.get_rect(topleft=minimap_position)
+        surface.blit(minimap_surface, minimap_rect.topleft)
         if panel_surface is not None:
             panel_pos = (
                 minimap_rect.left + int(offset.x),
                 minimap_rect.top + int(offset.y),
             )
             surface.blit(panel_surface, panel_pos)
-        surface.blit(minimap_surface, minimap_rect.topleft)
+        
         return minimap_rect
 
     def corner_panel_rect(self, surface: pygame.Surface) -> pygame.Rect:
