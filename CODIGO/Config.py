@@ -1,5 +1,50 @@
-from dataclasses import dataclass
-from typing import Tuple, Optional
+from dataclasses import dataclass, field
+from typing import Mapping, Optional, Tuple
+
+
+@dataclass(frozen=True)
+class StartMenuButton:
+    """Representa un botón configurable dentro del menú de inicio."""
+
+    action: str
+    label: str
+
+
+@dataclass(frozen=True)
+class StartMenuConfig:
+    """Opciones editables para personalizar el menú de inicio."""
+
+    title: str = "Roguelike"
+    subtitle: Optional[str] = "Genera tu aventura"
+    background_image: Optional[str] = None
+    logo_image: Optional[str] = None
+    buttons: Tuple[StartMenuButton, ...] = (
+        StartMenuButton("play", "Jugar"),
+        StartMenuButton("credits", "Créditos"),
+        StartMenuButton("controls", "Controles"),
+    )
+    sections: Mapping[str, Tuple[str, ...]] = field(
+        default_factory=lambda: {
+            "credits": (
+                "Créditos",
+                "",
+                "Programación: Tu Nombre",
+                "Arte: Tu Equipo",
+                "Sonido: Recursos libres / CC",
+            ),
+            "controls": (
+                "Controles",
+                "",
+                "WASD o Flechas — Moverse",
+                "Mouse — Apuntar y disparar",
+                "Espacio — Rodar / Acción",
+                "M — Reiniciar con la misma seed",
+                "N — Generar una nueva seed aleatoria",
+            ),
+        }
+    )
+    seed_placeholder: str = "Seed aleatoria"
+
 
 @dataclass(frozen=True)
 class Config:
@@ -26,6 +71,8 @@ class Config:
     COLOR_PLAYER: Tuple[int,int,int] = (240, 220, 120)
 
     DEBUG_DRAW_DOOR_TRIGGERS: bool = False
+
+    START_MENU: StartMenuConfig = StartMenuConfig()
 
     FLOOR: int = 0
     WALL: int = 1  # pared genérica (fallback)

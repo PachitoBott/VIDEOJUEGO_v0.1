@@ -2,6 +2,7 @@
 import sys
 import pygame
 from Config import Config
+from StartMenu import StartMenu
 from Tileset import Tileset
 from Player import Player
 from Dungeon import Dungeon
@@ -56,9 +57,6 @@ class Game:
         self.door_cooldown = 0.0
         self.running = True
         self.debug_draw_doors = cfg.DEBUG_DRAW_DOOR_TRIGGERS
-
-        # ---------- Arranque de run ----------
-        self.start_new_run()  # crea dungeon, posiciona player, limpia estado
 
     # ------------------------------------------------------------------ #
     # Nueva partida / regenerar dungeon (misma o nueva seed)
@@ -116,6 +114,20 @@ class Game:
     # Bucle principal
     # ------------------------------------------------------------------ #
     def run(self) -> None:
+        pygame.mouse.set_visible(True)
+        start_menu = StartMenu(self.screen, self.cfg)
+        menu_result = start_menu.run()
+        if not menu_result.start_game:
+            self.running = False
+        else:
+            pygame.mouse.set_visible(False)
+            self.start_new_run(seed=menu_result.seed)
+
+        if not self.running:
+            pygame.mouse.set_visible(True)
+            pygame.quit()
+            sys.exit(0)
+
         self._frame_counter = 0
         while self.running:
             dt = self.clock.tick(self.cfg.FPS) / 1000.0
