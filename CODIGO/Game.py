@@ -1,6 +1,8 @@
 # CODIGO/Game.py
 import sys
 import pygame
+from collections.abc import Callable
+
 from Config import Config
 from StartMenu import StartMenu
 from Tileset import Tileset
@@ -11,6 +13,7 @@ from Projectile import ProjectileGroup
 from Shop import Shop
 from Shopkeeper import Shopkeeper
 from HudPanels import HudPanels
+from PauseMenu import PauseMenu, PauseMenuButton
 
 
 class Game:
@@ -57,6 +60,15 @@ class Game:
         self.door_cooldown = 0.0
         self.running = True
         self.debug_draw_doors = cfg.DEBUG_DRAW_DOOR_TRIGGERS
+        self._skip_frame = False
+
+        # --- Menú de pausa ---
+        self.pause_menu_buttons: list[PauseMenuButton] = [
+            PauseMenuButton("Reanudar", "resume"),
+            PauseMenuButton("Menú principal", "main_menu"),
+            PauseMenuButton("Salir del juego", "quit"),
+        ]
+        self.pause_menu_handlers: dict[str, Callable[[], bool | None]] = {}
 
     # ------------------------------------------------------------------ #
     # Nueva partida / regenerar dungeon (misma o nueva seed)
@@ -114,16 +126,7 @@ class Game:
     # Bucle principal
     # ------------------------------------------------------------------ #
     def run(self) -> None:
-        pygame.mouse.set_visible(True)
-        start_menu = StartMenu(self.screen, self.cfg)
-        menu_result = start_menu.run()
-        if not menu_result.start_game:
-            self.running = False
-        else:
-            pygame.mouse.set_visible(False)
-            self.start_new_run(seed=menu_result.seed)
-
-        if not self.running:
+        if not self._open_start_menu():
             pygame.mouse.set_visible(True)
             pygame.quit()
             sys.exit(0)
@@ -134,6 +137,9 @@ class Game:
             self.door_cooldown = max(0.0, self.door_cooldown - dt)
 
             events = self._handle_events()
+            if self._skip_frame:
+                self._skip_frame = False
+                continue
             self._update_fps_counter()
             self._update(dt, events)
             self._render()
@@ -149,12 +155,67 @@ class Game:
                 self.running = False
             elif e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE:
-                    self.running = False
+                    self._show_pause_menu()
+                    return []
                 elif e.key == pygame.K_m:
                     self.start_new_run(seed=self.current_seed)
                 elif e.key == pygame.K_n:
                     self.start_new_run(seed=None)
         return events
+
+    def _open_start_menu(self) -> bool:
+        pygame.mouse.set_visible(True)
+        start_menu = StartMenu(self.screen, self.cfg)
+        menu_result = start_menu.run()
+        if not menu_result.start_game:
+            self.running = False
+            return False
+        pygame.mouse.set_visible(False)
+        self.start_new_run(seed=menu_result.seed)
+        self._skip_frame = True
+        return True
+
+    def add_pause_menu_button(
+        self,
+        button: PauseMenuButton,
+        *,
+        handler: Callable[[], bool | None] | None = None,
+    ) -> None:
+        """Permite añadir botones adicionales al menú de pausa."""
+
+        self.pause_menu_buttons.append(button)
+        if handler is not None:
+            self.pause_menu_handlers[button.action] = handler
+
+    def _show_pause_menu(self) -> None:
+        pygame.mouse.set_visible(True)
+        background = self.screen.copy()
+        pause_menu = PauseMenu(self.screen, buttons=self.pause_menu_buttons)
+        action = pause_menu.run(background=background)
+        keep_playing = self._handle_pause_action(action)
+        if keep_playing and self.running:
+            pygame.mouse.set_visible(False)
+        self.clock.tick(self.cfg.FPS)
+        self._skip_frame = True
+
+    def _handle_pause_action(self, action: str) -> bool:
+        if action == "resume":
+            return True
+        if action == "main_menu":
+            return self._open_start_menu()
+        if action == "quit":
+            self.running = False
+            return False
+
+        handler = self.pause_menu_handlers.get(action)
+        if handler is not None:
+            result = handler()
+            if result is False:
+                self.running = False
+                return False
+            return True
+
+        return True
 
     def _update_fps_counter(self) -> None:
         self._frame_counter += 1
