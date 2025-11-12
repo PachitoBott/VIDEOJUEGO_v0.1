@@ -42,12 +42,20 @@ class Enemy(Entity):
         # Daño por contacto (override en subclases que lo requieran)
         self.contact_damage = 0
 
+        # Control de ralentizaciones
+        self._slow_timer = 0.0
+        self._slow_multiplier = 1.0
+
     def _center(self):
         return (self.x + self.w/2, self.y + self.h/2)
 
     # ---------- loop ----------
     def update(self, dt: float, player, room) -> None:
         self.alert_timer = max(0.0, self.alert_timer - dt)
+        if self._slow_timer > 0.0:
+            self._slow_timer = max(0.0, self._slow_timer - dt)
+            if self._slow_timer <= 0.0:
+                self._slow_multiplier = 1.0
         ex, ey = self._center()
         px, py = (player.x + player.w/2, player.y + player.h/2)
 
@@ -91,9 +99,9 @@ class Enemy(Entity):
         elif self.state == CHASE:
             self._update_chase(dt, room, dx, dy)
 
-    def maybe_shoot(self, dt: float, player, room, out_bullets: list) -> None:
+    def maybe_shoot(self, dt: float, player, room, out_bullets: list) -> bool:
         """Por defecto, los enemigos base NO disparan."""
-        return
+        return False
 
     def is_stunned(self) -> bool:
         return self.stun_timer > 0.0
@@ -128,6 +136,15 @@ class Enemy(Entity):
         if self._knockback_speed <= 0.0:
             self._knockback_dir = (0.0, 0.0)
 
+    def _movement_speed_factor(self) -> float:
+        return self._slow_multiplier if self._slow_timer > 0.0 else 1.0
+
+    def apply_slow(self, slow_fraction: float, duration: float) -> None:
+        slow_fraction = max(0.0, min(0.95, slow_fraction))
+        target_multiplier = max(0.05, 1.0 - slow_fraction)
+        self._slow_multiplier = min(self._slow_multiplier, target_multiplier)
+        self._slow_timer = max(self._slow_timer, max(0.0, duration))
+
     # ---------- estados ----------
     def _update_idle(self, dt: float) -> None:
         if random.random() < 0.005:
@@ -141,7 +158,8 @@ class Enemy(Entity):
 
     def _update_wander(self, dt: float, room) -> None:
         vx, vy = self.wander_dir
-        self.move(vx, vy, dt * (self.wander_speed / max(1e-6, self.speed)), room)
+        speed_factor = self._movement_speed_factor()
+        self.move(vx, vy, dt * (self.wander_speed / max(1e-6, self.speed)) * speed_factor, room)
         self.wander_time -= dt
         if self.wander_time <= 0.0 or random.random() < 0.01:
             if random.random() < 0.5:
@@ -153,7 +171,8 @@ class Enemy(Entity):
         mag = math.hypot(dx, dy)
         if mag > 0:
             dx, dy = dx/mag, dy/mag
-        self.move(dx, dy, dt * (self.chase_speed / max(1e-6, self.speed)), room)
+        speed_factor = self._movement_speed_factor()
+        self.move(dx, dy, dt * (self.chase_speed / max(1e-6, self.speed)) * speed_factor, room)
 
     def draw(self, surf: pygame.Surface) -> None:
         # NO llames a super().draw con color si Entity.draw no acepta color
@@ -214,20 +233,20 @@ class ShooterEnemy(Enemy):
         super().update(dt, player, room)
         self._fire_timer = max(0.0, self._fire_timer - dt)
 
-    def maybe_shoot(self, dt, player, room, out_bullets: list) -> None:
+    def maybe_shoot(self, dt, player, room, out_bullets: list) -> bool:
         if self.alert_timer > 0.0 or self.is_stunned():
-            return
+            return False
         if self._fire_timer > 0.0:
-            return
+            return False
         # Solo dispara si está en CHASE, hay LoS y dentro de rango
         ex, ey = self._center()
         px, py = (player.x + player.w/2, player.y + player.h/2)
         dx, dy = (px - ex), (py - ey)
         dist = math.hypot(dx, dy)
         if self.state != CHASE or dist > self.fire_range:
-            return
+            return False
         if not room.has_line_of_sight(ex, ey, px, py):
-            return
+            return False
 
         # Normaliza y dispara ráfagas en abanico
         if dist > 0:
@@ -271,6 +290,7 @@ class ShooterEnemy(Enemy):
             else:
                 out_bullets.append(bullet)
         self._fire_timer = self.fire_cooldown
+        return True
 
     def draw(self, surf):
         color = (0, 0, 255) if self.state == CHASE else (0, 0, 255)
@@ -292,20 +312,20 @@ class BasicEnemy(Enemy):
         super().update(dt, player, room)
         self._fire_timer = max(0.0, getattr(self, "_fire_timer", 0.0) - dt)
 
-    def maybe_shoot(self, dt, player, room, out_bullets) -> None:
+    def maybe_shoot(self, dt, player, room, out_bullets) -> bool:
         if self.alert_timer > 0.0 or self.is_stunned():
-            return
+            return False
         if getattr(self, "_fire_timer", 0.0) > 0.0:
-            return
+            return False
 
         ex, ey = self._center()
         px, py = (player.x + player.w/2, player.y + player.h/2)
         dx, dy = (px - ex), (py - ey)
         dist = math.hypot(dx, dy)
         if self.state != CHASE or dist > self.fire_range:
-            return
+            return False
         if not room.has_line_of_sight(ex, ey, px, py):
-            return
+            return False
 
         if dist > 0:
             dx, dy = dx/dist, dy/dist
@@ -327,6 +347,7 @@ class BasicEnemy(Enemy):
             else:
                 out_bullets.append(bullet)
         self._fire_timer = self.fire_cooldown
+        return True
 
     def draw(self, surf):
         color = (255, 255, 0) if self.state == CHASE else (255, 255, 0)
@@ -355,20 +376,20 @@ class TankEnemy(Enemy):
         super().update(dt, player, room)
         self._fire_timer = max(0.0, getattr(self, "_fire_timer", 0.0) - dt)
 
-    def maybe_shoot(self, dt, player, room, out_bullets) -> None:
+    def maybe_shoot(self, dt, player, room, out_bullets) -> bool:
         if self.alert_timer > 0.0 or self.is_stunned():
-            return
+            return False
         if getattr(self, "_fire_timer", 0.0) > 0.0:
-            return
+            return False
 
         ex, ey = self._center()
         px, py = (player.x + player.w/2, player.y + player.h/2)
         dx, dy = (px - ex), (py - ey)
         dist = math.hypot(dx, dy)
         if self.state != CHASE or dist > self.fire_range:
-            return
+            return False
         if not room.has_line_of_sight(ex, ey, px, py):
-            return
+            return False
 
         if dist > 0:
             dx, dy = dx/dist, dy/dist
@@ -413,6 +434,7 @@ class TankEnemy(Enemy):
                     out_bullets.append(bullet)
 
         self._fire_timer = self.fire_cooldown
+        return fired_any
 
     def draw(self, surf):
         color = (255, 0, 0) if self.state == CHASE else (255, 0, 0)

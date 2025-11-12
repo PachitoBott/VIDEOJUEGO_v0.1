@@ -70,6 +70,17 @@ class Player(Entity):
         self._owned_weapons: set[str] = set()
         self.weapon_id: str | None = None
         self.weapon = None
+        self.cooldown_scale_base = 1.0
+        self._cooldown_modifiers: dict[str, float] = {}
+        self._upgrade_flags: set[str] = set()
+        self.sprint_control_bonus = 0.0
+        self._sprint_control_timer = 0.0
+        self._is_sprinting = False
+        self.phase_during_dash = False
+        self.dash_core_bonus_window = 0.0
+        self.dash_core_bonus_iframe = 0.0
+        self._recent_enemy_shot_timer = 0.0
+        self._was_dashing = False
 
         # --- Atributos de supervivencia y movilidad ---
         self.base_speed = self.speed
@@ -122,6 +133,8 @@ class Player(Entity):
         self.invulnerable_timer = max(0.0, self.invulnerable_timer - dt)
         self._dash_timer = max(0.0, self._dash_timer - dt)
         self._dash_cooldown_timer = max(0.0, self._dash_cooldown_timer - dt)
+        self._recent_enemy_shot_timer = max(0.0, self._recent_enemy_shot_timer - dt)
+        self._sprint_control_timer = max(0.0, self._sprint_control_timer - dt)
 
         dx = (keys[pygame.K_d] or keys[pygame.K_RIGHT]) - (keys[pygame.K_a] or keys[pygame.K_LEFT])
         dy = (keys[pygame.K_s] or keys[pygame.K_DOWN]) - (keys[pygame.K_w] or keys[pygame.K_UP])
@@ -143,6 +156,7 @@ class Player(Entity):
         speed_scale = 1.0
 
         dash_active = self._dash_timer > 0.0
+        sprinting_now = False
         if dash_active:
             move_dx, move_dy = self._dash_dir
             speed_scale = self.dash_speed_multiplier
@@ -162,6 +176,13 @@ class Player(Entity):
             if not dash_active and input_mag > 0:
                 if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
                     speed_scale = self.sprint_multiplier
+                    sprinting_now = True
+
+        if sprinting_now and not self._is_sprinting:
+            self._sprint_control_timer = max(self._sprint_control_timer, 1.0)
+
+        if sprinting_now and self.sprint_control_bonus > 0.0 and self._sprint_control_timer > 0.0:
+            speed_scale *= 1.0 + self.sprint_control_bonus
 
         self._update_facing(move_dx, dash_active)
 
@@ -180,12 +201,20 @@ class Player(Entity):
 
         moving = dash_active or input_mag > 0
         self._update_animation(dt, moving)
+        if self._was_dashing and not dash_active and self.dash_core_bonus_iframe > 0.0:
+            if self._recent_enemy_shot_timer > 0.0:
+                self.invulnerable_timer = max(0.0, self.invulnerable_timer) + self.dash_core_bonus_iframe
+        self._was_dashing = dash_active
+        self._is_sprinting = sprinting_now
 
     # ------------------------------------------------------------------
     # Estado defensivo
     # ------------------------------------------------------------------
     def is_invulnerable(self) -> bool:
         return self.invulnerable_timer > 0.0
+
+    def is_phase_active(self) -> bool:
+        return self.phase_during_dash and self._dash_timer > 0.0
 
     def take_damage(self, amount: int) -> bool:
         """Aplica daño al jugador si no está en iframes. Devuelve True si impactó."""
@@ -448,6 +477,9 @@ class Player(Entity):
     def reset_loadout(self) -> None:
         """Restablece el arma inicial al comenzar una nueva partida."""
         self._owned_weapons.clear()
+        self._upgrade_flags.clear()
+        self._cooldown_modifiers.clear()
+        self.cooldown_scale_base = 1.0
         self.cooldown_scale = 1.0
         self.speed = self.base_speed
         self.max_hp = self.base_max_hp
@@ -463,6 +495,15 @@ class Player(Entity):
         self._last_move_dir = (0.0, -1.0)
         self._dash_trail.clear()
         self._dash_trail_timer = 0.0
+        self.sprint_control_bonus = 0.0
+        self._sprint_control_timer = 0.0
+        self._is_sprinting = False
+        self.phase_during_dash = False
+        self.dash_core_bonus_window = 0.0
+        self.dash_core_bonus_iframe = 0.0
+        self._recent_enemy_shot_timer = 0.0
+        self._was_dashing = False
+
         self.sprint_multiplier = self.base_sprint_multiplier
         self.dash_duration = self.base_dash_duration
         self.dash_cooldown = self.base_dash_cooldown
@@ -501,3 +542,29 @@ class Player(Entity):
         setter = getattr(self.weapon, "set_cooldown_scale", None)
         if callable(setter):
             setter(self.cooldown_scale)
+
+    # ------------------------- Gestion de upgrades --------------------
+    def register_upgrade(self, upgrade_id: str) -> None:
+        self._upgrade_flags.add(upgrade_id)
+
+    def has_upgrade(self, upgrade_id: str) -> bool:
+        return upgrade_id in self._upgrade_flags
+
+    def set_cooldown_modifier(self, upgrade_id: str, multiplier: float) -> None:
+        self._cooldown_modifiers[upgrade_id] = float(multiplier)
+        self._recompute_cooldown_scale()
+
+    def _recompute_cooldown_scale(self) -> None:
+        scale = self.cooldown_scale_base
+        for mult in self._cooldown_modifiers.values():
+            scale *= mult
+        scale = max(0.35, scale)
+        self.cooldown_scale = scale
+        self.refresh_weapon_modifiers()
+
+    def notify_enemy_shot(self, window: float | None = None) -> None:
+        if window is None:
+            window = self.dash_core_bonus_window if self.dash_core_bonus_window > 0.0 else 0.15
+        if window <= 0.0:
+            return
+        self._recent_enemy_shot_timer = max(self._recent_enemy_shot_timer, window)
