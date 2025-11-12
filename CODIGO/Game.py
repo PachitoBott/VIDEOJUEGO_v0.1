@@ -1,7 +1,10 @@
 # CODIGO/Game.py
+import math
 import sys
-import pygame
 from collections.abc import Callable
+from pathlib import Path
+
+import pygame
 
 from Config import Config
 from StartMenu import StartMenu
@@ -37,6 +40,10 @@ class Game:
         pygame.draw.circle(self._coin_icon, (255, 215, 0), (8, 8), 6)
         pygame.draw.circle(self._coin_icon, (160, 120, 0), (8, 8), 6, 1)
         pygame.draw.line(self._coin_icon, (160, 120, 0), (6, 8), (10, 8), 1)
+        self._battery_states = self._load_battery_states()
+        self._life_battery_highlight = pygame.Color(110, 200, 255)
+        # Ajusta este offset para reposicionar las vidas en el HUD.
+        self._life_battery_offset = pygame.Vector2(0, 300)
         self.current_seed: int | None = None
 
         # --- Tienda ---
@@ -61,6 +68,7 @@ class Game:
         self.running = True
         self.debug_draw_doors = cfg.DEBUG_DRAW_DOOR_TRIGGERS
         self._skip_frame = False
+
 
         # --- Menú de pausa ---
         self.pause_menu_buttons: list[PauseMenuButton] = [
@@ -500,9 +508,7 @@ class Game:
         self.player.draw(self.world)
         self.projectiles.draw(self.world)
         self.enemy_projectiles.draw(self.world)
-
-        if self.debug_draw_doors and hasattr(room, "_door_trigger_rects"):
-            self._draw_debug_door_triggers(room)
+        self._draw_debug_door_triggers(room)
 
         if hasattr(room, "draw_overlay"):
             room.draw_overlay(self.world, self.ui_font, self.player, self.shop)
@@ -527,14 +533,6 @@ class Game:
         lives_text = self.ui_font.render(
             f"Vidas: {lives_remaining}/{max_lives}", True, (255, 120, 120)
         )
-        hits_remaining_life_fn = getattr(self.player, "hits_remaining_this_life", None)
-        if callable(hits_remaining_life_fn):
-            hits_remaining = hits_remaining_life_fn()
-        else:
-            hits_remaining = max(0, getattr(self.player, "hp", 0))
-        hits_text = self.ui_font.render(
-            f"Golpes restantes vida: {hits_remaining}", True, (255, 180, 120)
-        )
         gold_amount = getattr(self.player, "gold", 0)
         gold_text = self.ui_font.render(f"Monedas: {gold_amount}", True, (255, 240, 180))
         seed_text = self.ui_font.render(f"Seed: {self.current_seed}", True, (230, 230, 230))
@@ -543,11 +541,16 @@ class Game:
         text_x, text_y = self.hud_panels.inventory_content_anchor()
         line_gap = 6
 
+        battery_origin = (
+        text_x + int(self._life_battery_offset.x),
+         text_y + int(self._life_battery_offset.y),
+        )
+        batteries_rect = self._blit_life_batteries(self.screen, battery_origin)
+        if batteries_rect.height:
+         text_y = batteries_rect.bottom + line_gap
+        
         self.screen.blit(lives_text, (text_x, text_y))
         text_y += lives_text.get_height() + line_gap
-
-        self.screen.blit(hits_text, (text_x, text_y))
-        text_y += hits_text.get_height() + line_gap
 
         coin_x = text_x
         coin_y = text_y
@@ -585,3 +588,120 @@ class Game:
         pygame.draw.line(surface, color, (center[0], center[1] - outer_radius), (center[0], center[1] - inner_radius - 1), 2)
         pygame.draw.line(surface, color, (center[0], center[1] + outer_radius), (center[0], center[1] + inner_radius + 1), 2)
         return surface
+
+    def _load_battery_states(self) -> list[pygame.Surface]:
+        sprite_path = Path(__file__).resolve().parent.parent / "assets/ui/Baterias_vida.png"
+        try:
+            sheet = pygame.image.load(sprite_path.as_posix()).convert_alpha()
+        except pygame.error as exc:  # pragma: no cover - carga de recursos
+            raise FileNotFoundError(f"No se pudo cargar el sprite de baterías en {sprite_path}") from exc
+
+        columns = 3
+        frame_width = sheet.get_width() // columns
+        frame_height = sheet.get_height()
+        frames: list[pygame.Surface] = []
+        for index in range(columns):
+            frame = pygame.Surface((frame_width, frame_height), pygame.SRCALPHA)
+            frame.blit(sheet, (0, 0), pygame.Rect(index * frame_width, 0, frame_width, frame_height))
+            frames.append(frame)
+
+        if not frames:
+            raise ValueError("El sprite de baterías no contiene frames válidos")
+
+        empty_frame = frames[0].copy()
+        darken = pygame.Surface(empty_frame.get_size(), pygame.SRCALPHA)
+        darken.fill((60, 60, 60, 255))
+        empty_frame.blit(darken, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+        return [empty_frame] + frames
+
+    def _player_hits_remaining(self) -> int:
+        hits_remaining_life_fn = getattr(self.player, "hits_remaining_this_life", None)
+        if callable(hits_remaining_life_fn):
+            try:
+                return int(hits_remaining_life_fn())
+            except (TypeError, ValueError):
+                pass
+        return max(0, int(getattr(self.player, "hp", 0)))
+
+    def _battery_surface(self, max_hp: int, hp: int) -> pygame.Surface:
+        if not self._battery_states:
+            return pygame.Surface((0, 0), pygame.SRCALPHA)
+
+        if max_hp <= 0:
+            return self._battery_states[0]
+
+        hp_clamped = max(0, min(max_hp, hp))
+        if hp_clamped <= 0:
+            return self._battery_states[0]
+
+        tiers = len(self._battery_states) - 1
+        ratio = hp_clamped / max_hp
+        frame_index = max(1, min(tiers, math.ceil(ratio * tiers)))
+        return self._battery_states[frame_index]
+
+    def _blit_life_batteries(self, surface: pygame.Surface, origin: tuple[int, int]) -> pygame.Rect:
+        if not hasattr(self, "player"):
+            return pygame.Rect(origin, (0, 0))
+
+        max_lives = max(0, int(getattr(self.player, "max_lives", 0)))
+        if max_lives <= 0:
+            return pygame.Rect(origin, (0, 0))
+
+        lives_remaining = max(0, int(getattr(self.player, "lives", 0)))
+        max_hp = max(1, int(getattr(self.player, "max_hp", 1)))
+        hits_remaining = max(0, min(max_hp, self._player_hits_remaining()))
+
+        lost_lives = max(0, min(max_lives, max_lives - lives_remaining))
+        icons: list[pygame.Surface] = []
+        for index in range(max_lives):
+            if index < lost_lives or lives_remaining <= 0:
+                hp_value = 0
+            elif index == lost_lives:
+                hp_value = hits_remaining
+            else:
+                hp_value = max_hp
+
+            icon = self._battery_surface(max_hp, hp_value).copy()
+            if index == lost_lives and lives_remaining > 0:
+                pygame.draw.rect(
+                    icon,
+                    self._life_battery_highlight,
+                    icon.get_rect(),
+                    3,
+                    border_radius=6,
+                )
+            icons.append(icon)
+
+        if not icons:
+            return pygame.Rect(origin, (0, 0))
+
+        icon_w, icon_h = icons[0].get_size()
+        columns = 2
+        max_rows = 5
+        spacing_x = 6
+        spacing_y = 6
+        rows = min(max_rows, math.ceil(len(icons) / columns))
+
+        ox, oy = origin
+        max_icons = min(len(icons), columns * rows)
+        for idx, icon_surface in enumerate(icons[:max_icons]):
+            col = idx % columns
+            row = idx // columns
+            x = ox + col * (icon_w + spacing_x)
+            y = oy + row * (icon_h + spacing_y)
+            surface.blit(icon_surface, (x, y))
+
+        used_columns = columns if max_icons >= columns else max_icons
+        width = used_columns * icon_w + max(0, used_columns - 1) * spacing_x
+        height = rows * icon_h + max(0, rows - 1) * spacing_y
+
+        last_row_count = max_icons % columns or min(max_icons, columns)
+        if max_icons >= columns:
+            width_columns = columns
+        else:
+            width_columns = last_row_count
+        width = width_columns * icon_w + max(0, width_columns - 1) * spacing_x
+        height = rows * icon_h + max(0, rows - 1) * spacing_y
+
+        return pygame.Rect(ox, oy, width, height)
