@@ -2,6 +2,7 @@
 import math
 import sys
 from collections.abc import Callable
+from time import perf_counter
 from pathlib import Path
 
 import pygame
@@ -17,6 +18,7 @@ from Shop import Shop
 from Shopkeeper import Shopkeeper
 from HudPanels import HudPanels
 from PauseMenu import PauseMenu, PauseMenuButton
+from Statistics import StatisticsManager
 
 
 class Game:
@@ -47,7 +49,7 @@ class Game:
         self.current_seed: int | None = None
 
         # --- Tienda ---
-        self.shop = Shop(font=self.ui_font)
+        self.shop = Shop(font=self.ui_font, on_gold_spent=self._register_gold_spent)
 
         # --- HUD ---
         self.hud_panels = HudPanels()
@@ -78,6 +80,12 @@ class Game:
         ]
         self.pause_menu_handlers: dict[str, Callable[[], bool | None]] = {}
 
+        # ---------- Estadísticas ----------
+        self.stats_manager = StatisticsManager()
+        self._run_start_time: float | None = None
+        self._stats_pending_reason: str | None = None
+        self._run_gold_spent: int = 0
+
     # ------------------------------------------------------------------ #
     # Nueva partida / regenerar dungeon (misma o nueva seed)
     # ------------------------------------------------------------------ #
@@ -86,6 +94,10 @@ class Game:
         Crea una nueva dungeon con la seed dada (o aleatoria si None),
         reubica al jugador y resetea estado de runtime.
         """
+        finalize_reason = self._stats_pending_reason or "restart"
+        self._finalize_run_statistics(finalize_reason)
+        self._stats_pending_reason = None
+
         params = self.cfg.dungeon_params()
         if dungeon_params:
             params = {**params, **dungeon_params}
@@ -123,12 +135,53 @@ class Game:
         if hasattr(self.dungeon, "enter_initial_room"):
             self.dungeon.enter_initial_room(self.player, self.cfg, ShopkeeperCls=Shopkeeper)
 
+        self._run_start_time = perf_counter()
+
     def _reset_runtime_state(self) -> None:
         self.projectiles.clear()
         self.enemy_projectiles.clear()
         self.door_cooldown = 0.0
         self.locked = False
         self.cleared = False
+        self._run_gold_spent = 0
+
+    def _register_gold_spent(self, amount: int) -> None:
+        if amount <= 0:
+            return
+        self._run_gold_spent = max(0, self._run_gold_spent) + int(amount)
+
+    def _finalize_run_statistics(self, reason: str | None = None) -> None:
+        if self._run_start_time is None:
+            return
+
+        duration = max(0.0, perf_counter() - self._run_start_time)
+        rooms_explored = 0
+        dungeon = getattr(self, "dungeon", None)
+        if dungeon is not None and hasattr(dungeon, "explored"):
+            try:
+                rooms_explored = len(dungeon.explored)
+            except TypeError:
+                rooms_explored = 0
+        gold = 0
+        player = getattr(self, "player", None)
+        if player is not None:
+            gold = int(getattr(player, "gold", 0))
+        gold_spent = max(0, int(self._run_gold_spent))
+        gold_obtained = max(0, gold) + gold_spent
+
+        try:
+            self.stats_manager.record_run(
+                duration_seconds=duration,
+                rooms_explored=rooms_explored,
+                gold_obtained=gold_obtained,
+                gold_spent=gold_spent,
+            )
+        except Exception as exc:  # pragma: no cover - logging best effort
+            print(f"[WARN] No se pudo guardar la estadística: {exc}", file=sys.stderr)
+
+        self._run_start_time = None
+        self._stats_pending_reason = None
+        self._run_gold_spent = 0
 
     # ------------------------------------------------------------------ #
     # Bucle principal
@@ -153,6 +206,7 @@ class Game:
             self._render()
 
         pygame.mouse.set_visible(True)
+        self._finalize_run_statistics("shutdown")
         pygame.quit()
         sys.exit(0)
 
@@ -160,22 +214,29 @@ class Game:
         events = pygame.event.get()
         for e in events:
             if e.type == pygame.QUIT:
+                self._finalize_run_statistics("quit")
                 self.running = False
             elif e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE:
                     self._show_pause_menu()
                     return []
                 elif e.key == pygame.K_m:
+                    self._stats_pending_reason = "manual_same_seed"
                     self.start_new_run(seed=self.current_seed)
                 elif e.key == pygame.K_n:
+                    self._stats_pending_reason = "manual_new_seed"
                     self.start_new_run(seed=None)
         return events
 
     def _open_start_menu(self) -> bool:
         pygame.mouse.set_visible(True)
-        start_menu = StartMenu(self.screen, self.cfg)
+        start_menu = StartMenu(self.screen, self.cfg, stats_manager=self.stats_manager)
         menu_result = start_menu.run()
         if not menu_result.start_game:
+            if self._run_start_time is not None:
+                reason = self._stats_pending_reason or "menu_exit"
+                self._finalize_run_statistics(reason)
+                self._stats_pending_reason = None
             self.running = False
             return False
         pygame.mouse.set_visible(False)
@@ -210,8 +271,10 @@ class Game:
         if action == "resume":
             return True
         if action == "main_menu":
+            self._stats_pending_reason = "menu_restart"
             return self._open_start_menu()
         if action == "quit":
+            self._finalize_run_statistics("quit")
             self.running = False
             return False
 
@@ -219,6 +282,7 @@ class Game:
         if handler is not None:
             result = handler()
             if result is False:
+                self._finalize_run_statistics(f"handler:{action}")
                 self.running = False
                 return False
             return True
@@ -289,6 +353,7 @@ class Game:
         if not hasattr(room, "enemies"):
             return False
         gold_earned = 0
+        initial_enemy_count = len(getattr(room, "enemies", ()))
         for projectile in self.projectiles:
             if not projectile.alive:
                 continue
@@ -354,6 +419,12 @@ class Game:
         if gold_earned:
             current_gold = getattr(self.player, "gold", 0)
             setattr(self.player, "gold", current_gold + gold_earned)
+        defeated_enemies = max(0, initial_enemy_count - len(survivors))
+        if defeated_enemies:
+            try:
+                self.stats_manager.record_kill(defeated_enemies)
+            except Exception as exc:  # pragma: no cover - registro best effort
+                print(f"[WARN] No se pudo guardar kills: {exc}", file=sys.stderr)
         room.enemies = survivors
         self.projectiles.prune()
         self.enemy_projectiles.prune()
@@ -437,13 +508,19 @@ class Game:
                 enemy.y = player_rect.top - enemy.h
 
     def _handle_player_death(self, room) -> None:
+        try:
+            self.stats_manager.record_death()
+        except Exception as exc:  # pragma: no cover - registro best effort
+            print(f"[WARN] No se pudo guardar muerte: {exc}", file=sys.stderr)
         if not hasattr(self.player, "lose_life"):
             seed = self.current_seed
+            self._stats_pending_reason = "player_death"
             self.start_new_run(seed=seed)
             return
         can_continue = bool(self.player.lose_life())
         if not can_continue:
             seed = self.current_seed
+            self._stats_pending_reason = "player_death"
             self.start_new_run(seed=seed)
             return
 
