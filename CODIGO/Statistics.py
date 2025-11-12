@@ -169,25 +169,6 @@ class StatisticsManager:
             f"Salas exploradas: {snapshot.total_rooms_explored}",
         ]
 
-        if snapshot.total_runs > 0:
-            avg_rooms = snapshot.total_rooms_explored / snapshot.total_runs
-            avg_gold = snapshot.total_gold_obtained / snapshot.total_runs
-            avg_gold_spent = snapshot.total_gold_spent / snapshot.total_runs
-            avg_duration = (
-                snapshot.total_duration_seconds / snapshot.total_runs
-                if snapshot.total_duration_seconds > 0.0
-                else 0.0
-            )
-            lines.extend(
-                (
-                    "",
-                    f"Salas por partida: {avg_rooms:.1f}",
-                    f"Oro obtenido / partida: {avg_gold:.1f}",
-                    f"Oro gastado / partida: {avg_gold_spent:.1f}",
-                    f"Duración media: {self._format_duration(avg_duration)}",
-                )
-            )
-
         return tuple(lines)
 
     # ------------------------------------------------------------------
