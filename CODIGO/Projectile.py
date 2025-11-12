@@ -4,16 +4,27 @@ import pygame
 from Config import CFG
 
 class Projectile:
-    def __init__(self, x, y, dx, dy, speed=320.0, radius=3, color=(255,230,140)):
+    def __init__(
+        self,
+        x,
+        y,
+        dx,
+        dy,
+        speed=320.0,
+        radius=3,
+        color=(255,230,140),
+        effects: list[dict] | tuple[dict, ...] | None = None,
+    ):
         self.x, self.y = x, y
         self.dx, self.dy = dx, dy
         self.speed = speed
         self.radius = radius
         self.alive = True
         self.ttl = 3.5
-        self.color = color
+        self.color = color if color is not None else (255, 230, 140)
         # Temporizador para ignorar colisiones con el jugador tras un dash.
         self.ignore_player_timer = 0.0
+        self.effects: tuple[dict, ...] = tuple(effects) if effects else ()
 
     def rect(self) -> pygame.Rect:
         r = self.radius

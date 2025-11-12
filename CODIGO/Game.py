@@ -275,8 +275,11 @@ class Game:
             return
         for enemy in room.enemies:
             enemy.update(dt, self.player, room)
+        notify = getattr(self.player, "notify_enemy_shot", None)
         for enemy in room.enemies:
-            enemy.maybe_shoot(dt, self.player, room, self.enemy_projectiles)
+            fired = enemy.maybe_shoot(dt, self.player, room, self.enemy_projectiles)
+            if fired and callable(notify):
+                notify()
 
     def _update_projectiles(self, dt: float, room) -> None:
         self.projectiles.update(dt, room)
@@ -296,12 +299,17 @@ class Game:
                         enemy.take_damage(1, (projectile.dx, projectile.dy))
                     else:
                         enemy.hp -= 1
+                    self._apply_projectile_effects(projectile, enemy)
                     projectile.alive = False
                     break
         player_rect = self.player.rect()
         player_invulnerable = getattr(self.player, "is_invulnerable", lambda: False)()
+        phase_active = getattr(self.player, "is_phase_active", None)
+        phase_through = phase_active() if callable(phase_active) else False
         for enemy in room.enemies:
             if not player_rect.colliderect(enemy.rect()):
+                continue
+            if phase_through:
                 continue
             self._separate_player_enemy(enemy, room)
             contact_damage = getattr(enemy, "contact_damage", 0)
@@ -356,6 +364,21 @@ class Game:
             self._handle_player_death(room)
             return True
         return False
+
+    def _apply_projectile_effects(self, projectile, enemy) -> None:
+        effects = getattr(projectile, "effects", ())
+        if not effects:
+            return
+        for effect in effects:
+            if not isinstance(effect, dict):
+                continue
+            etype = effect.get("type")
+            if etype == "shock":
+                slow = float(effect.get("slow", 0.2))
+                duration = float(effect.get("duration", 0.6))
+                applier = getattr(enemy, "apply_slow", None)
+                if callable(applier):
+                    applier(slow, duration)
 
     def _separate_player_enemy(self, enemy, room) -> None:
         player_rect = self.player.rect()

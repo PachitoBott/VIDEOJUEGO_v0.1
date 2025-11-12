@@ -8,39 +8,39 @@ class Shop:
 
     def __init__(self, font=None):
         self.catalog = [
-            {"name": "Pistolas dobles", "price": 65, "type": "weapon", "id": "dual_pistols", "weight": 0.8},
+            {"name": "Pistolas dobles", "price": 58, "type": "weapon", "id": "dual_pistols", "weight": 0.8},
             {"name": "Rifle ligero", "price": 82, "type": "weapon", "id": "light_rifle", "weight": 0.8},
-            {"name": "Escopeta salva arcana", "price": 105, "type": "weapon", "id": "arcane_salvo", "weight": 0.6},
-            {"name": "Rifle de pulsos", "price": 98, "type": "weapon", "id": "pulse_rifle", "weight": 0.6},
-            {"name": "Guantes tesla", "price": 86, "type": "weapon", "id": "tesla_gloves", "weight": 0.6},
-            {"name": "Carabina incandescente", "price": 110, "type": "weapon", "id": "ember_carbine", "weight": 0.5},
-            {"name": "Vida extra (+1)", "price": 38, "type": "upgrade", "id": "hp_up", "weight": 4},
-            {"name": "Aumento de velocidad (+5%)", "price": 32, "type": "upgrade", "id": "spd_up", "weight": 3},
-            {"name": "Blindaje reforzado (+1 golpe)", "price": 64, "type": "upgrade", "id": "armor_up", "weight": 2},
-            {"name": "Talismán de recarga (-10%)", "price": 56, "type": "upgrade", "id": "cdr_charm", "weight": 3},
-            {"name": "Manual de puntería (-12% cd)", "price": 68, "type": "upgrade", "id": "cdr_core", "weight": 2},
-            {"name": "Botas relámpago (+10% sprint)", "price": 52, "type": "upgrade", "id": "sprint_core", "weight": 3},
-            {"name": "Condensador de fase (-15% dash)", "price": 70, "type": "upgrade", "id": "dash_core", "weight": 2},
-            {"name": "Impulso cinético (+duración dash)", "price": 64, "type": "upgrade", "id": "dash_drive", "weight": 2},
-            {"name": "Botiquín de campaña (+2 HP)", "price": 34, "type": "consumable", "id": "heal_medium", "amount": 2, "weight": 4},
-            {"name": "Botiquín de nanobots (curación total)", "price": 85, "type": "consumable", "id": "heal_full", "weight": 1},
+            {"name": "Escopeta salva arcana", "price": 95, "type": "weapon", "id": "arcane_salvo", "weight": 0.6},
+            {"name": "Rifle de pulsos", "price": 108, "type": "weapon", "id": "pulse_rifle", "weight": 0.6},
+            {"name": "Guantes tesla", "price": 78, "type": "weapon", "id": "tesla_gloves", "weight": 0.6},
+            {"name": "Carabina incandescente", "price": 104, "type": "weapon", "id": "ember_carbine", "weight": 0.5},
+            {"name": "Vida extra (+1)", "price": 45, "type": "upgrade", "id": "hp_up", "weight": 4},
+            {"name": "Aumento de velocidad (+5%)", "price": 30, "type": "upgrade", "id": "spd_up", "weight": 3},
+            {"name": "Blindaje reforzado (+1 golpe)", "price": 60, "type": "upgrade", "id": "armor_up", "weight": 2},
+            {"name": "Talismán de recarga (-10%)", "price": 54, "type": "upgrade", "id": "cdr_charm", "weight": 3},
+            {"name": "Manual de puntería (-12% cd)", "price": 72, "type": "upgrade", "id": "cdr_core", "weight": 2},
+            {"name": "Botas relámpago (+10% sprint)", "price": 48, "type": "upgrade", "id": "sprint_core", "weight": 3},
+            {"name": "Condensador de fase (-15% dash)", "price": 66, "type": "upgrade", "id": "dash_core", "weight": 2},
+            {"name": "Impulso cinético (+duración dash)", "price": 56, "type": "upgrade", "id": "dash_drive", "weight": 2},
+            {"name": "Botiquín de campaña (+2 HP)", "price": 28, "type": "consumable", "id": "heal_medium", "amount": 2, "weight": 4},
+            {"name": "Botiquín de nanobots (curación total)", "price": 90, "type": "consumable", "id": "heal_full", "weight": 1},
             {
                 "name": "Kit de incursión",
-                "price": 58,
+                "price": 62,
                 "type": "bundle",
                 "contents": [
                     {"type": "gold", "amount": 45},
-                    {"type": "heal", "amount": 1},
+                    {"type": "consumable", "id": "heal_small", "amount": 1},
                     {"type": "upgrade", "id": "spd_up"},
                 ],
                 "weight": 2,
             },
             {
                 "name": "Paquete de reconocimiento",
-                "price": 62,
+                "price": 64,
                 "type": "bundle",
                 "contents": [
-                    {"type": "gold", "amount": 35},
+                    {"type": "gold", "amount": 40},
                     {"type": "consumable", "id": "heal_small", "amount": 1},
                     {"type": "upgrade", "id": "cdr_charm"},
                 ],
@@ -277,6 +277,9 @@ class Shop:
         return True
 
     def _apply_upgrade(self, player, uid):
+        register = getattr(player, "register_upgrade", None)
+        has_upgrade = getattr(player, "has_upgrade", None)
+        set_modifier = getattr(player, "set_cooldown_modifier", None)
         if uid == "hp_up":
             max_lives = getattr(player, "max_lives", getattr(player, "lives", 1))
             lives = getattr(player, "lives", max_lives)
@@ -284,10 +287,14 @@ class Shop:
             lives = min(lives + 1, max_lives)
             setattr(player, "max_lives", max_lives)
             setattr(player, "lives", lives)
+            if callable(register):
+                register(uid)
             return True
         if uid == "spd_up":
             speed = getattr(player, "speed", 1.0)
             setattr(player, "speed", speed * 1.05)
+            if callable(register):
+                register(uid)
             return True
         if uid == "armor_up":
             max_hp = getattr(player, "max_hp", getattr(player, "hp", 3))
@@ -299,47 +306,84 @@ class Shop:
             if hasattr(player, "_hits_taken_current_life"):
                 hits_taken = max(0, max_hp - hp)
                 setattr(player, "_hits_taken_current_life", hits_taken)
+            if callable(register):
+                register(uid)
             return True
         if uid == "cdr_charm":
-            current = getattr(player, "cooldown_scale", 1.0)
-            new_scale = max(0.4, current * 0.9)
-            setattr(player, "cooldown_scale", new_scale)
-            refresher = getattr(player, "refresh_weapon_modifiers", None)
-            if callable(refresher):
-                refresher()
-            elif hasattr(player, "weapon") and player.weapon:
-                setter = getattr(player.weapon, "set_cooldown_scale", None)
-                if callable(setter):
-                    setter(new_scale)
+            core_active = callable(has_upgrade) and has_upgrade("cdr_core")
+            multiplier = 0.94 if core_active else 0.9
+            if callable(register):
+                register(uid)
+            if callable(set_modifier):
+                set_modifier(uid, multiplier)
+            else:
+                current = getattr(player, "cooldown_scale", 1.0)
+                new_scale = max(0.35, current * multiplier)
+                setattr(player, "cooldown_scale", new_scale)
+                refresher = getattr(player, "refresh_weapon_modifiers", None)
+                if callable(refresher):
+                    refresher()
+                elif hasattr(player, "weapon") and player.weapon:
+                    setter = getattr(player.weapon, "set_cooldown_scale", None)
+                    if callable(setter):
+                        setter(new_scale)
             return True
         if uid == "cdr_core":
-            current = getattr(player, "cooldown_scale", 1.0)
-            new_scale = max(0.35, current * 0.88)
-            setattr(player, "cooldown_scale", new_scale)
-            refresher = getattr(player, "refresh_weapon_modifiers", None)
-            if callable(refresher):
-                refresher()
-            elif hasattr(player, "weapon") and player.weapon:
-                setter = getattr(player.weapon, "set_cooldown_scale", None)
-                if callable(setter):
-                    setter(new_scale)
+            charm_active = callable(has_upgrade) and has_upgrade("cdr_charm")
+            if callable(register):
+                register(uid)
+            if callable(set_modifier):
+                set_modifier(uid, 0.88)
+                if charm_active:
+                    set_modifier("cdr_charm", 0.94)
+            else:
+                current = getattr(player, "cooldown_scale", 1.0)
+                new_scale = max(0.35, current * 0.88)
+                setattr(player, "cooldown_scale", new_scale)
+                refresher = getattr(player, "refresh_weapon_modifiers", None)
+                if callable(refresher):
+                    refresher()
+                elif hasattr(player, "weapon") and player.weapon:
+                    setter = getattr(player.weapon, "set_cooldown_scale", None)
+                    if callable(setter):
+                        setter(new_scale)
+                if charm_active:
+                    # Ajuste aproximado al nuevo multiplicador de charm
+                    setattr(player, "cooldown_scale", max(0.35, new_scale * (0.94 / 0.9)))
+                    refresher = getattr(player, "refresh_weapon_modifiers", None)
+                    if callable(refresher):
+                        refresher()
             return True
         if uid == "sprint_core":
             sprint = getattr(player, "sprint_multiplier", 1.0)
             setattr(player, "sprint_multiplier", sprint * 1.1)
             speed = getattr(player, "speed", 1.0)
             setattr(player, "speed", speed * 1.03)
+            if hasattr(player, "sprint_control_bonus"):
+                player.sprint_control_bonus = max(getattr(player, "sprint_control_bonus", 0.0), 0.15)
+            if callable(register):
+                register(uid)
             return True
         if uid == "dash_core":
             cooldown = getattr(player, "dash_cooldown", 0.75)
             new_cd = max(0.25, cooldown * 0.85)
             setattr(player, "dash_cooldown", new_cd)
+            if hasattr(player, "dash_core_bonus_window"):
+                player.dash_core_bonus_window = max(getattr(player, "dash_core_bonus_window", 0.0), 0.15)
+            if hasattr(player, "dash_core_bonus_iframe"):
+                player.dash_core_bonus_iframe = max(getattr(player, "dash_core_bonus_iframe", 0.0), 0.05)
+            if callable(register):
+                register(uid)
             return True
         if uid == "dash_drive":
             duration = getattr(player, "dash_duration", 0.18)
-            new_duration = min(0.45, duration + 0.05)
+            new_duration = min(0.6, duration + 0.08)
             setattr(player, "dash_duration", new_duration)
-            setattr(player, "dash_iframe_duration", new_duration + 0.08)
+            setattr(player, "dash_iframe_duration", max(getattr(player, "dash_iframe_duration", new_duration + 0.08), new_duration + 0.08))
+            if hasattr(player, "phase_during_dash"):
+                player.phase_during_dash = True
+            if callable(register):
+                register(uid)
             return True
         return False
 
@@ -353,7 +397,7 @@ class Shop:
                 setattr(player, "_hits_taken_current_life", 0)
             return True
         if cid == "heal_medium":
-            amount = int(item.get("amount", 2) or 2)
+            amount = random.randint(2, 3)
             return self._heal_player(player, amount)
         if cid == "heal_small":
             amount = int(item.get("amount", 1) or 1)

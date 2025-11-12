@@ -73,7 +73,7 @@ class Dungeon:
                 "type": "bundle",
                 "contents": [
                     {"type": "gold", "amount": 55},
-                    {"type": "heal", "amount": 1},
+                    {"type": "consumable", "id": "heal_small", "amount": 1},
                     {"type": "upgrade", "id": "spd_up"},
                 ],
                 "weight": 3,
