@@ -7,6 +7,7 @@ from typing import Optional
 import pygame
 
 from Config import Config
+from Statistics import StatisticsManager
 
 
 @dataclass(frozen=True)
@@ -26,7 +27,13 @@ class StartMenu:
     INPUT_WIDTH = 320
     INPUT_HEIGHT = 48
 
-    def __init__(self, screen: pygame.Surface, cfg: Config) -> None:
+    def __init__(
+        self,
+        screen: pygame.Surface,
+        cfg: Config,
+        *,
+        stats_manager: StatisticsManager | None = None,
+    ) -> None:
         self.screen = screen
         self.cfg = cfg
         self.menu_cfg = cfg.START_MENU
@@ -43,6 +50,7 @@ class StartMenu:
 
         self.overlay_key: Optional[str] = None
         self.overlay_lines: tuple[str, ...] = ()
+        self.stats_manager = stats_manager
 
         self.button_rects: list[tuple[str, pygame.Rect]] = []
         self.seed_rect = pygame.Rect(0, 0, self.INPUT_WIDTH, self.INPUT_HEIGHT)
@@ -192,6 +200,10 @@ class StartMenu:
                 self.overlay_key = action
                 self.overlay_lines = self.menu_cfg.sections[action]
                 return True
+        if action == "statistics":
+            self.overlay_key = action
+            self.overlay_lines = self._statistics_lines()
+            return True
         if action in self.menu_cfg.sections:
             self.overlay_key = action
             self.overlay_lines = self.menu_cfg.sections[action]
@@ -296,6 +308,11 @@ class StartMenu:
                 center=(self.screen.get_width() // 2, self.seed_rect.bottom + 24 + i * 20)
             )
             self.screen.blit(hint_surf, hint_rect)
+
+    def _statistics_lines(self) -> tuple[str, ...]:
+        if self.stats_manager is None:
+            return ("Estadísticas", "", "No disponibles en este momento.")
+        return self.stats_manager.summary_lines()
 
     def _draw_overlay(self) -> None:
         width, height = self.screen.get_size()
