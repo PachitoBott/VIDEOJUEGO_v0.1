@@ -18,6 +18,7 @@ from Shop import Shop
 from Shopkeeper import Shopkeeper
 from HudPanels import HudPanels
 from PauseMenu import PauseMenu, PauseMenuButton
+from GameOverMenu import GameOverMenu
 from Statistics import StatisticsManager
 
 
@@ -510,16 +511,12 @@ class Game:
     def _handle_player_death(self, room) -> None:
         if not hasattr(self.player, "lose_life"):
             self._record_stats_death()
-            seed = self.current_seed
-            self._stats_pending_reason = "player_death"
-            self.start_new_run(seed=seed)
+            self._on_game_over()
             return
         can_continue = bool(self.player.lose_life())
         if not can_continue:
             self._record_stats_death()
-            seed = self.current_seed
-            self._stats_pending_reason = "player_death"
-            self.start_new_run(seed=seed)
+            self._on_game_over()
             return
 
         if hasattr(self.player, "respawn"):
@@ -538,6 +535,69 @@ class Game:
         self.projectiles.clear()
         self.enemy_projectiles.clear()
         self.door_cooldown = 0.25
+
+    def _on_game_over(self) -> None:
+        self._stats_pending_reason = "player_death"
+        pygame.mouse.set_visible(True)
+        action = self._show_game_over_menu()
+
+        if action == "main_menu":
+            self._stats_pending_reason = "game_over_menu"
+            keep_playing = self._open_start_menu()
+            if not keep_playing:
+                self.running = False
+            else:
+                self._skip_frame = True
+            return
+
+        if action == "new_seed":
+            self._stats_pending_reason = "game_over_new_seed"
+            self.start_new_run(seed=None)
+            pygame.mouse.set_visible(False)
+            self._skip_frame = True
+            return
+
+        if action == "quit":
+            self._finalize_run_statistics("game_over_quit")
+            self.running = False
+            return
+
+        # Fallback: reiniciar usando la misma seed actual
+        seed = self.current_seed
+        self._stats_pending_reason = "game_over_restart"
+        self.start_new_run(seed=seed)
+        pygame.mouse.set_visible(False)
+        self._skip_frame = True
+
+    def _show_game_over_menu(self) -> str:
+        background = self.screen.copy()
+        summary = self._game_over_summary()
+        menu = GameOverMenu(self.screen, summary_lines=summary)
+        return menu.run(background=background)
+
+    def _game_over_summary(self) -> list[str]:
+        summary: list[str] = []
+        if self.current_seed is not None:
+            summary.append(f"Seed: {self.current_seed}")
+
+        dungeon = getattr(self, "dungeon", None)
+        if dungeon is not None:
+            explored = getattr(dungeon, "explored", None)
+            if explored is not None:
+                try:
+                    summary.append(f"Salas exploradas: {len(explored)}")
+                except TypeError:
+                    pass
+
+        gold = getattr(self.player, "gold", None)
+        if gold is not None:
+            summary.append(f"Monedas obtenidas: {int(gold)}")
+
+        if self._run_start_time is not None:
+            duration = max(0.0, perf_counter() - self._run_start_time)
+            summary.append(f"Duración: {duration:0.1f}s")
+
+        return summary
 
     def _record_stats_death(self) -> None:
         try:
