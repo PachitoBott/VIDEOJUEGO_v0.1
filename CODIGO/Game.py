@@ -508,17 +508,15 @@ class Game:
                 enemy.y = player_rect.top - enemy.h
 
     def _handle_player_death(self, room) -> None:
-        try:
-            self.stats_manager.record_death()
-        except Exception as exc:  # pragma: no cover - registro best effort
-            print(f"[WARN] No se pudo guardar muerte: {exc}", file=sys.stderr)
         if not hasattr(self.player, "lose_life"):
+            self._record_stats_death()
             seed = self.current_seed
             self._stats_pending_reason = "player_death"
             self.start_new_run(seed=seed)
             return
         can_continue = bool(self.player.lose_life())
         if not can_continue:
+            self._record_stats_death()
             seed = self.current_seed
             self._stats_pending_reason = "player_death"
             self.start_new_run(seed=seed)
@@ -540,6 +538,12 @@ class Game:
         self.projectiles.clear()
         self.enemy_projectiles.clear()
         self.door_cooldown = 0.25
+
+    def _record_stats_death(self) -> None:
+        try:
+            self.stats_manager.record_death()
+        except Exception as exc:  # pragma: no cover - registro best effort
+            print(f"[WARN] No se pudo guardar muerte: {exc}", file=sys.stderr)
 
     def _handle_room_transition(self, room) -> None:
         if not hasattr(room, "check_exit"):
