@@ -83,12 +83,12 @@ _OBSTACLE_SCALE_OVERRIDES: dict[str, tuple[float, float]] = {}
 
 _OBSTACLE_LIBRARY: dict[tuple[int, int], dict[str, ObstacleSpriteInfo]] = {
     (1, 1): {
-        "silla": ObstacleSpriteInfo("silla.png", scale=(1.25, 1.5)),
-        "hoyo": ObstacleSpriteInfo("hoyo.png"),
-        "caneca": ObstacleSpriteInfo("caneca.png", scale=(1.25, 1.25)),
+        "silla": ObstacleSpriteInfo("silla.png", scale=(2, 2)),
+        "hoyo": ObstacleSpriteInfo("hoyo.png", scale=(2, 2)),
+        "caneca": ObstacleSpriteInfo("caneca.png", scale=(2, 2)),
     },
     (1, 2): {
-        "tubo_verde": ObstacleSpriteInfo("tubo_verde_1x2.png", scale=(1.15, 1.15)),
+        "tubo_verde": ObstacleSpriteInfo("tubo_verde_1x2.png", scale=(1, 1)),
     },
     (2, 1): {
         "pantalla": ObstacleSpriteInfo("pantalla_2x1.png"),
@@ -98,7 +98,7 @@ _OBSTACLE_LIBRARY: dict[tuple[int, int], dict[str, ObstacleSpriteInfo]] = {
         "pantallas": ObstacleSpriteInfo("pantallas_2x2.png"),
     },
     (4, 2): {
-        "pantallas_azules": ObstacleSpriteInfo("pantallas_azules_4x2.png"),
+        "pantallas_azules": ObstacleSpriteInfo("pantallas_azules_4x2.png", scale=(1, 1)),
     },
 }
 
