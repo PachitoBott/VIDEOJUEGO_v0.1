@@ -22,6 +22,7 @@ from PauseMenu import PauseMenu, PauseMenuButton
 from GameOverScreen import GameOverScreen
 from Statistics import StatisticsManager
 from Pickup import MicrochipPickup
+from asset_paths import WEAPON_SPRITE_FILENAMES, weapon_sprite_path
 
 
 class Game:
@@ -48,6 +49,23 @@ class Game:
         self._life_battery_highlight = pygame.Color(110, 200, 255)
         # Ajusta este offset para reposicionar las vidas en el HUD.
         self._life_battery_offset = pygame.Vector2(0, 300)
+        # --- Configuración del HUD de armas ---
+        self.weapon_icon_offset = pygame.Vector2(18, 12)
+        self.weapon_icon_scale = 0.9
+        self.weapon_ammo_offset = pygame.Vector2(0, 10)
+        self.weapon_ammo_color = pygame.Color(235, 235, 235)
+        self.weapon_ammo_align_center = True
+        self.weapon_text_margin = 12
+        self._weapon_icons = self._load_weapon_icons()
+        self._weapon_icon_cache: dict[tuple[str, float], pygame.Surface] = {}
+
+        self.configure_weapon_hud(
+            icon_scale=getattr(cfg, "HUD_WEAPON_ICON_SCALE", None),
+            icon_offset=getattr(cfg, "HUD_WEAPON_ICON_OFFSET", None),
+            ammo_offset=getattr(cfg, "HUD_WEAPON_AMMO_OFFSET", None),
+            ammo_align_center=getattr(cfg, "HUD_WEAPON_AMMO_ALIGN_CENTER", None),
+            text_margin=getattr(cfg, "HUD_WEAPON_TEXT_MARGIN", None),
+        )
         self.current_seed: int | None = None
 
         # --- Tienda ---
@@ -765,7 +783,8 @@ class Game:
         )
         self.screen.blit(scaled, (0, 0))
 
-        self.hud_panels.blit_inventory_panel(self.screen)
+        inventory_rect = self.hud_panels.blit_inventory_panel(self.screen)
+        weapon_rect = self._draw_weapon_hud(inventory_rect)
 
         lives_remaining = getattr(self.player, "lives", 0)
         max_lives = getattr(self.player, "max_lives", self.cfg.PLAYER_START_LIVES)
@@ -778,16 +797,18 @@ class Game:
         help_text = self.ui_font.render("R: rejugar seed  |  N: nueva seed", True, (200, 200, 200))
 
         text_x, text_y = self.hud_panels.inventory_content_anchor()
+        if weapon_rect.width:
+            text_x = max(text_x, weapon_rect.right + int(self.weapon_text_margin))
         line_gap = 6
 
         battery_origin = (
-        text_x + int(self._life_battery_offset.x),
-         text_y + int(self._life_battery_offset.y),
+            text_x + int(self._life_battery_offset.x),
+            text_y + int(self._life_battery_offset.y),
         )
         batteries_rect = self._blit_life_batteries(self.screen, battery_origin)
         if batteries_rect.height:
-         text_y = batteries_rect.bottom + line_gap
-        
+            text_y = batteries_rect.bottom + line_gap
+
         self.screen.blit(lives_text, (text_x, text_y))
         text_y += lives_text.get_height() + line_gap
 
@@ -870,6 +891,146 @@ class Game:
         icon = pygame.transform.smoothscale(chip, (14, 14))
         pickup = pygame.transform.smoothscale(chip, (12, 12))
         return {"icon": icon, "pickup": pickup}
+
+    def _load_weapon_icons(self) -> dict[str, pygame.Surface]:
+        icons: dict[str, pygame.Surface] = {}
+        for weapon_id in WEAPON_SPRITE_FILENAMES:
+            path = weapon_sprite_path(weapon_id)
+            try:
+                surface = pygame.image.load(path.as_posix()).convert_alpha()
+            except FileNotFoundError:
+                print(
+                    f"[HUD] Advertencia: sprite de arma '{path}' no encontrado. Se usará un marcador.")
+                surface = self._create_weapon_placeholder_icon(weapon_id)
+            except pygame.error as exc:  # pragma: no cover - depende de SDL
+                print(
+                    f"[HUD] Error al cargar '{path}': {exc}. Se usará un marcador.")
+                surface = self._create_weapon_placeholder_icon(weapon_id)
+            icons[weapon_id] = surface
+
+        if "__missing__" not in icons:
+            icons["__missing__"] = self._create_weapon_placeholder_icon(None)
+        return icons
+
+    def _create_weapon_placeholder_icon(self, weapon_id: str | None) -> pygame.Surface:
+        size = 128
+        surface = pygame.Surface((size, size), pygame.SRCALPHA)
+        surface.fill((0, 0, 0, 0))
+        rect = surface.get_rect()
+        base_color = pygame.Color(40, 44, 52, 200)
+        frame_color = pygame.Color(120, 130, 150)
+        pygame.draw.rect(surface, base_color, rect.inflate(-8, -8), border_radius=16)
+        pygame.draw.rect(surface, frame_color, rect.inflate(-10, -10), width=3, border_radius=16)
+
+        label = "???" if not weapon_id else weapon_id.replace("_", " ")
+        label_surface = self.ui_font.render(label.upper(), True, (220, 220, 220))
+        label_rect = label_surface.get_rect(center=rect.center)
+        surface.blit(label_surface, label_rect.topleft)
+        return surface
+
+    def _get_scaled_weapon_icon(self, weapon_id: str, scale: float) -> pygame.Surface | None:
+        base_id = weapon_id if weapon_id in self._weapon_icons else "__missing__"
+        base_surface = self._weapon_icons.get(base_id)
+        if base_surface is None:
+            return None
+
+        scale = max(0.05, float(scale))
+        cache_key = (base_id, round(scale, 4))
+        cached = self._weapon_icon_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        width = max(1, int(base_surface.get_width() * scale))
+        height = max(1, int(base_surface.get_height() * scale))
+        scaled = pygame.transform.smoothscale(base_surface, (width, height))
+        self._weapon_icon_cache[cache_key] = scaled
+        return scaled
+
+    def _draw_weapon_hud(self, inventory_rect: pygame.Rect) -> pygame.Rect:
+        player = getattr(self, "player", None)
+        weapon = getattr(player, "weapon", None) if player is not None else None
+        weapon_id = getattr(player, "weapon_id", None) if player is not None else None
+        if weapon is None or weapon_id is None:
+            return pygame.Rect(0, 0, 0, 0)
+
+        icon_surface = self._get_scaled_weapon_icon(weapon_id, self.weapon_icon_scale)
+        if icon_surface is None:
+            return pygame.Rect(0, 0, 0, 0)
+
+        base_x = inventory_rect.left + int(self.weapon_icon_offset.x)
+        base_y = inventory_rect.top + int(self.weapon_icon_offset.y)
+        icon_rect = icon_surface.get_rect(topleft=(base_x, base_y))
+        self.screen.blit(icon_surface, icon_rect.topleft)
+
+        shots_remaining = getattr(weapon, "shots_in_mag", 0)
+        magazine_size = getattr(weapon, "magazine_size", 0)
+        ammo_text = f"Balas: {shots_remaining}/{magazine_size}"
+        if hasattr(weapon, "is_reloading") and weapon.is_reloading():
+            ammo_text = f"Recargando ({shots_remaining}/{magazine_size})"
+
+        ammo_surface = self.ui_font.render(ammo_text, True, self.weapon_ammo_color)
+        if self.weapon_ammo_align_center:
+            ammo_rect = ammo_surface.get_rect()
+            ammo_rect.midtop = (
+                icon_rect.left + icon_rect.width // 2 + int(self.weapon_ammo_offset.x),
+                icon_rect.bottom + int(self.weapon_ammo_offset.y),
+            )
+        else:
+            ammo_rect = ammo_surface.get_rect()
+            ammo_rect.topleft = (
+                icon_rect.left + int(self.weapon_ammo_offset.x),
+                icon_rect.bottom + int(self.weapon_ammo_offset.y),
+            )
+
+        self.screen.blit(ammo_surface, ammo_rect.topleft)
+        return icon_rect.union(ammo_rect)
+
+    def configure_weapon_hud(
+        self,
+        *,
+        icon_scale: float | None = None,
+        icon_offset: tuple[float, float] | pygame.Vector2 | None = None,
+        ammo_offset: tuple[float, float] | pygame.Vector2 | None = None,
+        ammo_align_center: bool | None = None,
+        text_margin: float | None = None,
+    ) -> None:
+        """Permite modificar dinámicamente la posición y escala del icono del arma.
+
+        Puedes llamar a este método desde cualquier parte del código que tenga
+        acceso a la instancia de :class:`Game`, o ajustar los valores por
+        defecto editando ``Config`` (ver ``HUD_WEAPON_*``).
+        """
+
+        if icon_scale is not None:
+            try:
+                self.weapon_icon_scale = max(0.05, float(icon_scale))
+            except (TypeError, ValueError):
+                pass
+
+        if icon_offset is not None:
+            self.weapon_icon_offset = self._vector_from(icon_offset)
+
+        if ammo_offset is not None:
+            self.weapon_ammo_offset = self._vector_from(ammo_offset)
+
+        if ammo_align_center is not None:
+            self.weapon_ammo_align_center = bool(ammo_align_center)
+
+        if text_margin is not None:
+            try:
+                self.weapon_text_margin = max(0, int(text_margin))
+            except (TypeError, ValueError):
+                pass
+
+    @staticmethod
+    def _vector_from(value: tuple[float, float] | pygame.Vector2) -> pygame.Vector2:
+        if isinstance(value, pygame.Vector2):
+            return value
+        try:
+            x, y = value
+        except (TypeError, ValueError):  # pragma: no cover - validacion defensiva
+            return pygame.Vector2()
+        return pygame.Vector2(float(x), float(y))
 
     def _create_cursor_surface(self) -> pygame.Surface:
         cursor_path = Path(__file__).resolve().parent.parent / "assets/ui/cursor2.png"
