@@ -5,6 +5,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Sequence
 
+from asset_paths import assets_dir
+
 
 @dataclass(frozen=True)
 class StatisticsSnapshot:
@@ -51,8 +53,7 @@ class StatisticsManager:
     )
 
     def __init__(self, path: Path | None = None) -> None:
-        base_dir = Path(__file__).resolve().parent
-        self.path = path or base_dir / "assets" / "estadisticas.csv"
+        self.path = path or assets_dir("estadisticas.csv")
         self._ensure_file()
 
     # ------------------------------------------------------------------
