@@ -327,6 +327,32 @@ class Room:
 
 
     # ------------------------------------------------------------------ #
+    # API estática para sprites de obstáculos
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def set_obstacle_sprite_scale(
+        variant: str | None, scale: float | tuple[float, float] | list[float] | None
+    ) -> None:
+        """Envuelve :func:`set_obstacle_sprite_scale` para uso externo."""
+
+        set_obstacle_sprite_scale(variant, scale)
+
+    @staticmethod
+    def set_global_obstacle_scale(
+        scale: float | tuple[float, float] | list[float] | None
+    ) -> None:
+        """Permite ajustar la escala común para todos los sprites desde ``Room``."""
+
+        set_global_obstacle_scale(scale)
+
+    @staticmethod
+    def clear_obstacle_sprite_cache() -> None:
+        """Reexpone el limpiador del caché de sprites de obstáculos."""
+
+        clear_obstacle_sprite_cache()
+
+
+    # ------------------------------------------------------------------ #
     # Construcción de la habitación
     # ------------------------------------------------------------------ #
     def build_centered(self, rw: int, rh: int) -> None:
