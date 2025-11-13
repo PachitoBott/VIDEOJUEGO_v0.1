@@ -30,15 +30,27 @@ Si necesitas un nombre diferente, crea (o edita) `manifest.json` en esta misma c
 ```json
 {
   "silla": {
-    "1x1": "mi_silla.png"
+    "1x1": {
+      "path": "mi_silla.png",
+      "scale": 1.1,
+      "offset": [0, -4]
+    }
   },
   "pantallas_azules": {
     "4x2": "setup/pantalla_azul.png"
   },
   "tubo_verde": {
-    "default": "tubo.png"
+    "default": {
+      "scale": [1.2, 1.1]
+    }
   }
 }
 ```
+
+Cada entrada puede ser una cadena (solo ruta) o un objeto con propiedades:
+
+- `path`: ruta del archivo PNG.
+- `scale`: factor de escala (número para escala uniforme o lista `[sx, sy]`).
+- `offset`: desplazamiento `[dx, dy]` en píxeles respecto a la esquina superior izquierda de la colisión. Si se omite y la escala cambia, el sprite se centra automáticamente.
 
 Las rutas pueden ser relativas a esta carpeta o absolutas. Tras modificar el manifiesto puedes usar `Room.clear_obstacle_sprite_cache()` para recargar los sprites en caliente.

@@ -1,6 +1,7 @@
 import json
 import os
 import pygame
+from dataclasses import dataclass
 from typing import Dict, Tuple, Optional, List, Type
 from Config import CFG
 # arriba de Room.py
@@ -200,6 +201,9 @@ def register_obstacle_sprite(
     size_tiles: tuple[int, int],
     variant: str,
     filename: str,
+    *,
+    scale: float | tuple[float, float] | None = None,
+    offset: tuple[int, int] | list[int] | None = None,
 ) -> None:
     """Registra explícitamente un sprite personalizado para un obstáculo.
 
@@ -211,6 +215,11 @@ def register_obstacle_sprite(
         Nombre de la variante (por ejemplo "silla" o "tubo_verde").
     filename:
         Ruta al archivo PNG. Si es relativa se toma desde ``assets/obstacles``.
+    scale:
+        Escala opcional (uniforme o por eje) aplicada al sprite al dibujarlo.
+    offset:
+        Desplazamiento opcional en píxeles relativo a la esquina superior izquierda
+        de la colisión.
     """
 
     if not variant:
@@ -222,6 +231,7 @@ def register_obstacle_sprite(
     else:
         path = os.path.join(_OBSTACLE_ASSET_DIR, filename)
     _register_obstacle_sprite_path(tuple(size_tiles), norm_variant, path)
+    _register_obstacle_transform_if_needed(tuple(size_tiles), norm_variant, scale=scale, offset=offset)
 
 
 def clear_obstacle_sprite_cache() -> None:
@@ -248,8 +258,20 @@ def _load_obstacle_manifest() -> None:
         if not isinstance(entries, dict):
             continue
         norm_variant = str(variant).lower().strip()
-        for size_key, path in entries.items():
-            if not isinstance(path, str):
+        for size_key, data in entries.items():
+            transform_kwargs: dict = {}
+            path: Optional[str] = None
+            if isinstance(data, str):
+                path = data
+            elif isinstance(data, dict):
+                path_val = data.get("path")
+                if isinstance(path_val, str):
+                    path = path_val
+                transform_kwargs = {
+                    "scale": data.get("scale"),
+                    "offset": data.get("offset"),
+                }
+            else:
                 continue
             size_key = str(size_key).lower().strip()
             if size_key == "default":
@@ -260,11 +282,25 @@ def _load_obstacle_manifest() -> None:
                     size_tuple = (int(w_str), int(h_str))
                 except (ValueError, TypeError):
                     continue
-            if os.path.isabs(path):
-                resolved = path
+            if path:
+                if os.path.isabs(path):
+                    resolved = path
+                else:
+                    resolved = os.path.join(_OBSTACLE_ASSET_DIR, path)
+                register_obstacle_sprite(
+                    size_tuple,
+                    norm_variant,
+                    resolved,
+                    scale=transform_kwargs.get("scale"),
+                    offset=transform_kwargs.get("offset"),
+                )
             else:
-                resolved = os.path.join(_OBSTACLE_ASSET_DIR, path)
-            _register_obstacle_sprite_path(size_tuple, norm_variant, resolved)
+                _register_obstacle_transform_if_needed(
+                    size_tuple,
+                    norm_variant,
+                    scale=transform_kwargs.get("scale"),
+                    offset=transform_kwargs.get("offset"),
+                )
 
 
 _load_obstacle_manifest()
@@ -280,6 +316,20 @@ def _resolve_registered_path(size_tiles: tuple[int, int], variant_slug: str) -> 
     if path and os.path.exists(path):
         return path
     return None
+
+
+def _resolve_obstacle_transform(
+    size_tiles: tuple[int, int], variant_slug: str
+) -> _ObstacleSpriteTransform:
+    key = (size_tiles, variant_slug)
+    transform = _OBSTACLE_SPRITE_TRANSFORMS.get(key)
+    if transform:
+        return transform
+    default_key = ((0, 0), variant_slug)
+    transform = _OBSTACLE_SPRITE_TRANSFORMS.get(default_key)
+    if transform:
+        return transform
+    return _ObstacleSpriteTransform()
 
 
 def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = None) -> pygame.Surface:
