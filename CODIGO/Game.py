@@ -86,6 +86,8 @@ class Game:
         self._run_start_time: float | None = None
         self._stats_pending_reason: str | None = None
         self._run_gold_spent: int = 0
+        self._run_kills: int = 0
+        self._run_damage_taken: int = 0
 
     # ------------------------------------------------------------------ #
     # Nueva partida / regenerar dungeon (misma o nueva seed)
@@ -145,6 +147,8 @@ class Game:
         self.locked = False
         self.cleared = False
         self._run_gold_spent = 0
+        self._run_kills = 0
+        self._run_damage_taken = 0
 
     def _register_gold_spent(self, amount: int) -> None:
         if amount <= 0:
@@ -387,6 +391,9 @@ class Game:
             if hasattr(self.player, "take_damage"):
                 took_hit = bool(self.player.take_damage(contact_damage))
             if took_hit:
+                self._run_damage_taken = max(0, int(self._run_damage_taken)) + max(
+                    0, int(contact_damage)
+                )
                 player_invulnerable = getattr(self.player, "is_invulnerable", lambda: False)()
         for projectile in self.enemy_projectiles:
             if not projectile.alive:
@@ -407,6 +414,7 @@ class Game:
                 took_hit = bool(self.player.take_damage(1))
             if took_hit:
                 projectile.alive = False
+                self._run_damage_taken = max(0, int(self._run_damage_taken)) + 1
                 player_invulnerable = getattr(self.player, "is_invulnerable", lambda: False)()
             else:
                 projectile.alive = False
@@ -426,6 +434,7 @@ class Game:
                 self.stats_manager.record_kill(defeated_enemies)
             except Exception as exc:  # pragma: no cover - registro best effort
                 print(f"[WARN] No se pudo guardar kills: {exc}", file=sys.stderr)
+            self._run_kills = max(0, int(self._run_kills)) + defeated_enemies
         room.enemies = survivors
         self.projectiles.prune()
         self.enemy_projectiles.prune()
@@ -580,6 +589,11 @@ class Game:
         if self.current_seed is not None:
             summary.append(f"Seed: {self.current_seed}")
 
+        if summary:
+            summary.append("")
+
+        summary.append(f"Enemigos derrotados: {int(self._run_kills)}")
+
         dungeon = getattr(self, "dungeon", None)
         if dungeon is not None:
             explored = getattr(dungeon, "explored", None)
@@ -591,7 +605,17 @@ class Game:
 
         gold = getattr(self.player, "gold", None)
         if gold is not None:
-            summary.append(f"Monedas obtenidas: {int(gold)}")
+            try:
+                gold_actual = max(0, int(gold))
+            except (TypeError, ValueError):
+                gold_actual = 0
+            gold_obtained = gold_actual + max(0, int(self._run_gold_spent))
+            summary.append(f"Oro obtenido: {gold_obtained}")
+            summary.append(f"Oro actual: {gold_actual}")
+
+        summary.append("")
+
+        summary.append(f"Daño recibido: {int(self._run_damage_taken)}")
 
         if self._run_start_time is not None:
             duration = max(0.0, perf_counter() - self._run_start_time)
