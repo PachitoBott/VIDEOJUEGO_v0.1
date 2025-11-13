@@ -782,7 +782,7 @@ class Game:
         self.screen.blit(scaled, (0, 0))
 
         inventory_rect = self.hud_panels.blit_inventory_panel(self.screen)
-        self._draw_weapon_hud(inventory_rect)
+        weapon_rect = self._draw_weapon_hud(inventory_rect)
 
         lives_remaining = getattr(self.player, "lives", 0)
         max_lives = getattr(self.player, "max_lives", self.cfg.PLAYER_START_LIVES)
@@ -800,13 +800,13 @@ class Game:
         line_gap = 6
 
         battery_origin = (
-        text_x + int(self._life_battery_offset.x),
-         text_y + int(self._life_battery_offset.y),
+            text_x + int(self._life_battery_offset.x),
+            text_y + int(self._life_battery_offset.y),
         )
         batteries_rect = self._blit_life_batteries(self.screen, battery_origin)
         if batteries_rect.height:
-         text_y = batteries_rect.bottom + line_gap
-        
+            text_y = batteries_rect.bottom + line_gap
+
         self.screen.blit(lives_text, (text_x, text_y))
         text_y += lives_text.get_height() + line_gap
 
