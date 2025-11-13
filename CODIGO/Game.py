@@ -1,5 +1,6 @@
 # CODIGO/Game.py
 import math
+import random
 import sys
 from collections.abc import Callable
 from time import perf_counter
@@ -20,6 +21,7 @@ from HudPanels import HudPanels
 from PauseMenu import PauseMenu, PauseMenuButton
 from GameOverScreen import GameOverScreen
 from Statistics import StatisticsManager
+from Pickup import MicrochipPickup
 
 
 class Game:
@@ -39,10 +41,9 @@ class Game:
 
         # ---------- UI ----------
         self.ui_font = pygame.font.SysFont(None, 18)
-        self._coin_icon = pygame.Surface((16, 16), pygame.SRCALPHA)
-        pygame.draw.circle(self._coin_icon, (255, 215, 0), (8, 8), 6)
-        pygame.draw.circle(self._coin_icon, (160, 120, 0), (8, 8), 6, 1)
-        pygame.draw.line(self._coin_icon, (160, 120, 0), (6, 8), (10, 8), 1)
+        chip_sprites = self._create_microchip_sprites()
+        self._coin_icon = chip_sprites["icon"]
+        self._chip_pickup_sprite = chip_sprites["pickup"]
         self._battery_states = self._load_battery_states()
         self._life_battery_highlight = pygame.Color(110, 200, 255)
         # Ajusta este offset para reposicionar las vidas en el HUD.
@@ -308,6 +309,7 @@ class Game:
         player_died = self._handle_collisions(room)
         if player_died:
             return
+        self._update_pickups(dt, room)
         self._handle_room_transition(room)
         self._update_shop(events)
 
@@ -355,7 +357,6 @@ class Game:
     def _handle_collisions(self, room) -> bool:
         if not hasattr(room, "enemies"):
             return False
-        gold_earned = 0
         initial_enemy_count = len(getattr(room, "enemies", ()))
         for projectile in self.projectiles:
             if not projectile.alive:
@@ -418,10 +419,7 @@ class Game:
             if getattr(enemy, "hp", 1) > 0:
                 survivors.append(enemy)
             else:
-                gold_earned += getattr(enemy, "gold_reward", 0)
-        if gold_earned:
-            current_gold = getattr(self.player, "gold", 0)
-            setattr(self.player, "gold", current_gold + gold_earned)
+                self._drop_enemy_microchips(enemy, room)
         defeated_enemies = max(0, initial_enemy_count - len(survivors))
         if defeated_enemies:
             self._run_kills = max(0, self._run_kills) + defeated_enemies
@@ -439,6 +437,82 @@ class Game:
             self._handle_player_death(room)
             return True
         return False
+
+    def _drop_enemy_microchips(self, enemy, room) -> None:
+        total_value = int(getattr(enemy, "gold_reward", 0))
+        if total_value <= 0:
+            return
+        if not hasattr(room, "pickups"):
+            room.pickups = []
+
+        min_count, max_count = self._chip_count_for_reward(total_value)
+        max_count = max(1, min(total_value, max_count))
+        min_count = max(1, min(min_count, max_count))
+        count = random.randint(min_count, max_count)
+        count = max(1, min(count, total_value))
+
+        base_value, remainder = divmod(total_value, count)
+        values = [base_value] * count
+        if remainder:
+            for idx in random.sample(range(count), remainder):
+                values[idx] += 1
+
+        sprite_w = self._chip_pickup_sprite.get_width()
+        sprite_h = self._chip_pickup_sprite.get_height()
+        center_x = enemy.x + enemy.w / 2.0
+        center_y = enemy.y + enemy.h / 2.0
+
+        for value in values:
+            angle = random.uniform(0.0, math.tau)
+            speed = random.uniform(70.0, 130.0)
+            jitter_x = math.cos(angle) * 4.0
+            jitter_y = math.sin(angle) * 4.0
+            pickup = MicrochipPickup(
+                center_x - sprite_w / 2.0 + jitter_x,
+                center_y - sprite_h / 2.0 + jitter_y,
+                value,
+                self._chip_pickup_sprite,
+                angle=angle,
+                speed=speed,
+            )
+            room.pickups.append(pickup)
+
+    def _chip_count_for_reward(self, total_value: int) -> tuple[int, int]:
+        if total_value <= 5:
+            return (1, 2)
+        if total_value <= 9:
+            return (2, 3)
+        return (3, 4)
+
+    def _update_pickups(self, dt: float, room) -> None:
+        pickups = getattr(room, "pickups", None)
+        if pickups is None or not pickups:
+            if pickups is None:
+                room.pickups = []
+            return
+
+        player_rect = self.player.rect()
+        collected_total = 0
+        survivors: list[MicrochipPickup] = []
+        for pickup in pickups:
+            pickup.update(dt, room)
+            if pickup.collected:
+                continue
+            if player_rect.colliderect(pickup.rect()):
+                pickup.collect()
+                collected_total += pickup.value
+            else:
+                survivors.append(pickup)
+        room.pickups = survivors
+        if collected_total:
+            self._add_player_gold(collected_total)
+
+    def _add_player_gold(self, amount: int) -> None:
+        amount = int(amount)
+        if amount <= 0:
+            return
+        current_gold = getattr(self.player, "gold", 0)
+        setattr(self.player, "gold", current_gold + amount)
 
     def _apply_projectile_effects(self, projectile, enemy) -> None:
         effects = getattr(projectile, "effects", ())
@@ -667,6 +741,9 @@ class Game:
             for enemy in room.enemies:
                 enemy.draw(self.world)
 
+        for pickup in getattr(room, "pickups", ()): 
+            pickup.draw(self.world)
+
         self.player.draw(self.world)
         self.projectiles.draw(self.world)
         self.enemy_projectiles.draw(self.world)
@@ -696,7 +773,7 @@ class Game:
             f"Vidas: {lives_remaining}/{max_lives}", True, (255, 120, 120)
         )
         gold_amount = getattr(self.player, "gold", 0)
-        gold_text = self.ui_font.render(f"Monedas: {gold_amount}", True, (255, 240, 180))
+        gold_text = self.ui_font.render(f"Microchips: {gold_amount}", True, (255, 240, 180))
         seed_text = self.ui_font.render(f"Seed: {self.current_seed}", True, (230, 230, 230))
         help_text = self.ui_font.render("R: rejugar seed  |  N: nueva seed", True, (200, 200, 200))
 
@@ -736,6 +813,63 @@ class Game:
         self.screen.blit(self._cursor_surface, cursor_rect.topleft)
 
         pygame.display.flip()
+
+    def _create_microchip_sprites(self) -> dict[str, pygame.Surface]:
+        base_size = 32
+        chip = pygame.Surface((base_size, base_size), pygame.SRCALPHA)
+        chip.fill((0, 0, 0, 0))
+
+        body_rect = chip.get_rect().inflate(-8, -8)
+        frame_color = pygame.Color(120, 20, 80)
+        frame_shadow = pygame.Color(70, 10, 48)
+        pygame.draw.rect(chip, frame_shadow, body_rect, border_radius=6)
+        pygame.draw.rect(chip, frame_color, body_rect.inflate(-2, -2), border_radius=6)
+
+        core_rect = body_rect.inflate(-8, -8)
+        core_color = pygame.Color(28, 94, 116)
+        core_dark = pygame.Color(12, 48, 64)
+        pygame.draw.rect(chip, core_color, core_rect, border_radius=5)
+        pygame.draw.rect(chip, core_dark, core_rect, width=2, border_radius=5)
+
+        highlight = pygame.Surface(core_rect.size, pygame.SRCALPHA)
+        light_a = pygame.Color(136, 236, 238, 190)
+        light_b = pygame.Color(94, 204, 220, 140)
+        start_y = core_rect.height // 3
+        pygame.draw.line(highlight, light_a, (3, start_y), (core_rect.width - 4, start_y - 3), 3)
+        pygame.draw.line(highlight, light_b, (3, start_y + 4), (core_rect.width - 6, start_y + 1), 2)
+        chip.blit(highlight, core_rect.topleft)
+
+        pin_color = pygame.Color(230, 176, 70)
+        pin_shadow = pygame.Color(156, 116, 46)
+        pin_w, pin_h = 5, 6
+        slots = 4
+        slot_spacing = (body_rect.height - 12) / max(1, slots - 1)
+        for i in range(slots):
+            offset = int(body_rect.top + 6 + i * slot_spacing)
+            left_pin = pygame.Rect(0, 0, pin_w, pin_h)
+            left_pin.midright = (body_rect.left - 1, offset)
+            right_pin = pygame.Rect(0, 0, pin_w, pin_h)
+            right_pin.midleft = (body_rect.right + 1, offset)
+            pygame.draw.rect(chip, pin_color, left_pin)
+            pygame.draw.rect(chip, pin_shadow, left_pin, 1)
+            pygame.draw.rect(chip, pin_color, right_pin)
+            pygame.draw.rect(chip, pin_shadow, right_pin, 1)
+
+        slot_spacing = (body_rect.width - 12) / max(1, slots - 1)
+        for i in range(slots):
+            offset = int(body_rect.left + 6 + i * slot_spacing)
+            top_pin = pygame.Rect(0, 0, pin_h, pin_w)
+            top_pin.midbottom = (offset, body_rect.top - 1)
+            bottom_pin = pygame.Rect(0, 0, pin_h, pin_w)
+            bottom_pin.midtop = (offset, body_rect.bottom + 1)
+            pygame.draw.rect(chip, pin_color, top_pin)
+            pygame.draw.rect(chip, pin_shadow, top_pin, 1)
+            pygame.draw.rect(chip, pin_color, bottom_pin)
+            pygame.draw.rect(chip, pin_shadow, bottom_pin, 1)
+
+        icon = pygame.transform.smoothscale(chip, (14, 14))
+        pickup = pygame.transform.smoothscale(chip, (12, 12))
+        return {"icon": icon, "pickup": pickup}
 
     def _create_cursor_surface(self) -> pygame.Surface:
         cursor_path = Path(__file__).resolve().parent.parent / "assets/ui/cursor2.png"

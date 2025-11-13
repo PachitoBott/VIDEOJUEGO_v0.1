@@ -300,6 +300,7 @@ class Room:
 
         # contenido dinámico
         self.enemies: List[Enemy] = []
+        self.pickups: list = []
         self._spawn_done: bool = False
         self._door_width_tiles = 2
         self._door_corridor_length_tiles = 3
