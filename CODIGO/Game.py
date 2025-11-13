@@ -55,6 +55,7 @@ class Game:
         self.weapon_ammo_offset = pygame.Vector2(0, 10)
         self.weapon_ammo_color = pygame.Color(235, 235, 235)
         self.weapon_ammo_align_center = True
+        self.weapon_text_margin = 12
         self._weapon_icons = self._load_weapon_icons()
         self._weapon_icon_cache: dict[tuple[str, float], pygame.Surface] = {}
 
@@ -63,6 +64,7 @@ class Game:
             icon_offset=getattr(cfg, "HUD_WEAPON_ICON_OFFSET", None),
             ammo_offset=getattr(cfg, "HUD_WEAPON_AMMO_OFFSET", None),
             ammo_align_center=getattr(cfg, "HUD_WEAPON_AMMO_ALIGN_CENTER", None),
+            text_margin=getattr(cfg, "HUD_WEAPON_TEXT_MARGIN", None),
         )
         self.current_seed: int | None = None
 
@@ -990,6 +992,7 @@ class Game:
         icon_offset: tuple[float, float] | pygame.Vector2 | None = None,
         ammo_offset: tuple[float, float] | pygame.Vector2 | None = None,
         ammo_align_center: bool | None = None,
+        text_margin: float | None = None,
     ) -> None:
         """Permite modificar dinámicamente la posición y escala del icono del arma.
 
@@ -1012,6 +1015,12 @@ class Game:
 
         if ammo_align_center is not None:
             self.weapon_ammo_align_center = bool(ammo_align_center)
+
+        if text_margin is not None:
+            try:
+                self.weapon_text_margin = max(0, int(text_margin))
+            except (TypeError, ValueError):
+                pass
 
     @staticmethod
     def _vector_from(value: tuple[float, float] | pygame.Vector2) -> pygame.Vector2:
