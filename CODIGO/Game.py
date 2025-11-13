@@ -752,13 +752,13 @@ class Game:
         return surface
 
     def _load_battery_states(self) -> list[pygame.Surface]:
-        sprite_path = Path(__file__).resolve().parent.parent / "assets/ui/Baterias_vida.png"
+        sprite_path = Path(__file__).resolve().parent.parent / "assets/ui/Baterias_Vida.png"
         try:
             sheet = pygame.image.load(sprite_path.as_posix()).convert_alpha()
         except pygame.error as exc:  # pragma: no cover - carga de recursos
             raise FileNotFoundError(f"No se pudo cargar el sprite de baterías en {sprite_path}") from exc
 
-        columns = 3
+        columns = 4
         frame_width = sheet.get_width() // columns
         frame_height = sheet.get_height()
         frames: list[pygame.Surface] = []
@@ -770,12 +770,17 @@ class Game:
         if not frames:
             raise ValueError("El sprite de baterías no contiene frames válidos")
 
-        empty_frame = frames[0].copy()
-        darken = pygame.Surface(empty_frame.get_size(), pygame.SRCALPHA)
-        darken.fill((60, 60, 60, 255))
-        empty_frame.blit(darken, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        if len(frames) >= 4:
+            empty_frame = frames[-1]
+            filled_frames = frames[:-1]
+        else:
+            empty_frame = frames[0].copy()
+            darken = pygame.Surface(empty_frame.get_size(), pygame.SRCALPHA)
+            darken.fill((60, 60, 60, 255))
+            empty_frame.blit(darken, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+            filled_frames = frames
 
-        return [empty_frame] + frames
+        return [empty_frame] + filled_frames
 
     def _player_hits_remaining(self) -> int:
         hits_remaining_life_fn = getattr(self.player, "hits_remaining_this_life", None)
