@@ -70,15 +70,18 @@ _OBSTACLE_SPRITE_PATHS: dict[tuple[tuple[int, int], str], str] = {}
 _OBSTACLE_SPRITE_OFFSETS: dict[tuple[tuple[int, int], str], tuple[int, int]] = {}
 
 
-@dataclass(frozen=True)
-class _ObstacleSpriteTransform:
-    scale: tuple[float, float] = (1.0, 1.0)
-    offset: tuple[int, int] | None = None
-
-
-_OBSTACLE_SPRITE_TRANSFORMS: dict[
-    tuple[tuple[int, int], str], _ObstacleSpriteTransform
-] = {}
+# Ajustes de escala por sprite (size_tiles -> variant -> (sx, sy)).
+# Modifica estos valores desde el código para agrandar o reducir sprites sin
+# tocar las cajas de colisión. Usa 1.0 para conservar el tamaño original.
+_OBSTACLE_SCALE_OVERRIDES: dict[tuple[int, int], dict[str, tuple[float, float]]] = {
+    (1, 1): {
+        "silla": (1.25, 1.25),
+        "caneca": (1.25, 1.25),
+    },
+    (1, 2): {
+        "tubo_verde": (1.15, 1.15),
+    },
+}
 
 
 _OBSTACLE_VARIANTS: dict[tuple[int, int], list[str]] = {
@@ -120,64 +123,78 @@ def _register_obstacle_sprite_path(size_tiles: tuple[int, int], variant: str, pa
     _OBSTACLE_SPRITE_OFFSETS.pop(key, None)
 
 
-def _register_obstacle_sprite_transform(
-    size_tiles: tuple[int, int], variant: str, transform: _ObstacleSpriteTransform
-) -> None:
-    key = (tuple(size_tiles), variant.lower().strip())
-    if not key[1]:
-        key = (key[0], "default")
-    _OBSTACLE_SPRITE_TRANSFORMS[key] = transform
-    _OBSTACLE_SPRITE_CACHE.pop(key, None)
-    _OBSTACLE_SPRITE_OFFSETS.pop(key, None)
-
-
-def _coerce_scale(scale: float | tuple[float, float] | None) -> tuple[float, float] | None:
-    if scale is None:
-        return None
+def _normalize_scale_value(scale: float | tuple[float, float] | list[float]) -> tuple[float, float]:
     if isinstance(scale, (int, float)):
         value = float(scale)
         if value <= 0:
-            return None
+            raise ValueError("scale debe ser un número positivo")
         return (value, value)
-    if isinstance(scale, (list, tuple)):
-        if len(scale) != 2:
-            return None
+    if isinstance(scale, (list, tuple)) and len(scale) == 2:
         try:
             sx = float(scale[0])
             sy = float(scale[1])
-        except (TypeError, ValueError):
-            return None
+        except (TypeError, ValueError) as exc:
+            raise ValueError("scale debe contener números válidos") from exc
         if sx <= 0 or sy <= 0:
-            return None
+            raise ValueError("scale debe contener números positivos")
         return (sx, sy)
-    return None
+    raise ValueError("scale debe ser un número o una tupla/lista de dos números")
 
 
-def _coerce_offset(offset: tuple[int, int] | list[int] | None) -> tuple[int, int] | None:
-    if offset is None:
-        return None
-    if isinstance(offset, (list, tuple)) and len(offset) == 2:
-        try:
-            ox = int(round(offset[0]))
-            oy = int(round(offset[1]))
-        except (TypeError, ValueError):
-            return None
-        return (ox, oy)
-    return None
-
-
-def _register_obstacle_transform_if_needed(
-    size_tiles: tuple[int, int], variant: str, *, scale=None, offset=None
+def set_obstacle_sprite_scale(
+    size_tiles: tuple[int, int] | None,
+    variant: str | None,
+    scale: float | tuple[float, float] | list[float] | None,
 ) -> None:
-    norm_scale = _coerce_scale(scale)
-    norm_offset = _coerce_offset(offset)
-    if norm_scale is None and norm_offset is None:
-        return
-    transform = _ObstacleSpriteTransform(
-        scale=norm_scale or (1.0, 1.0),
-        offset=norm_offset,
-    )
-    _register_obstacle_sprite_transform(size_tiles, variant, transform)
+    """Configura (o elimina) la escala aplicada a un sprite de obstáculo.
+
+    Parámetros
+    ----------
+    size_tiles:
+        Tamaño en tiles del obstáculo. Usa ``None`` o ``(0, 0)`` para definir
+        un valor por defecto que aplique a cualquier tamaño.
+    variant:
+        Nombre de la variante; si es ``None``/vacío se utiliza ``"default"``.
+    scale:
+        Escala uniforme (número) o por eje (tupla/lista). Usa ``None`` para
+        eliminar la anulación.
+    """
+
+    norm_size = tuple(size_tiles) if size_tiles else (0, 0)
+    variant_slug = (variant or "").lower().strip() or "default"
+
+    if scale is None:
+        overrides = _OBSTACLE_SCALE_OVERRIDES.get(norm_size)
+        if not overrides or variant_slug not in overrides:
+            return
+        overrides.pop(variant_slug, None)
+        if not overrides:
+            _OBSTACLE_SCALE_OVERRIDES.pop(norm_size, None)
+    else:
+        norm_scale = _normalize_scale_value(scale)
+        overrides = _OBSTACLE_SCALE_OVERRIDES.setdefault(norm_size, {})
+        overrides[variant_slug] = norm_scale
+
+    clear_obstacle_sprite_cache()
+
+
+def _resolve_obstacle_scale(size_tiles: tuple[int, int], variant_slug: str) -> tuple[float, float]:
+    variant_slug = variant_slug or "default"
+    for key in (tuple(size_tiles), (0, 0)):
+        overrides = _OBSTACLE_SCALE_OVERRIDES.get(key)
+        if not overrides:
+            continue
+        scale = overrides.get(variant_slug)
+        if scale is None:
+            scale = overrides.get("default")
+        if scale is None:
+            continue
+        if isinstance(scale, tuple):
+            return scale
+        if isinstance(scale, list):
+            return _normalize_scale_value(scale)
+        return _normalize_scale_value(scale)
+    return (1.0, 1.0)
 
 
 def register_obstacle_sprite(
@@ -326,8 +343,7 @@ def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = Non
     width_px = width_tiles * ts
     height_px = height_tiles * ts
 
-    transform = _resolve_obstacle_transform(size_tiles, variant_slug)
-    scale_x, scale_y = transform.scale
+    scale_x, scale_y = _resolve_obstacle_scale(size_tiles, variant_slug)
     target_width = max(1, int(round(width_px * scale_x)))
     target_height = max(1, int(round(height_px * scale_y)))
 
@@ -380,12 +396,8 @@ def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = Non
             if inner.width > 0 and inner.height > 0:
                 pygame.draw.rect(surface, border_color, inner, 1)
 
-    if transform.offset is None:
-        offset_x = (width_px - target_width) // 2
-        offset_y = (height_px - target_height) // 2
-    else:
-        offset_x, offset_y = transform.offset
-
+    offset_x = (width_px - surface.get_width()) // 2
+    offset_y = (height_px - surface.get_height()) // 2
     _OBSTACLE_SPRITE_OFFSETS[key] = (offset_x, offset_y)
     _OBSTACLE_SPRITE_CACHE[key] = surface
     return surface
@@ -1050,13 +1062,16 @@ class Room:
 
         if self.obstacles:
             for obstacle in self.obstacles:
-                size_tiles = obstacle["size"]
-                variant_slug = obstacle.get("variant")
-                sprite = _load_obstacle_sprite(size_tiles, variant_slug)
-                key = (size_tiles, (variant_slug or "").lower().strip() or "default")
-                offset = _OBSTACLE_SPRITE_OFFSETS.get(key, (0, 0))
-                dest = obstacle["rect"].move(offset)
-                surf.blit(sprite, dest.topleft)
+                sprite = _load_obstacle_sprite(obstacle["size"], obstacle.get("variant"))
+                variant_slug = (obstacle.get("variant") or "").lower().strip() or "default"
+                offset = _OBSTACLE_SPRITE_OFFSETS.get((obstacle["size"], variant_slug), (0, 0))
+                surf.blit(
+                    sprite,
+                    (
+                        obstacle["rect"].x + offset[0],
+                        obstacle["rect"].y + offset[1],
+                    ),
+                )
 
         if self.type == "treasure" and self.treasure:
             self._draw_treasure(surf)
