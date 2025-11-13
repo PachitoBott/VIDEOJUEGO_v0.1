@@ -48,24 +48,16 @@ class Game:
         self._battery_states = self._load_battery_states()
         self._life_battery_highlight = pygame.Color(110, 200, 255)
         # Ajusta este offset para reposicionar las vidas en el HUD.
-        self._life_battery_offset = pygame.Vector2(0, 300)
+        self._life_battery_offset = pygame.Vector2(-300, 300)
         # --- Configuración del HUD de armas ---
-        self.weapon_icon_offset = pygame.Vector2(18, 12)
-        self.weapon_icon_scale = 0.9
-        self.weapon_ammo_offset = pygame.Vector2(0, 10)
+        self.weapon_icon_offset = pygame.Vector2(-35, -60)
+        self.weapon_icon_scale = 2.6
+        self.weapon_text_margin = 18
+        self.weapon_ammo_offset = pygame.Vector2(-35, -110)
         self.weapon_ammo_color = pygame.Color(235, 235, 235)
         self.weapon_ammo_align_center = True
-        self.weapon_text_margin = 12
         self._weapon_icons = self._load_weapon_icons()
         self._weapon_icon_cache: dict[tuple[str, float], pygame.Surface] = {}
-
-        self.configure_weapon_hud(
-            icon_scale=getattr(cfg, "HUD_WEAPON_ICON_SCALE", None),
-            icon_offset=getattr(cfg, "HUD_WEAPON_ICON_OFFSET", None),
-            ammo_offset=getattr(cfg, "HUD_WEAPON_AMMO_OFFSET", None),
-            ammo_align_center=getattr(cfg, "HUD_WEAPON_AMMO_ALIGN_CENTER", None),
-            text_margin=getattr(cfg, "HUD_WEAPON_TEXT_MARGIN", None),
-        )
         self.current_seed: int | None = None
 
         # --- Tienda ---
@@ -802,13 +794,13 @@ class Game:
         line_gap = 6
 
         battery_origin = (
-            text_x + int(self._life_battery_offset.x),
-            text_y + int(self._life_battery_offset.y),
+        text_x + int(self._life_battery_offset.x),
+         text_y + int(self._life_battery_offset.y),
         )
         batteries_rect = self._blit_life_batteries(self.screen, battery_origin)
         if batteries_rect.height:
-            text_y = batteries_rect.bottom + line_gap
-
+         text_y = batteries_rect.bottom + line_gap
+        
         self.screen.blit(lives_text, (text_x, text_y))
         text_y += lives_text.get_height() + line_gap
 
@@ -984,53 +976,6 @@ class Game:
 
         self.screen.blit(ammo_surface, ammo_rect.topleft)
         return icon_rect.union(ammo_rect)
-
-    def configure_weapon_hud(
-        self,
-        *,
-        icon_scale: float | None = None,
-        icon_offset: tuple[float, float] | pygame.Vector2 | None = None,
-        ammo_offset: tuple[float, float] | pygame.Vector2 | None = None,
-        ammo_align_center: bool | None = None,
-        text_margin: float | None = None,
-    ) -> None:
-        """Permite modificar dinámicamente la posición y escala del icono del arma.
-
-        Puedes llamar a este método desde cualquier parte del código que tenga
-        acceso a la instancia de :class:`Game`, o ajustar los valores por
-        defecto editando ``Config`` (ver ``HUD_WEAPON_*``).
-        """
-
-        if icon_scale is not None:
-            try:
-                self.weapon_icon_scale = max(0.05, float(icon_scale))
-            except (TypeError, ValueError):
-                pass
-
-        if icon_offset is not None:
-            self.weapon_icon_offset = self._vector_from(icon_offset)
-
-        if ammo_offset is not None:
-            self.weapon_ammo_offset = self._vector_from(ammo_offset)
-
-        if ammo_align_center is not None:
-            self.weapon_ammo_align_center = bool(ammo_align_center)
-
-        if text_margin is not None:
-            try:
-                self.weapon_text_margin = max(0, int(text_margin))
-            except (TypeError, ValueError):
-                pass
-
-    @staticmethod
-    def _vector_from(value: tuple[float, float] | pygame.Vector2) -> pygame.Vector2:
-        if isinstance(value, pygame.Vector2):
-            return value
-        try:
-            x, y = value
-        except (TypeError, ValueError):  # pragma: no cover - validacion defensiva
-            return pygame.Vector2()
-        return pygame.Vector2(float(x), float(y))
 
     def _create_cursor_surface(self) -> pygame.Surface:
         cursor_path = Path(__file__).resolve().parent.parent / "assets/ui/cursor2.png"
