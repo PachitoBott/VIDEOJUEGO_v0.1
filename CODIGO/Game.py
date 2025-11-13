@@ -18,6 +18,7 @@ from Shop import Shop
 from Shopkeeper import Shopkeeper
 from HudPanels import HudPanels
 from PauseMenu import PauseMenu, PauseMenuButton
+from GameOverScreen import GameOverScreen
 from Statistics import StatisticsManager
 
 
@@ -85,6 +86,7 @@ class Game:
         self._run_start_time: float | None = None
         self._stats_pending_reason: str | None = None
         self._run_gold_spent: int = 0
+        self._run_kills: int = 0
 
     # ------------------------------------------------------------------ #
     # Nueva partida / regenerar dungeon (misma o nueva seed)
@@ -144,6 +146,7 @@ class Game:
         self.locked = False
         self.cleared = False
         self._run_gold_spent = 0
+        self._run_kills = 0
 
     def _register_gold_spent(self, amount: int) -> None:
         if amount <= 0:
@@ -421,6 +424,7 @@ class Game:
             setattr(self.player, "gold", current_gold + gold_earned)
         defeated_enemies = max(0, initial_enemy_count - len(survivors))
         if defeated_enemies:
+            self._run_kills = max(0, self._run_kills) + defeated_enemies
             try:
                 self.stats_manager.record_kill(defeated_enemies)
             except Exception as exc:  # pragma: no cover - registro best effort
@@ -508,42 +512,96 @@ class Game:
                 enemy.y = player_rect.top - enemy.h
 
     def _handle_player_death(self, room) -> None:
-        if not hasattr(self.player, "lose_life"):
-            self._record_stats_death()
-            seed = self.current_seed
-            self._stats_pending_reason = "player_death"
-            self.start_new_run(seed=seed)
+        can_continue = False
+        if hasattr(self.player, "lose_life"):
+            try:
+                can_continue = bool(self.player.lose_life())
+            except TypeError:
+                can_continue = False
+
+        if can_continue:
+            if hasattr(self.player, "respawn"):
+                self.player.respawn()
+            else:
+                max_hp = getattr(self.player, "max_hp", 1)
+                self.player.hp = max_hp
+                invuln = getattr(self.player, "post_hit_invulnerability", 0.0)
+                self.player.invulnerable_timer = max(
+                    getattr(self.player, "invulnerable_timer", 0.0), invuln
+                )
+
+            if hasattr(room, "center_px"):
+                px, py = room.center_px()
+                self.player.x = px - self.player.w / 2
+                self.player.y = py - self.player.h / 2
+
+            self.projectiles.clear()
+            self.enemy_projectiles.clear()
+            self.door_cooldown = 0.25
             return
-        can_continue = bool(self.player.lose_life())
-        if not can_continue:
-            self._record_stats_death()
-            seed = self.current_seed
-            self._stats_pending_reason = "player_death"
-            self.start_new_run(seed=seed)
+
+        summary = self._collect_run_summary()
+        self._record_stats_death()
+        self._finalize_run_statistics("player_death")
+
+        action = self._show_game_over_screen(summary)
+
+        if action == "quit":
+            self.running = False
             return
 
-        if hasattr(self.player, "respawn"):
-            self.player.respawn()
-        else:
-            max_hp = getattr(self.player, "max_hp", 1)
-            self.player.hp = max_hp
-            invuln = getattr(self.player, "post_hit_invulnerability", 0.0)
-            self.player.invulnerable_timer = max(getattr(self.player, "invulnerable_timer", 0.0), invuln)
+        if action == "main_menu":
+            if not self._open_start_menu():
+                self.running = False
+            return
 
-        if hasattr(room, "center_px"):
-            px, py = room.center_px()
-            self.player.x = px - self.player.w / 2
-            self.player.y = py - self.player.h / 2
-
-        self.projectiles.clear()
-        self.enemy_projectiles.clear()
-        self.door_cooldown = 0.25
+        # Cualquier otra acción reinicia la partida con nueva seed.
+        self.start_new_run(seed=None)
 
     def _record_stats_death(self) -> None:
         try:
             self.stats_manager.record_death()
         except Exception as exc:  # pragma: no cover - registro best effort
             print(f"[WARN] No se pudo guardar muerte: {exc}", file=sys.stderr)
+
+    def _collect_run_summary(self) -> dict[str, int]:
+        rooms_explored = 0
+        dungeon = getattr(self, "dungeon", None)
+        if dungeon is not None and hasattr(dungeon, "explored"):
+            try:
+                rooms_explored = len(dungeon.explored)
+            except TypeError:
+                rooms_explored = 0
+
+        gold = 0
+        player = getattr(self, "player", None)
+        if player is not None:
+            try:
+                gold = int(getattr(player, "gold", 0))
+            except (TypeError, ValueError):
+                gold = 0
+
+        gold_spent = max(0, int(self._run_gold_spent))
+        coins_obtained = max(0, gold) + gold_spent
+
+        return {
+            "coins": coins_obtained,
+            "kills": max(0, int(self._run_kills)),
+            "rooms": max(0, rooms_explored),
+        }
+
+    def _show_game_over_screen(self, summary: dict[str, int]) -> str:
+        pygame.mouse.set_visible(True)
+        background = self.screen.copy()
+        game_over = GameOverScreen(self.screen)
+        action = game_over.run(summary, background=background)
+
+        if action not in ("main_menu", "quit"):
+            pygame.mouse.set_visible(False)
+
+        self.clock.tick(self.cfg.FPS)
+        self._skip_frame = True
+        return action
 
     def _handle_room_transition(self, room) -> None:
         if not hasattr(room, "check_exit"):
