@@ -1,12 +1,13 @@
 # CODIGO/Shop.py
 import random
+from collections.abc import Callable
 import pygame
 
 class Shop:
     WIDTH, HEIGHT = 320, 240
     MAX_ITEMS = 6
 
-    def __init__(self, font=None):
+    def __init__(self, font=None, on_gold_spent: Callable[[int], None] | None = None):
         self.catalog = [
             {"name": "Pistolas dobles", "price": 58, "type": "weapon", "id": "dual_pistols", "weight": 0.8},
             {"name": "Rifle ligero", "price": 82, "type": "weapon", "id": "light_rifle", "weight": 0.8},
@@ -52,6 +53,7 @@ class Shop:
         self.selected = 0
         self.hover_index = None
         self.font = font or pygame.font.SysFont(None, 18)
+        self._on_gold_spent = on_gold_spent
 
         # ventana
         self.rect = pygame.Rect(0, 0, self.WIDTH, self.HEIGHT)
@@ -226,8 +228,9 @@ class Shop:
         if not self.active or not self.items:
             return False, ""
         item = self.items[self.selected]
+        price = max(0, int(item.get("price", 0)))
         gold = getattr(player, "gold", 0)
-        if gold < item["price"]:
+        if gold < price:
             return False, "No tienes suficiente oro."
 
         if item["type"] == "weapon" and hasattr(player, "has_weapon"):
@@ -235,7 +238,12 @@ class Shop:
                 return False, "Ya tienes esta arma."
 
         # Cobro
-        setattr(player, "gold", gold - item["price"])
+        setattr(player, "gold", gold - price)
+        if price > 0 and callable(self._on_gold_spent):
+            try:
+                self._on_gold_spent(price)
+            except Exception:
+                pass
 
         # Aplicación del efecto
         applied = False
