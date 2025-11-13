@@ -795,6 +795,8 @@ class Game:
         help_text = self.ui_font.render("R: rejugar seed  |  N: nueva seed", True, (200, 200, 200))
 
         text_x, text_y = self.hud_panels.inventory_content_anchor()
+        if weapon_rect.width:
+            text_x = max(text_x, weapon_rect.right + int(self.weapon_text_margin))
         line_gap = 6
 
         battery_origin = (
