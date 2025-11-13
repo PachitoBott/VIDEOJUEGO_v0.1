@@ -2,55 +2,37 @@
 
 Coloca aquí los sprites PNG para los obstáculos de las salas hostiles.
 
-## Convenciones de nombres rápidas
+## Convenciones de nombres
 
-Si subes un archivo con alguno de estos nombres, el juego lo detectará automáticamente:
+Los sprites se detectan automáticamente si siguen el patrón:
 
-- `silla.png` (1x1)
-- `hoyo.png` (1x1)
-- `caneca.png` (1x1)
+```
+<variant>_<ancho>x<alto>.png
+```
+
+Por ejemplo `silla_1x1.png`, `pantalla_2x1.png` o `pantallas_azules_4x2.png`. El juego
+también acepta la variante `obstacle_<variant>_<ancho>x<alto>.png` y, como último
+recurso, intentará cargar `obstacle_<variant>.png` o `<variant>.png`.
+
+Los sprites incluidos por defecto son:
+
+- `silla.png`
+- `hoyo.png`
+- `caneca.png`
 - `tubo_verde_1x2.png`
 - `pantalla_2x1.png`
 - `impresora_2x1.png`
 - `pantallas_2x2.png`
 - `pantallas_azules_4x2.png`
 
-Puedes añadir más variantes siguiendo el patrón:
+## Escalado rápido
 
-```
-<variant>_<ancho>x<alto>.png
-```
+El tamaño de la caja de colisión depende exclusivamente del número de tiles del
+obstáculo. Para ajustar el tamaño visual sin tocar la colisión puedes usar las
+funciones expuestas en `Room.py`:
 
-o bien `obstacle_<variant>_<ancho>x<alto>.png`.
+- `Room.set_obstacle_sprite_scale("silla", 1.2)` para escalar una variante concreta.
+- `Room.set_global_obstacle_scale(0.9)` para aplicar un factor a **todos** los sprites.
 
-## Manifest opcional
-
-Si necesitas un nombre diferente, crea (o edita) `manifest.json` en esta misma carpeta. Ejemplo:
-
-```json
-{
-  "silla": {
-    "1x1": {
-      "path": "mi_silla.png",
-      "scale": 1.1,
-      "offset": [0, -4]
-    }
-  },
-  "pantallas_azules": {
-    "4x2": "setup/pantalla_azul.png"
-  },
-  "tubo_verde": {
-    "default": {
-      "scale": [1.2, 1.1]
-    }
-  }
-}
-```
-
-Cada entrada puede ser una cadena (solo ruta) o un objeto con propiedades:
-
-- `path`: ruta del archivo PNG.
-- `scale`: factor de escala (número para escala uniforme o lista `[sx, sy]`).
-- `offset`: desplazamiento `[dx, dy]` en píxeles respecto a la esquina superior izquierda de la colisión. Si se omite y la escala cambia, el sprite se centra automáticamente.
-
-Las rutas pueden ser relativas a esta carpeta o absolutas. Tras modificar el manifiesto puedes usar `Room.clear_obstacle_sprite_cache()` para recargar los sprites en caliente.
+Tras cambiar la escala en tiempo de ejecución llama a `Room.clear_obstacle_sprite_cache()`
+si quieres forzar que las imágenes se vuelvan a generar inmediatamente.
