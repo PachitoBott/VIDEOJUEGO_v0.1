@@ -1,13 +1,16 @@
-import json
-import os
-import pygame
-from dataclasses import dataclass
-from typing import Dict, Tuple, Optional, List, Type
-from Config import CFG
-# arriba de Room.py
+from __future__ import annotations
+
 import random
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Type
+
+import pygame
+
+from Config import CFG
 from Enemy import Enemy, FastChaserEnemy, TankEnemy, ShooterEnemy, BasicEnemy
 import Enemy as enemy_mod  # <- para usar enemy_mod.WANDER
+from asset_paths import assets_dir
 
 # Plantillas de encuentros por umbral de dificultad.
 ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
@@ -61,37 +64,47 @@ ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
 ]
 
 
-_OBSTACLE_ASSET_DIR = os.path.join("assets", "obstacles")
-os.makedirs(_OBSTACLE_ASSET_DIR, exist_ok=True)
+_OBSTACLE_ASSET_DIR = assets_dir("obstacles")
+_OBSTACLE_ASSET_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@dataclass(frozen=True)
+class ObstacleSpriteInfo:
+    filename: str | Path | None = None
+    scale: tuple[float, float] = (1.0, 1.0)
+    offset: tuple[int, int] = (0, 0)
 
 
 _OBSTACLE_SPRITE_CACHE: dict[tuple[tuple[int, int], str], pygame.Surface] = {}
-_OBSTACLE_SPRITE_PATHS: dict[tuple[tuple[int, int], str], str] = {}
 _OBSTACLE_SPRITE_OFFSETS: dict[tuple[tuple[int, int], str], tuple[int, int]] = {}
 
+_GLOBAL_OBSTACLE_SCALE: tuple[float, float] = (1.0, 1.0)
+_OBSTACLE_SCALE_OVERRIDES: dict[str, tuple[float, float]] = {}
 
-# Ajustes de escala por sprite (size_tiles -> variant -> (sx, sy)).
-# Modifica estos valores desde el código para agrandar o reducir sprites sin
-# tocar las cajas de colisión. Usa 1.0 para conservar el tamaño original.
-_OBSTACLE_SCALE_OVERRIDES: dict[tuple[int, int], dict[str, tuple[float, float]]] = {
+_OBSTACLE_LIBRARY: dict[tuple[int, int], dict[str, ObstacleSpriteInfo]] = {
     (1, 1): {
-        "silla": (1.25, 1.25),
-        "caneca": (1.25, 1.25),
+        "silla": ObstacleSpriteInfo("silla.png", scale=(1.25, 1.25)),
+        "hoyo": ObstacleSpriteInfo("hoyo.png"),
+        "caneca": ObstacleSpriteInfo("caneca.png", scale=(1.25, 1.25)),
     },
     (1, 2): {
-        "tubo_verde": (1.15, 1.15),
+        "tubo_verde": ObstacleSpriteInfo("tubo_verde_1x2.png", scale=(1.15, 1.15)),
+    },
+    (2, 1): {
+        "pantalla": ObstacleSpriteInfo("pantalla_2x1.png"),
+        "impresora": ObstacleSpriteInfo("impresora_2x1.png"),
+    },
+    (2, 2): {
+        "pantallas": ObstacleSpriteInfo("pantallas_2x2.png"),
+    },
+    (4, 2): {
+        "pantallas_azules": ObstacleSpriteInfo("pantallas_azules_4x2.png"),
     },
 }
 
-
 _OBSTACLE_VARIANTS: dict[tuple[int, int], list[str]] = {
-    (1, 1): ["silla", "hoyo", "caneca"],
-    (1, 2): ["tubo_verde"],
-    (2, 1): ["pantalla", "impresora"],
-    (2, 2): ["pantallas"],
-    (4, 2): ["pantallas_azules"],
+    size: list(variants.keys()) for size, variants in _OBSTACLE_LIBRARY.items()
 }
-
 
 _OBSTACLE_SIZE_WEIGHTS: list[tuple[tuple[int, int], float]] = [
     ((1, 1), 0.38),
@@ -100,7 +113,6 @@ _OBSTACLE_SIZE_WEIGHTS: list[tuple[tuple[int, int], float]] = [
     ((2, 2), 0.14),
     ((4, 2), 0.10),
 ]
-
 
 _OBSTACLE_FALLBACK_COLORS: dict[str, tuple[tuple[int, int, int], tuple[int, int, int]]] = {
     "silla": ((148, 108, 74), (96, 68, 44)),
@@ -112,15 +124,6 @@ _OBSTACLE_FALLBACK_COLORS: dict[str, tuple[tuple[int, int, int], tuple[int, int,
     "pantallas": ((120, 160, 196), (70, 100, 132)),
     "pantallas_azules": ((74, 142, 212), (28, 68, 128)),
 }
-
-
-def _register_obstacle_sprite_path(size_tiles: tuple[int, int], variant: str, path: str) -> None:
-    key = (tuple(size_tiles), variant.lower().strip())
-    if not key[1]:
-        key = (key[0], "default")
-    _OBSTACLE_SPRITE_PATHS[key] = path
-    _OBSTACLE_SPRITE_CACHE.pop(key, None)
-    _OBSTACLE_SPRITE_OFFSETS.pop(key, None)
 
 
 def _normalize_scale_value(scale: float | tuple[float, float] | list[float]) -> tuple[float, float]:
@@ -142,96 +145,27 @@ def _normalize_scale_value(scale: float | tuple[float, float] | list[float]) -> 
 
 
 def set_obstacle_sprite_scale(
-    size_tiles: tuple[int, int] | None,
-    variant: str | None,
-    scale: float | tuple[float, float] | list[float] | None,
+    variant: str | None, scale: float | tuple[float, float] | list[float] | None
 ) -> None:
-    """Configura (o elimina) la escala aplicada a un sprite de obstáculo.
+    """Configura (o elimina) la escala aplicada a un sprite de obstáculo."""
 
-    Parámetros
-    ----------
-    size_tiles:
-        Tamaño en tiles del obstáculo. Usa ``None`` o ``(0, 0)`` para definir
-        un valor por defecto que aplique a cualquier tamaño.
-    variant:
-        Nombre de la variante; si es ``None``/vacío se utiliza ``"default"``.
-    scale:
-        Escala uniforme (número) o por eje (tupla/lista). Usa ``None`` para
-        eliminar la anulación.
-    """
-
-    norm_size = tuple(size_tiles) if size_tiles else (0, 0)
-    variant_slug = (variant or "").lower().strip() or "default"
-
+    slug = (variant or "").lower().strip() or "default"
     if scale is None:
-        overrides = _OBSTACLE_SCALE_OVERRIDES.get(norm_size)
-        if not overrides or variant_slug not in overrides:
-            return
-        overrides.pop(variant_slug, None)
-        if not overrides:
-            _OBSTACLE_SCALE_OVERRIDES.pop(norm_size, None)
+        _OBSTACLE_SCALE_OVERRIDES.pop(slug, None)
     else:
-        norm_scale = _normalize_scale_value(scale)
-        overrides = _OBSTACLE_SCALE_OVERRIDES.setdefault(norm_size, {})
-        overrides[variant_slug] = norm_scale
-
+        _OBSTACLE_SCALE_OVERRIDES[slug] = _normalize_scale_value(scale)
     clear_obstacle_sprite_cache()
 
 
-def _resolve_obstacle_scale(size_tiles: tuple[int, int], variant_slug: str) -> tuple[float, float]:
-    variant_slug = variant_slug or "default"
-    for key in (tuple(size_tiles), (0, 0)):
-        overrides = _OBSTACLE_SCALE_OVERRIDES.get(key)
-        if not overrides:
-            continue
-        scale = overrides.get(variant_slug)
-        if scale is None:
-            scale = overrides.get("default")
-        if scale is None:
-            continue
-        if isinstance(scale, tuple):
-            return scale
-        if isinstance(scale, list):
-            return _normalize_scale_value(scale)
-        return _normalize_scale_value(scale)
-    return (1.0, 1.0)
+def set_global_obstacle_scale(scale: float | tuple[float, float] | list[float] | None) -> None:
+    """Aplica un factor de escala uniforme a todos los sprites de obstáculos."""
 
-
-def register_obstacle_sprite(
-    size_tiles: tuple[int, int],
-    variant: str,
-    filename: str,
-    *,
-    scale: float | tuple[float, float] | None = None,
-    offset: tuple[int, int] | list[int] | None = None,
-) -> None:
-    """Registra explícitamente un sprite personalizado para un obstáculo.
-
-    Parameters
-    ----------
-    size_tiles:
-        Tamaño (ancho, alto) en tiles del obstáculo al que aplica el sprite.
-    variant:
-        Nombre de la variante (por ejemplo "silla" o "tubo_verde").
-    filename:
-        Ruta al archivo PNG. Si es relativa se toma desde ``assets/obstacles``.
-    scale:
-        Escala opcional (uniforme o por eje) aplicada al sprite al dibujarlo.
-    offset:
-        Desplazamiento opcional en píxeles relativo a la esquina superior izquierda
-        de la colisión.
-    """
-
-    if not variant:
-        raise ValueError("variant no puede ser vacío al registrar un sprite")
-
-    norm_variant = variant.lower().strip()
-    if os.path.isabs(filename):
-        path = filename
+    global _GLOBAL_OBSTACLE_SCALE
+    if scale is None:
+        _GLOBAL_OBSTACLE_SCALE = (1.0, 1.0)
     else:
-        path = os.path.join(_OBSTACLE_ASSET_DIR, filename)
-    _register_obstacle_sprite_path(tuple(size_tiles), norm_variant, path)
-    _register_obstacle_transform_if_needed(tuple(size_tiles), norm_variant, scale=scale, offset=offset)
+        _GLOBAL_OBSTACLE_SCALE = _normalize_scale_value(scale)
+    clear_obstacle_sprite_cache()
 
 
 def clear_obstacle_sprite_cache() -> None:
@@ -241,154 +175,102 @@ def clear_obstacle_sprite_cache() -> None:
     _OBSTACLE_SPRITE_OFFSETS.clear()
 
 
-def _load_obstacle_manifest() -> None:
-    manifest_path = os.path.join(_OBSTACLE_ASSET_DIR, "manifest.json")
-    if not os.path.exists(manifest_path):
-        return
-    try:
-        with open(manifest_path, "r", encoding="utf-8") as fh:
-            manifest = json.load(fh)
-    except (OSError, json.JSONDecodeError):
-        return
-
-    if not isinstance(manifest, dict):
-        return
-
-    for variant, entries in manifest.items():
-        if not isinstance(entries, dict):
-            continue
-        norm_variant = str(variant).lower().strip()
-        for size_key, data in entries.items():
-            transform_kwargs: dict = {}
-            path: Optional[str] = None
-            if isinstance(data, str):
-                path = data
-            elif isinstance(data, dict):
-                path_val = data.get("path")
-                if isinstance(path_val, str):
-                    path = path_val
-                transform_kwargs = {
-                    "scale": data.get("scale"),
-                    "offset": data.get("offset"),
-                }
-            else:
-                continue
-            size_key = str(size_key).lower().strip()
-            if size_key == "default":
-                size_tuple = (0, 0)
-            else:
-                try:
-                    w_str, h_str = size_key.split("x", 1)
-                    size_tuple = (int(w_str), int(h_str))
-                except (ValueError, TypeError):
-                    continue
-            if path:
-                if os.path.isabs(path):
-                    resolved = path
-                else:
-                    resolved = os.path.join(_OBSTACLE_ASSET_DIR, path)
-                register_obstacle_sprite(
-                    size_tuple,
-                    norm_variant,
-                    resolved,
-                    scale=transform_kwargs.get("scale"),
-                    offset=transform_kwargs.get("offset"),
-                )
-            else:
-                _register_obstacle_transform_if_needed(
-                    size_tuple,
-                    norm_variant,
-                    scale=transform_kwargs.get("scale"),
-                    offset=transform_kwargs.get("offset"),
-                )
+def _resolve_sprite_info(size_tiles: tuple[int, int], variant_slug: str) -> ObstacleSpriteInfo:
+    variants = _OBSTACLE_LIBRARY.get(size_tiles)
+    if variants:
+        info = variants.get(variant_slug) or variants.get("default")
+        if info is not None:
+            return info
+    generic = _OBSTACLE_LIBRARY.get((0, 0), {})
+    return generic.get(variant_slug) or generic.get("default") or ObstacleSpriteInfo()
 
 
-_load_obstacle_manifest()
+def _resolve_scale(variant_slug: str, base_scale: tuple[float, float]) -> tuple[float, float]:
+    override = _OBSTACLE_SCALE_OVERRIDES.get(variant_slug)
+    scale_x, scale_y = override if override else base_scale
+    global_x, global_y = _GLOBAL_OBSTACLE_SCALE
+    return (max(0.01, scale_x * global_x), max(0.01, scale_y * global_y))
 
 
-def _resolve_registered_path(size_tiles: tuple[int, int], variant_slug: str) -> Optional[str]:
-    specific_key = (size_tiles, variant_slug)
-    path = _OBSTACLE_SPRITE_PATHS.get(specific_key)
-    if path and os.path.exists(path):
-        return path
-    default_key = ((0, 0), variant_slug)
-    path = _OBSTACLE_SPRITE_PATHS.get(default_key)
-    if path and os.path.exists(path):
-        return path
+def _resolve_offset(
+    size_tiles: tuple[int, int], sprite: pygame.Surface, extra_offset: tuple[int, int]
+) -> tuple[int, int]:
+    ts = CFG.TILE_SIZE
+    width_tiles, height_tiles = size_tiles
+    width_px = width_tiles * ts
+    height_px = height_tiles * ts
+    offset_x = (width_px - sprite.get_width()) // 2 + extra_offset[0]
+    offset_y = (height_px - sprite.get_height()) // 2 + extra_offset[1]
+    return (offset_x, offset_y)
+
+
+def _find_sprite_candidate(
+    size_tiles: tuple[int, int], variant_slug: str, info: ObstacleSpriteInfo
+) -> Path | None:
+    if info.filename:
+        path = Path(info.filename)
+        if not path.is_absolute():
+            path = _OBSTACLE_ASSET_DIR / path
+        if path.exists():
+            return path
+    width_tiles, height_tiles = size_tiles
+    candidates: list[str] = []
+    if variant_slug and variant_slug != "default":
+        candidates.extend(
+            [
+                f"{variant_slug}_{width_tiles}x{height_tiles}.png",
+                f"obstacle_{variant_slug}_{width_tiles}x{height_tiles}.png",
+                f"obstacle_{variant_slug}.png",
+                f"{variant_slug}.png",
+            ]
+        )
+    candidates.extend(
+        [
+            f"crate_{width_tiles}x{height_tiles}.png",
+            "crate.png",
+        ]
+    )
+    for name in candidates:
+        candidate = _OBSTACLE_ASSET_DIR / name
+        if candidate.exists():
+            return candidate
     return None
-
-
-def _resolve_obstacle_transform(
-    size_tiles: tuple[int, int], variant_slug: str
-) -> _ObstacleSpriteTransform:
-    key = (size_tiles, variant_slug)
-    transform = _OBSTACLE_SPRITE_TRANSFORMS.get(key)
-    if transform:
-        return transform
-    default_key = ((0, 0), variant_slug)
-    transform = _OBSTACLE_SPRITE_TRANSFORMS.get(default_key)
-    if transform:
-        return transform
-    return _ObstacleSpriteTransform()
 
 
 def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = None) -> pygame.Surface:
     width_tiles, height_tiles = size_tiles
     variant_slug = (variant or "").lower().strip() or "default"
     key = (size_tiles, variant_slug)
-    if key in _OBSTACLE_SPRITE_CACHE:
-        return _OBSTACLE_SPRITE_CACHE[key]
+    cached = _OBSTACLE_SPRITE_CACHE.get(key)
+    if cached is not None:
+        return cached
 
     ts = CFG.TILE_SIZE
+    info = _resolve_sprite_info(size_tiles, variant_slug)
+    scale_x, scale_y = _resolve_scale(variant_slug, info.scale)
     width_px = width_tiles * ts
     height_px = height_tiles * ts
-
-    scale_x, scale_y = _resolve_obstacle_scale(size_tiles, variant_slug)
-    target_width = max(1, int(round(width_px * scale_x)))
-    target_height = max(1, int(round(height_px * scale_y)))
-
-    asset_dir = _OBSTACLE_ASSET_DIR
-    os.makedirs(asset_dir, exist_ok=True)
-
-    filenames: list[str] = []
-    registered_path = _resolve_registered_path(size_tiles, variant_slug)
-    if registered_path:
-        filenames.append(registered_path)
-    if variant_slug and variant_slug != "default":
-        filenames.extend([
-            f"obstacle_{variant_slug}_{width_tiles}x{height_tiles}.png",
-            f"{variant_slug}_{width_tiles}x{height_tiles}.png",
-            f"obstacle_{variant_slug}.png",
-            f"{variant_slug}.png",
-        ])
-    filenames.extend([
-        f"crate_{width_tiles}x{height_tiles}.png",
-        "crate.png",
-    ])
+    target_size = (
+        max(1, int(round(width_px * scale_x))),
+        max(1, int(round(height_px * scale_y))),
+    )
 
     surface: pygame.Surface | None = None
-    for filename in filenames:
-        if os.path.isabs(filename):
-            candidate = filename
-        else:
-            candidate = os.path.join(asset_dir, filename)
-        if not os.path.exists(candidate):
-            continue
+    candidate = _find_sprite_candidate(size_tiles, variant_slug, info)
+    if candidate is not None:
         try:
-            loaded = pygame.image.load(candidate).convert_alpha()
+            surface = pygame.image.load(candidate.as_posix()).convert_alpha()
         except pygame.error:
-            continue
-        if loaded.get_size() != (target_width, target_height):
-            loaded = pygame.transform.smoothscale(loaded, (target_width, target_height))
-        surface = loaded
-        break
+            surface = None
+    if surface is not None and surface.get_size() != target_size:
+        surface = pygame.transform.smoothscale(surface, target_size)
 
     if surface is None:
         base_color, border_color = _OBSTACLE_FALLBACK_COLORS.get(
             variant_slug,
             ((124, 92, 64), (90, 60, 38)),
         )
-        surface = pygame.Surface((target_width, target_height), pygame.SRCALPHA)
+        surface = pygame.Surface(target_size, pygame.SRCALPHA)
         surface.fill(base_color)
         pygame.draw.rect(surface, border_color, surface.get_rect(), 3)
         if width_tiles >= 2 or height_tiles >= 2:
@@ -396,12 +278,10 @@ def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = Non
             if inner.width > 0 and inner.height > 0:
                 pygame.draw.rect(surface, border_color, inner, 1)
 
-    offset_x = (width_px - surface.get_width()) // 2
-    offset_y = (height_px - surface.get_height()) // 2
-    _OBSTACLE_SPRITE_OFFSETS[key] = (offset_x, offset_y)
+    offset = _resolve_offset(size_tiles, surface, info.offset)
+    _OBSTACLE_SPRITE_OFFSETS[key] = offset
     _OBSTACLE_SPRITE_CACHE[key] = surface
     return surface
-
 
 class Room:
     """

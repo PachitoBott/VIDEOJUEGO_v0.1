@@ -5,6 +5,8 @@ from typing import Tuple
 
 import pygame
 
+from asset_paths import assets_dir as get_assets_dir
+
 
 class HudPanels:
     """Administrador de los paneles gráficos del HUD.
@@ -37,7 +39,7 @@ class HudPanels:
 
     def __init__(self, *, scale: float = 1.0, assets_dir: str | Path | None = None) -> None:
         self.scale = scale
-        self.assets_dir = Path(assets_dir) if assets_dir is not None else Path("assets/ui")
+        self.assets_dir = Path(assets_dir) if assets_dir is not None else get_assets_dir("ui")
 
         self.inventory_scale = 0.4
         self.minimap_scale = 0.6
