@@ -20,7 +20,6 @@ class StartMenuConfig:
     logo_image: Optional[str] = None
     buttons: Tuple[StartMenuButton, ...] = (
         StartMenuButton("play", "Jugar"),
-        StartMenuButton("statistics", "Estadísticas"),
         StartMenuButton("credits", "Créditos"),
         StartMenuButton("controls", "Controles"),
     )
