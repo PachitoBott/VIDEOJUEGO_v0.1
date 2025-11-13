@@ -50,8 +50,8 @@ class Game:
         # Ajusta este offset para reposicionar las vidas en el HUD.
         self._life_battery_offset = pygame.Vector2(-300, 300)
         # --- Configuración del HUD de armas ---
-        self.weapon_icon_offset = pygame.Vector2(-35, -60)
-        self.weapon_icon_scale = 2.6
+        self.weapon_icon_offset = pygame.Vector2(60, 50)
+        self.weapon_icon_scale = 1.0
         self.weapon_text_margin = 18
         self.weapon_ammo_offset = pygame.Vector2(-35, -110)
         self.weapon_ammo_color = pygame.Color(235, 235, 235)
@@ -1093,7 +1093,7 @@ class Game:
             row = idx // columns
             x = ox + col * (icon_w + spacing_x)
             y = oy + row * (icon_h + spacing_y)
-            surface.blit(icon_surface, (x, y))
+            surface.blit(icon_surface, (50, y))
 
         used_columns = columns if max_icons >= columns else max_icons
         width = used_columns * icon_w + max(0, used_columns - 1) * spacing_x
