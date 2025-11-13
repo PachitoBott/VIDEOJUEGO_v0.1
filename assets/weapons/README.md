@@ -12,6 +12,6 @@ archivo para que el HUD los cargue automáticamente:
 - `ember_carbine.png`
 
 Las imágenes se escalan en tiempo de ejecución, por lo que puedes subirlas en
-128×128 px (o cualquier tamaño similar) y ajustar la escala y la posición desde
-el código (`Game.weapon_icon_scale`, `Game.weapon_icon_offset`,
-`Game.weapon_ammo_offset`).
+128×128 px (o cualquier tamaño similar). Para modificar dónde se dibuja y qué
+tan grande aparece cada icono puedes editar los valores ``HUD_WEAPON_*`` en
+``CODIGO/Config.py`` o llamar a ``Game.configure_weapon_hud(...)`` en tu código.

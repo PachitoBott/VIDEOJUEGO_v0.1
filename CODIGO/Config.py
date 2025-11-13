@@ -73,6 +73,12 @@ class Config:
 
     DEBUG_DRAW_DOOR_TRIGGERS: bool = False
 
+    # --- HUD ---
+    HUD_WEAPON_ICON_SCALE: float = 0.9
+    HUD_WEAPON_ICON_OFFSET: Tuple[float, float] = (18.0, 12.0)
+    HUD_WEAPON_AMMO_OFFSET: Tuple[float, float] = (0.0, 10.0)
+    HUD_WEAPON_AMMO_ALIGN_CENTER: bool = True
+
     START_MENU: StartMenuConfig = StartMenuConfig()
 
     FLOOR: int = 0

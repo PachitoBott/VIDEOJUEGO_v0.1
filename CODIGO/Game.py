@@ -51,13 +51,19 @@ class Game:
         self._life_battery_offset = pygame.Vector2(0, 300)
         # --- Configuración del HUD de armas ---
         self.weapon_icon_offset = pygame.Vector2(18, 12)
-        self.weapon_icon_scale = 0.55
-        self.weapon_text_margin = 18
+        self.weapon_icon_scale = 0.9
         self.weapon_ammo_offset = pygame.Vector2(0, 10)
         self.weapon_ammo_color = pygame.Color(235, 235, 235)
         self.weapon_ammo_align_center = True
         self._weapon_icons = self._load_weapon_icons()
         self._weapon_icon_cache: dict[tuple[str, float], pygame.Surface] = {}
+
+        self.configure_weapon_hud(
+            icon_scale=getattr(cfg, "HUD_WEAPON_ICON_SCALE", None),
+            icon_offset=getattr(cfg, "HUD_WEAPON_ICON_OFFSET", None),
+            ammo_offset=getattr(cfg, "HUD_WEAPON_AMMO_OFFSET", None),
+            ammo_align_center=getattr(cfg, "HUD_WEAPON_AMMO_ALIGN_CENTER", None),
+        )
         self.current_seed: int | None = None
 
         # --- Tienda ---
@@ -776,7 +782,7 @@ class Game:
         self.screen.blit(scaled, (0, 0))
 
         inventory_rect = self.hud_panels.blit_inventory_panel(self.screen)
-        weapon_rect = self._draw_weapon_hud(inventory_rect)
+        self._draw_weapon_hud(inventory_rect)
 
         lives_remaining = getattr(self.player, "lives", 0)
         max_lives = getattr(self.player, "max_lives", self.cfg.PLAYER_START_LIVES)
@@ -976,6 +982,46 @@ class Game:
 
         self.screen.blit(ammo_surface, ammo_rect.topleft)
         return icon_rect.union(ammo_rect)
+
+    def configure_weapon_hud(
+        self,
+        *,
+        icon_scale: float | None = None,
+        icon_offset: tuple[float, float] | pygame.Vector2 | None = None,
+        ammo_offset: tuple[float, float] | pygame.Vector2 | None = None,
+        ammo_align_center: bool | None = None,
+    ) -> None:
+        """Permite modificar dinámicamente la posición y escala del icono del arma.
+
+        Puedes llamar a este método desde cualquier parte del código que tenga
+        acceso a la instancia de :class:`Game`, o ajustar los valores por
+        defecto editando ``Config`` (ver ``HUD_WEAPON_*``).
+        """
+
+        if icon_scale is not None:
+            try:
+                self.weapon_icon_scale = max(0.05, float(icon_scale))
+            except (TypeError, ValueError):
+                pass
+
+        if icon_offset is not None:
+            self.weapon_icon_offset = self._vector_from(icon_offset)
+
+        if ammo_offset is not None:
+            self.weapon_ammo_offset = self._vector_from(ammo_offset)
+
+        if ammo_align_center is not None:
+            self.weapon_ammo_align_center = bool(ammo_align_center)
+
+    @staticmethod
+    def _vector_from(value: tuple[float, float] | pygame.Vector2) -> pygame.Vector2:
+        if isinstance(value, pygame.Vector2):
+            return value
+        try:
+            x, y = value
+        except (TypeError, ValueError):  # pragma: no cover - validacion defensiva
+            return pygame.Vector2()
+        return pygame.Vector2(float(x), float(y))
 
     def _create_cursor_surface(self) -> pygame.Surface:
         cursor_path = Path(__file__).resolve().parent.parent / "assets/ui/cursor2.png"
