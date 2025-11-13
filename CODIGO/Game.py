@@ -738,17 +738,13 @@ class Game:
         pygame.display.flip()
 
     def _create_cursor_surface(self) -> pygame.Surface:
-        surface = pygame.Surface((32, 32), pygame.SRCALPHA)
-        center = (16, 16)
-        outer_radius = 12
-        inner_radius = 4
-        color = (60, 170, 255)
-        pygame.draw.circle(surface, color, center, outer_radius, 2)
-        pygame.draw.circle(surface, color, center, inner_radius, 0)
-        pygame.draw.line(surface, color, (center[0] - outer_radius, center[1]), (center[0] - inner_radius - 1, center[1]), 2)
-        pygame.draw.line(surface, color, (center[0] + outer_radius, center[1]), (center[0] + inner_radius + 1, center[1]), 2)
-        pygame.draw.line(surface, color, (center[0], center[1] - outer_radius), (center[0], center[1] - inner_radius - 1), 2)
-        pygame.draw.line(surface, color, (center[0], center[1] + outer_radius), (center[0], center[1] + inner_radius + 1), 2)
+        cursor_path = Path(__file__).resolve().parent.parent / "assets/ui/cursor2.png"
+        try:
+            surface = pygame.image.load(cursor_path.as_posix()).convert_alpha()
+        except pygame.error as exc:  # pragma: no cover - carga de recursos
+            raise FileNotFoundError(
+                f"No se pudo cargar la imagen del cursor en {cursor_path}"
+            ) from exc
         return surface
 
     def _load_battery_states(self) -> list[pygame.Surface]:
