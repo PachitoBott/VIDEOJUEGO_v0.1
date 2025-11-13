@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Sequence
 
 
 @dataclass(frozen=True)
@@ -110,30 +111,7 @@ class StatisticsManager:
         except FileNotFoundError:
             return StatisticsSnapshot()
 
-        if not row:
-            return StatisticsSnapshot()
-
-        def _parse_int(value: str | None) -> int:
-            try:
-                return max(0, int(value or 0))
-            except (TypeError, ValueError):
-                return 0
-
-        def _parse_float(value: str | None) -> float:
-            try:
-                return max(0.0, float(value or 0.0))
-            except (TypeError, ValueError):
-                return 0.0
-
-        return StatisticsSnapshot(
-            total_runs=_parse_int(row[0] if len(row) > 0 else 0),
-            total_duration_seconds=_parse_float(row[1] if len(row) > 1 else 0.0),
-            total_rooms_explored=_parse_int(row[2] if len(row) > 2 else 0),
-            total_gold_obtained=_parse_int(row[3] if len(row) > 3 else 0),
-            total_gold_spent=_parse_int(row[4] if len(row) > 4 else 0),
-            total_kills=_parse_int(row[5] if len(row) > 5 else 0),
-            total_deaths=_parse_int(row[6] if len(row) > 6 else 0),
-        )
+        return self._snapshot_from_row(row)
 
     def summary_lines(self) -> tuple[str, ...]:
         """Genera líneas amigables para mostrar en el menú."""
@@ -189,7 +167,10 @@ class StatisticsManager:
                 header_tuple = tuple(header)
                 if header_tuple == self.HEADER:
                     return
-                if header_tuple == self.LEGACY_HEADER:
+                if header_tuple[: len(self.HEADER)] == self.HEADER:
+                    row = next(reader, None)
+                    legacy_snapshot = self._snapshot_from_row(row)
+                elif header_tuple == self.LEGACY_HEADER:
                     legacy_snapshot = self._convert_legacy_rows(reader)
                 elif header_tuple == self.PREVIOUS_AGG_HEADER:
                     legacy_snapshot = self._convert_previous_aggregate(reader)
@@ -217,6 +198,37 @@ class StatisticsManager:
                 ]
             )
         tmp_path.replace(self.path)
+
+    def _snapshot_from_row(
+        self, row: Sequence[str | None] | None
+    ) -> StatisticsSnapshot:
+        if not row:
+            return StatisticsSnapshot()
+
+        def _parse_int(value: str | None) -> int:
+            try:
+                return max(0, int(value or 0))
+            except (TypeError, ValueError):
+                return 0
+
+        def _parse_float(value: str | None) -> float:
+            try:
+                return max(0.0, float(value or 0.0))
+            except (TypeError, ValueError):
+                return 0.0
+
+        def _value(idx: int) -> str | None:
+            return row[idx] if idx < len(row) else None
+
+        return StatisticsSnapshot(
+            total_runs=_parse_int(_value(0)),
+            total_duration_seconds=_parse_float(_value(1)),
+            total_rooms_explored=_parse_int(_value(2)),
+            total_gold_obtained=_parse_int(_value(3)),
+            total_gold_spent=_parse_int(_value(4)),
+            total_kills=_parse_int(_value(5)),
+            total_deaths=_parse_int(_value(6)),
+        )
 
     def _convert_legacy_rows(self, reader: csv.reader) -> StatisticsSnapshot:
         total_runs = 0
