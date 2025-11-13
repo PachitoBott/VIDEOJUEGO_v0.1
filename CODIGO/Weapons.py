@@ -64,6 +64,18 @@ class Weapon:
     def reload_time(self) -> float:
         return self.spec.reload_time
 
+    @property
+    def shots_in_mag(self) -> int:
+        """Número de balas restantes en el cargador actual."""
+
+        return max(0, int(self._shots_in_mag))
+
+    @property
+    def magazine_size(self) -> int:
+        """Capacidad máxima del cargador del arma."""
+
+        return max(1, int(self.spec.magazine_size))
+
     def reload_progress(self) -> float:
         if self.spec.reload_time <= 0.0:
             return 1.0
