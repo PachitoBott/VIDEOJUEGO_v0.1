@@ -83,7 +83,7 @@ _OBSTACLE_SCALE_OVERRIDES: dict[str, tuple[float, float]] = {}
 
 _OBSTACLE_LIBRARY: dict[tuple[int, int], dict[str, ObstacleSpriteInfo]] = {
     (1, 1): {
-        "silla": ObstacleSpriteInfo("silla.png", scale=(1.25, 1.25)),
+        "silla": ObstacleSpriteInfo("silla.png", scale=(1.25, 1.5)),
         "hoyo": ObstacleSpriteInfo("hoyo.png"),
         "caneca": ObstacleSpriteInfo("caneca.png", scale=(1.25, 1.25)),
     },
