@@ -61,6 +61,7 @@ class Enemy(Entity):
                 "idle": 5.0,
                 "run": 10.0,
                 "shoot": 8.0,
+                "attack": 12.0,
                 "death": 12.0,
             },
         )
@@ -242,6 +243,10 @@ class Enemy(Entity):
         self._update_facing(dir_x)
         self.animator.trigger_shoot()
 
+    def trigger_attack_animation(self, dir_x: float = 0.0) -> None:
+        """Gancho para enemigos cuerpo a cuerpo."""
+        return
+
     def is_ready_to_remove(self) -> bool:
         if not self._is_dying:
             return False
@@ -264,6 +269,32 @@ class FastChaserEnemy(Enemy):
         self.lose_radius   = 150.0
         self.reaction_delay = 0.0
         self.contact_damage = 1
+        self.attack_range = 26.0
+        self.attack_cooldown = 0.8
+        self._attack_timer = 0.0
+
+    def update(self, dt, player, room):
+        self._attack_timer = max(0.0, self._attack_timer - dt)
+        super().update(dt, player, room)
+        if self.is_dying():
+            return
+        if self._attack_timer > 0.0:
+            return
+        ex = self.x + self.w/2
+        ey = self.y + self.h/2
+        px = player.x + player.w/2
+        py = player.y + player.h/2
+        dist = math.hypot(px - ex, py - ey)
+        if dist <= self.attack_range:
+            dir_x = px - ex
+            self.trigger_attack_animation(dir_x)
+
+    def trigger_attack_animation(self, dir_x: float = 0.0) -> None:
+        if self.is_dying():
+            return
+        self._attack_timer = self.attack_cooldown
+        self._update_facing(dir_x)
+        self.animator.trigger_attack()
 
 
 class TankEnemy(Enemy):

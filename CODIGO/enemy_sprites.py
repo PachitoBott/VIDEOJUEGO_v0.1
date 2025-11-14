@@ -7,7 +7,8 @@ animations.  Each enemy variant is expected to live under
     idle_0.png  .. idle_3.png      (4 frames)
     run_0.png   .. run_3.png       (4 frames)
     shoot_0.png .. shoot_3.png     (4 frames)
-    death_0.png .. death_7.png     (8 frames)
+    attack_0.png .. attack_3.png   (4 frames, opcional)
+    death_0.png .. death_N.png     (los detecta automáticamente)
 
 Sprites can be safely added later; missing files are replaced by a
 placeholder surface tinted according to the enemy variant.
@@ -33,6 +34,7 @@ _STATE_FRAME_COUNTS: dict[str, int] = {
     "idle": 4,
     "run": 4,
     "shoot": 4,
+    "attack": 4,
     "death": 8,
 }
 
@@ -82,14 +84,16 @@ class EnemyAnimator:
     # ------------------------------------------------------------------
     def set_base_state(self, state: str) -> None:
         self.base_state = state
-        if self.state not in ("death", self.oneshot_state):
+        if self.state == "death" or self.state == self.oneshot_state:
+            return
+        if self.state != state:
             self._change_state(state)
 
     def trigger_shoot(self) -> None:
-        if self.state == "death":
-            return
-        self.oneshot_state = "shoot"
-        self._change_state("shoot")
+        self._trigger_oneshot("shoot")
+
+    def trigger_attack(self) -> None:
+        self._trigger_oneshot("attack")
 
     def trigger_death(self) -> None:
         if self.state == "death":
@@ -148,6 +152,14 @@ class EnemyAnimator:
         if state != "death":
             self.death_finished = False
 
+    def _trigger_oneshot(self, state: str) -> None:
+        if self.state == "death":
+            return
+        if self.state == state and self.oneshot_state == state:
+            return
+        self.oneshot_state = state
+        self._change_state(state)
+
 
 def load_enemy_animation_set(variant: str) -> EnemyAnimationSet:
     """Load (or synthesize) the animation frames for a given variant."""
@@ -160,6 +172,13 @@ def load_enemy_animation_set(variant: str) -> EnemyAnimationSet:
     for state, expected_count in _STATE_FRAME_COUNTS.items():
         frames[state] = _load_state_frames(base_dir, state, expected_count, color)
 
+    # Detect extra states that may exist on disk (e.g., alternative actions).
+    for path in sorted(base_dir.glob("*_*.png")):
+        state, _, suffix = path.stem.partition("_")
+        if not suffix.isdigit() or state in frames:
+            continue
+        frames[state] = _load_state_frames(base_dir, state, 1, color)
+
     fallback = frames.get("idle")
     if fallback:
         fallback_surface = fallback[0]
@@ -170,11 +189,26 @@ def load_enemy_animation_set(variant: str) -> EnemyAnimationSet:
 
 
 def expected_enemy_filenames(variant: str) -> dict[str, list[str]]:
-    """Expose the expected filenames for a variant (useful for docs/UI)."""
+    """Expose the filenames present (or expected) for a variant."""
+
+    variant_slug = (variant or "default").strip().lower() or "default"
+    base_dir = _ENEMY_ASSET_DIR / variant_slug
 
     filenames: dict[str, list[str]] = {}
+    discovered_states: set[str] = set()
+
     for state, count in _STATE_FRAME_COUNTS.items():
-        filenames[state] = [f"{state}_{i}.png" for i in range(count)]
+        indices = _existing_state_indices(base_dir, state)
+        if indices:
+            filenames[state] = [f"{state}_{i}.png" for i in indices]
+        else:
+            filenames[state] = [f"{state}_{i}.png" for i in range(count)]
+        discovered_states.add(state)
+
+    for extra_state in sorted(_discover_extra_states(base_dir) - discovered_states):
+        indices = _existing_state_indices(base_dir, extra_state)
+        filenames[extra_state] = [f"{extra_state}_{i}.png" for i in indices]
+
     return filenames
 
 
@@ -189,18 +223,39 @@ def _load_state_frames(
     color: tuple[int, int, int],
 ) -> list[pygame.Surface]:
     frames: list[pygame.Surface] = []
-    for index in range(expected_count):
+    indices = _existing_state_indices(base_dir, state)
+    for index in indices:
         filename = f"{state}_{index}.png"
         path = base_dir / filename
-        if path.exists():
-            try:
-                frame = pygame.image.load(path.as_posix()).convert_alpha()
-            except pygame.error:
-                frame = _placeholder_surface(color)
-        else:
+        try:
+            frame = pygame.image.load(path.as_posix()).convert_alpha()
+        except pygame.error:
             frame = _placeholder_surface(color)
         frames.append(frame)
-    return frames
+
+    if frames:
+        return frames
+
+    count = max(1, expected_count)
+    return [_placeholder_surface(color) for _ in range(count)]
+
+
+def _existing_state_indices(base_dir: Path, state: str) -> list[int]:
+    indices: list[int] = []
+    for path in sorted(base_dir.glob(f"{state}_*.png")):
+        suffix = path.stem[len(state) + 1 :]
+        if suffix.isdigit():
+            indices.append(int(suffix))
+    return sorted(indices)
+
+
+def _discover_extra_states(base_dir: Path) -> set[str]:
+    states: set[str] = set()
+    for path in base_dir.glob("*_*.png"):
+        state, _, suffix = path.stem.partition("_")
+        if suffix.isdigit():
+            states.add(state)
+    return states
 
 
 def _placeholder_surface(color: tuple[int, int, int]) -> pygame.Surface:
