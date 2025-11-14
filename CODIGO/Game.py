@@ -48,7 +48,10 @@ class Game:
         self._battery_states = self._load_battery_states()
         self._life_battery_highlight = pygame.Color(110, 200, 255)
         # Ajusta este offset para reposicionar las vidas en el HUD.
-        self._life_battery_offset = pygame.Vector2(-300, 300)
+        # Incrementa la componente X para mover las barras hacia la derecha
+        # (disminúyela para moverlas a la izquierda) y modifica Y para
+        # desplazarlas verticalmente.
+        self._life_battery_offset = pygame.Vector2(-260, 300)
         # --- Configuración del HUD de armas ---
         self.weapon_icon_offset = pygame.Vector2(60, 50)
         self.weapon_icon_scale = 1.0

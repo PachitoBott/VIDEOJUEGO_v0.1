@@ -12,6 +12,8 @@ from enemy_sprites import (
     resolve_enemy_variant,
 )
 
+ENEMY_PROJECTILE_SPEED_SCALE = 2.0 / 3.0
+
 IDLE, WANDER, CHASE = 0, 1, 2
 
 class Enemy(Entity):
@@ -335,7 +337,7 @@ class ShooterEnemy(Enemy):
         self.fire_cooldown = 2.75
         self._fire_timer   = 0.0
         self.fire_range    = 260.0
-        self.bullet_speed  = 160.0
+        self.bullet_speed  = 160.0 * ENEMY_PROJECTILE_SPEED_SCALE
         self.reaction_delay = 0.55
 
     def update(self, dt, player, room):
@@ -414,7 +416,7 @@ class BasicEnemy(Enemy):
         self.fire_cooldown = 1.1
         self._fire_timer = 0.0
         self.fire_range = 210.0
-        self.bullet_speed = 192.0
+        self.bullet_speed = 192.0 * ENEMY_PROJECTILE_SPEED_SCALE
         self.reaction_delay = 0.45
 
     def update(self, dt, player, room):
@@ -483,7 +485,7 @@ class TankEnemy(Enemy):
         self.fire_cooldown = 3.1
         self._fire_timer = 0.0
         self.fire_range = 260.0
-        self.bullet_speed = 152.0
+        self.bullet_speed = 152.0 * ENEMY_PROJECTILE_SPEED_SCALE
         self.pellets = 7
         self.spread_radians = math.radians(28)
         self.reaction_delay = 0.65
@@ -498,6 +500,22 @@ class TankEnemy(Enemy):
             "run": 6.0,
             "shoot": 5.0,
         })
+
+    def take_damage(
+        self,
+        amount: int,
+        knockback_dir: tuple[float, float] | None = None,
+        stun_duration: float = 0.22,
+        knockback_strength: float = 150.0,
+    ) -> bool:
+        if knockback_strength > 0.0:
+            knockback_strength *= 0.45
+        return super().take_damage(
+            amount,
+            knockback_dir,
+            stun_duration=stun_duration,
+            knockback_strength=knockback_strength,
+        )
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
