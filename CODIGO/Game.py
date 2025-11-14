@@ -22,10 +22,14 @@ from PauseMenu import PauseMenu, PauseMenuButton
 from GameOverScreen import GameOverScreen
 from Statistics import StatisticsManager
 from Pickup import MicrochipPickup
-from asset_paths import WEAPON_SPRITE_FILENAMES, weapon_sprite_path
+from asset_paths import WEAPON_SPRITE_FILENAMES, assets_dir, weapon_sprite_path
 
 
 class Game:
+    MICROCHIP_SPRITE_NAME = "chip_moneda.png"
+    MICROCHIP_ICON_DEFAULT_SCALE = 1.5
+    MICROCHIP_PICKUP_SIZE = (12, 12)
+
     def __init__(self, cfg: Config) -> None:
         pygame.init()
         self.cfg = cfg
@@ -42,9 +46,16 @@ class Game:
 
         # ---------- UI ----------
         self.ui_font = pygame.font.SysFont(None, 18)
-        chip_sprites = self._create_microchip_sprites()
-        self._coin_icon = chip_sprites["icon"]
-        self._chip_pickup_sprite = chip_sprites["pickup"]
+        icon_source, pickup_sprite = self._create_microchip_sprites()
+        self._microchip_icon_source = icon_source
+        self._chip_pickup_sprite = pickup_sprite
+        self.microchip_icon_scale = self.MICROCHIP_ICON_DEFAULT_SCALE
+        self.microchip_icon_offset = pygame.Vector2(18, -12)
+        self.microchip_value_offset = pygame.Vector2(0, 12)
+        self.microchip_value_color = pygame.Color(255, 240, 180)
+        # Usa los métodos set_microchip_icon_scale/offset/value_offset para ajustar
+        # manualmente la presentación del icono dentro del HUD.
+        self._coin_icon = self._scale_microchip_icon(self.microchip_icon_scale)
         self._battery_states = self._load_battery_states()
         self._life_battery_highlight = pygame.Color(110, 200, 255)
         # Ajusta este offset para reposicionar las vidas en el HUD.
@@ -793,20 +804,35 @@ class Game:
         inventory_rect = self.hud_panels.blit_inventory_panel(self.screen)
         weapon_rect = self._draw_weapon_hud(inventory_rect)
 
+        gold_amount = getattr(self.player, "gold", 0)
+        microchip_rect = self._draw_microchip_counter(inventory_rect, weapon_rect, gold_amount)
+
         lives_remaining = getattr(self.player, "lives", 0)
         max_lives = getattr(self.player, "max_lives", self.cfg.PLAYER_START_LIVES)
         lives_text = self.ui_font.render(
             f"Vidas: {lives_remaining}/{max_lives}", True, (255, 120, 120)
         )
-        gold_amount = getattr(self.player, "gold", 0)
-        gold_text = self.ui_font.render(f"Microchips: {gold_amount}", True, (255, 240, 180))
         seed_text = self.ui_font.render(f"Seed: {self.current_seed}", True, (230, 230, 230))
         help_text = self.ui_font.render("R: rejugar seed  |  N: nueva seed", True, (200, 200, 200))
 
         text_x, text_y = self.hud_panels.inventory_content_anchor()
         if weapon_rect.width:
             text_x = max(text_x, weapon_rect.right + int(self.weapon_text_margin))
+        if microchip_rect.width:
+            text_x = max(text_x, microchip_rect.right + int(self.weapon_text_margin))
         line_gap = 6
+
+        header_rect = pygame.Rect(0, 0, 0, 0)
+        if weapon_rect.width and weapon_rect.height:
+            header_rect = weapon_rect.copy()
+        if microchip_rect.width and microchip_rect.height:
+            header_rect = (
+                header_rect.union(microchip_rect)
+                if header_rect.width or header_rect.height
+                else microchip_rect
+            )
+        if header_rect.height:
+            text_y = max(text_y, header_rect.bottom + line_gap)
 
         battery_origin = (
             text_x + int(self._life_battery_offset.x),
@@ -818,12 +844,6 @@ class Game:
         
         self.screen.blit(lives_text, (text_x, text_y))
         text_y += lives_text.get_height() + line_gap
-
-        coin_x = text_x
-        coin_y = text_y
-        self.screen.blit(self._coin_icon, (coin_x, coin_y))
-        self.screen.blit(gold_text, (coin_x + self._coin_icon.get_width() + 6, coin_y))
-        text_y += max(self._coin_icon.get_height(), gold_text.get_height()) + line_gap
 
         self.screen.blit(seed_text, (text_x, text_y))
         text_y += seed_text.get_height() + line_gap
@@ -842,7 +862,91 @@ class Game:
 
         pygame.display.flip()
 
-    def _create_microchip_sprites(self) -> dict[str, pygame.Surface]:
+    def set_microchip_icon_scale(self, scale: float) -> None:
+        scale = max(0.1, float(scale))
+        if math.isclose(scale, self.microchip_icon_scale, rel_tol=1e-4, abs_tol=1e-4):
+            return
+        self.microchip_icon_scale = scale
+        self._coin_icon = self._scale_microchip_icon(scale)
+
+    def set_microchip_icon_offset(
+        self, offset: tuple[float, float] | pygame.Vector2
+    ) -> None:
+        if isinstance(offset, pygame.Vector2):
+            self.microchip_icon_offset.update(offset)
+        else:
+            ox, oy = offset
+            self.microchip_icon_offset.update(ox, oy)
+
+    def set_microchip_value_offset(
+        self, offset: tuple[float, float] | pygame.Vector2
+    ) -> None:
+        if isinstance(offset, pygame.Vector2):
+            self.microchip_value_offset.update(offset)
+        else:
+            ox, oy = offset
+            self.microchip_value_offset.update(ox, oy)
+
+    def _draw_microchip_counter(
+        self,
+        inventory_rect: pygame.Rect,
+        weapon_rect: pygame.Rect,
+        amount: int,
+    ) -> pygame.Rect:
+        icon_surface = getattr(self, "_coin_icon", None)
+        if icon_surface is None:
+            return pygame.Rect(0, 0, 0, 0)
+
+        if weapon_rect.width and weapon_rect.height:
+            anchor_x, anchor_y = weapon_rect.topright
+        else:
+            anchor_x = inventory_rect.left + int(self.weapon_icon_offset.x)
+            anchor_y = inventory_rect.top + int(self.weapon_icon_offset.y)
+
+        icon_position = (
+            int(anchor_x + self.microchip_icon_offset.x),
+            int(anchor_y + self.microchip_icon_offset.y),
+        )
+        icon_rect = icon_surface.get_rect(topleft=icon_position)
+        self.screen.blit(icon_surface, icon_rect.topleft)
+
+        value_surface = self.ui_font.render(str(int(amount)), True, self.microchip_value_color)
+        value_rect = value_surface.get_rect()
+        value_rect.midtop = (
+            icon_rect.centerx + int(self.microchip_value_offset.x),
+            icon_rect.bottom + int(self.microchip_value_offset.y),
+        )
+        self.screen.blit(value_surface, value_rect.topleft)
+
+        return icon_rect.union(value_rect)
+
+    def _scale_microchip_icon(self, scale: float) -> pygame.Surface:
+        source = getattr(self, "_microchip_icon_source", None)
+        if source is None:
+            source, _ = self._create_procedural_microchip()
+            self._microchip_icon_source = source
+
+        width = max(1, int(source.get_width() * scale))
+        height = max(1, int(source.get_height() * scale))
+        return pygame.transform.smoothscale(source, (width, height))
+
+    def _create_microchip_sprites(self) -> tuple[pygame.Surface, pygame.Surface]:
+        procedural_icon, pickup_sprite = self._create_procedural_microchip()
+        sprite_path = assets_dir("ui", self.MICROCHIP_SPRITE_NAME)
+        sprite = self._load_surface(sprite_path)
+        icon_source = sprite if sprite is not None else procedural_icon
+        return icon_source, pickup_sprite
+
+    def _load_surface(self, path: Path) -> pygame.Surface | None:
+        try:
+            return pygame.image.load(path.as_posix()).convert_alpha()
+        except FileNotFoundError:
+            print(f"[HUD] Advertencia: no se encontró la imagen '{path}'. Se usará un marcador.")
+        except pygame.error as exc:  # pragma: no cover - depende de SDL
+            print(f"[HUD] Error al cargar '{path}': {exc}. Se usará un marcador.")
+        return None
+
+    def _create_procedural_microchip(self) -> tuple[pygame.Surface, pygame.Surface]:
         base_size = 32
         chip = pygame.Surface((base_size, base_size), pygame.SRCALPHA)
         chip.fill((0, 0, 0, 0))
@@ -895,9 +999,8 @@ class Game:
             pygame.draw.rect(chip, pin_color, bottom_pin)
             pygame.draw.rect(chip, pin_shadow, bottom_pin, 1)
 
-        icon = pygame.transform.smoothscale(chip, (14, 14))
-        pickup = pygame.transform.smoothscale(chip, (12, 12))
-        return {"icon": icon, "pickup": pickup}
+        pickup = pygame.transform.smoothscale(chip, self.MICROCHIP_PICKUP_SIZE)
+        return chip, pickup
 
     def _load_weapon_icons(self) -> dict[str, pygame.Surface]:
         icons: dict[str, pygame.Surface] = {}
