@@ -149,8 +149,6 @@ class Enemy(Entity):
         self._movement_locked = movement_locked
         self._update_animation(dt)
 
-        self._update_animation(dt)
-
     def maybe_shoot(self, dt: float, player, room, out_bullets: list) -> bool:
         """Por defecto, los enemigos base NO disparan."""
         return False
@@ -489,9 +487,17 @@ class TankEnemy(Enemy):
         self.pellets = 7
         self.spread_radians = math.radians(28)
         self.reaction_delay = 0.65
-        self.shoot_windup = 1.0
+        self.shoot_windup = 0.6
+        self.post_shoot_pause = 0.35
         self._windup_timer = 0.0
         self._pending_shot_dir: tuple[float, float] | None = None
+
+        # El tanque alterna frames con más calma y deja ver mejor el disparo.
+        self.animator.fps_overrides.update({
+            "idle": 3.5,
+            "run": 6.0,
+            "shoot": 5.0,
+        })
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
@@ -558,6 +564,7 @@ class TankEnemy(Enemy):
         fired_any = self._emit_barrage(ex, ey, dir_x, dir_y, out_bullets)
         self._fire_timer = self.fire_cooldown
         self.trigger_shoot_animation(dir_x)
+        self.lock_movement(self.post_shoot_pause)
         return fired_any
 
     def _emit_barrage(
