@@ -149,6 +149,8 @@ class Enemy(Entity):
         self._movement_locked = movement_locked
         self._update_animation(dt)
 
+        self._update_animation(dt)
+
     def maybe_shoot(self, dt: float, player, room, out_bullets: list) -> bool:
         """Por defecto, los enemigos base NO disparan."""
         return False
