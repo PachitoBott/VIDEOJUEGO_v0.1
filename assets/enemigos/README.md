@@ -5,9 +5,10 @@ con el nombre del variant. Para la versión actual existen estas variantes:
 
 - `yellow_shooter` — enemigos amarillos que disparan.
 - `green_chaser` — enemigos verdes que persiguen.
-- `blue_shooter` — disparador azul que lanza muchas balas (el "tank").
-  Si quieres seguir usando el nombre anterior puedes dejar los sprites en
-  `tank/` y el juego los tomará como respaldo.
+- `blue_shooter` — disparador azul que lanza muchas balas (el shooter).
+- `tank` — enemigo pesado con escopeta. Si prefieres reutilizar los sprites
+  del disparador azul, puedes dejarlos en `blue_shooter/` y el juego hará el
+  intercambio automáticamente.
 
 Dentro de cada carpeta se esperan los siguientes archivos PNG:
 

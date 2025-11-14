@@ -324,7 +324,7 @@ class FastChaserEnemy(Enemy):
 
 class ShooterEnemy(Enemy):
     """Dispara si te ve (LoS) y estás en rango."""
-    SPRITE_VARIANT = "yellow_shooter"
+    SPRITE_VARIANT = ("blue_shooter", "yellow_shooter")
     def __init__(self, x, y):
         super().__init__(x, y, hp=3, gold_reward=9)
         self.chase_speed  = 5
@@ -464,7 +464,7 @@ class BasicEnemy(Enemy):
 class TankEnemy(Enemy):
     """Lento, mucha vida y dispara ráfagas estilo escopeta."""
 
-    SPRITE_VARIANT = ("blue_shooter", "tank")
+    SPRITE_VARIANT = ("tank", "blue_shooter")
 
     def __init__(self, x, y):
         super().__init__(x, y, hp=9, gold_reward=12)
