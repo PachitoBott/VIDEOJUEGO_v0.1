@@ -51,7 +51,7 @@ class Game:
         # Incrementa la componente X para mover las barras hacia la derecha
         # (disminúyela para moverlas a la izquierda) y modifica Y para
         # desplazarlas verticalmente.
-        self._life_battery_offset = pygame.Vector2(-260, 300)
+        self._life_battery_offset = pygame.Vector2(-200, 300)
         # --- Configuración del HUD de armas ---
         self.weapon_icon_offset = pygame.Vector2(60, 50)
         self.weapon_icon_scale = 1.0

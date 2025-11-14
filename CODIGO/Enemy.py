@@ -12,7 +12,7 @@ from enemy_sprites import (
     resolve_enemy_variant,
 )
 
-ENEMY_PROJECTILE_SPEED_SCALE = 2.0 / 3.0
+ENEMY_PROJECTILE_SPEED_SCALE = 4.0 / 5.0
 
 IDLE, WANDER, CHASE = 0, 1, 2
 
