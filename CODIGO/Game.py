@@ -49,10 +49,8 @@ class Game:
         icon_source, pickup_sprite = self._create_microchip_sprites()
         self._microchip_icon_source = icon_source
         self._chip_pickup_sprite = pickup_sprite
-        self.microchip_icon_scale = self.MICROCHIP_ICON_DEFAULT_SCALE
-        self.microchip_icon_offset = pygame.Vector2(18, -12)
-        self.microchip_value_offset = pygame.Vector2(0, 12)
-        self.microchip_value_color = pygame.Color(255, 240, 180)
+        self.microchip_icon_scale = self.MICROCHIP_ICON_DEFAULT_SCALE * 0.8
+        
         # Usa los métodos set_microchip_icon_scale/offset/value_offset para ajustar
         # manualmente la presentación del icono dentro del HUD.
         self._coin_icon = self._scale_microchip_icon(self.microchip_icon_scale)
@@ -62,7 +60,7 @@ class Game:
         # Incrementa la componente X para mover las barras hacia la derecha
         # (disminúyela para moverlas a la izquierda) y modifica Y para
         # desplazarlas verticalmente.
-        self._life_battery_offset = pygame.Vector2(-200, 300)
+        self._life_battery_offset = pygame.Vector2(-455, 35)
         # --- Configuración del HUD de armas ---
         self.weapon_icon_offset = pygame.Vector2(60, 50)
         self.weapon_icon_scale = 1.0
@@ -73,6 +71,9 @@ class Game:
         self._weapon_icons = self._load_weapon_icons()
         self._weapon_icon_cache: dict[tuple[str, float], pygame.Surface] = {}
         self.current_seed: int | None = None
+        self.microchip_icon_offset = pygame.Vector2(193, 42)
+        self.microchip_value_offset = pygame.Vector2(0, -100)
+        self.microchip_value_color = pygame.Color(255, 240, 180)
 
         # --- Tienda ---
         self.shop = Shop(font=self.ui_font, on_gold_spent=self._register_gold_spent)
