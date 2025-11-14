@@ -837,7 +837,7 @@ class Game:
         if batteries_rect.height:
             text_y = batteries_rect.bottom + line_gap
 
-        seed_position = (10, 10)
+        seed_position = (20, 100)
         self.screen.blit(seed_text, seed_position)
 
         minimap_surface = self.minimap.render(self.dungeon)
