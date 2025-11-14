@@ -426,14 +426,6 @@ class Game:
 
         survivors = []
         for enemy in room.enemies:
-            ready_fn = getattr(enemy, "is_ready_to_remove", None)
-            dying_fn = getattr(enemy, "is_dying", None)
-            if callable(ready_fn) and ready_fn():
-                self._drop_enemy_microchips(enemy, room)
-                continue
-            if callable(dying_fn) and dying_fn():
-                survivors.append(enemy)
-                continue
             if getattr(enemy, "hp", 1) > 0:
                 survivors.append(enemy)
             else:
@@ -802,12 +794,12 @@ class Game:
         line_gap = 6
 
         battery_origin = (
-            text_x + int(self._life_battery_offset.x),
-            text_y + int(self._life_battery_offset.y),
+        text_x + int(self._life_battery_offset.x),
+         text_y + int(self._life_battery_offset.y),
         )
         batteries_rect = self._blit_life_batteries(self.screen, battery_origin)
         if batteries_rect.height:
-            text_y = batteries_rect.bottom + line_gap
+         text_y = batteries_rect.bottom + line_gap
         
         self.screen.blit(lives_text, (text_x, text_y))
         text_y += lives_text.get_height() + line_gap
