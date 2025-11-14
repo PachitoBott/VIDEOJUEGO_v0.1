@@ -808,13 +808,7 @@ class Game:
         gold_amount = getattr(self.player, "gold", 0)
         microchip_rect = self._draw_microchip_counter(inventory_rect, weapon_rect, gold_amount)
 
-        lives_remaining = getattr(self.player, "lives", 0)
-        max_lives = getattr(self.player, "max_lives", self.cfg.PLAYER_START_LIVES)
-        lives_text = self.ui_font.render(
-            f"Vidas: {lives_remaining}/{max_lives}", True, (255, 120, 120)
-        )
         seed_text = self.ui_font.render(f"Seed: {self.current_seed}", True, (230, 230, 230))
-        help_text = self.ui_font.render("R: rejugar seed  |  N: nueva seed", True, (200, 200, 200))
 
         text_x, text_y = self.hud_panels.inventory_content_anchor()
         if weapon_rect.width:
@@ -842,14 +836,9 @@ class Game:
         batteries_rect = self._blit_life_batteries(self.screen, battery_origin)
         if batteries_rect.height:
             text_y = batteries_rect.bottom + line_gap
-        
-        self.screen.blit(lives_text, (text_x, text_y))
-        text_y += lives_text.get_height() + line_gap
 
-        self.screen.blit(seed_text, (text_x, text_y))
-        text_y += seed_text.get_height() + line_gap
-
-        self.screen.blit(help_text, (text_x, text_y))
+        seed_position = (10, 10)
+        self.screen.blit(seed_text, seed_position)
 
         minimap_surface = self.minimap.render(self.dungeon)
         minimap_position = self.hud_panels.compute_minimap_position(self.screen, minimap_surface)
