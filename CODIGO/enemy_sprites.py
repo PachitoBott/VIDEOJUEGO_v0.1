@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, Iterable, List
 
 import pygame
 
@@ -41,6 +41,7 @@ _STATE_FRAME_COUNTS: dict[str, int] = {
 _VARIANT_COLORS: dict[str, tuple[int, int, int]] = {
     "yellow_shooter": (255, 214, 120),
     "green_chaser": (126, 232, 170),
+    "blue_shooter": (120, 188, 255),
     "tank": (200, 116, 116),
     "default": (210, 210, 210),
 }
@@ -159,6 +160,19 @@ class EnemyAnimator:
             return
         self.oneshot_state = state
         self._change_state(state)
+
+
+def resolve_enemy_variant(preferred: Iterable[str]) -> str:
+    """Pick the best available sprite variant from a list of preferences."""
+
+    preferred = list(preferred) or ["default"]
+    for variant in preferred:
+        slug = (variant or "default").strip().lower() or "default"
+        base_dir = _ENEMY_ASSET_DIR / slug
+        if any(base_dir.glob("*.png")):
+            return slug
+    slug = (preferred[0] or "default").strip().lower() or "default"
+    return slug
 
 
 def load_enemy_animation_set(variant: str) -> EnemyAnimationSet:

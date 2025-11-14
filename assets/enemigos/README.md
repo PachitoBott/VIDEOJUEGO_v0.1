@@ -1,12 +1,13 @@
 # Sprites de enemigos
 
 Coloca los sprites animados de cada tipo de enemigo dentro de una carpeta
-con el nombre del variant. Para la versión actual existen tres variantes:
+con el nombre del variant. Para la versión actual existen estas variantes:
 
 - `yellow_shooter` — enemigos amarillos que disparan.
 - `green_chaser` — enemigos verdes que persiguen.
-- `tank` — enemigo pesado (usa el mismo diseño base si no hay sprites
-  específicos).
+- `blue_shooter` — disparador azul que lanza muchas balas (el "tank").
+  Si quieres seguir usando el nombre anterior puedes dejar los sprites en
+  `tank/` y el juego los tomará como respaldo.
 
 Dentro de cada carpeta se esperan los siguientes archivos PNG:
 
