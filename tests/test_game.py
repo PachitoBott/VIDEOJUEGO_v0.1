@@ -1,5 +1,5 @@
 """
-Tests unitarios .
+Tests unitarios para la clase Game del roguelike.
 
 Cubre los métodos más críticos:
 - start_new_run: Inicialización de partidas
@@ -28,15 +28,18 @@ class TestGameInitialization:
     
     def setup_method(self):
         """Configuración antes de cada test."""
-        # Mock de Config
+        # Mock de Config con TODOS los atributos necesarios
         self.mock_config = Mock()
         self.mock_config.SCREEN_W = 640
         self.mock_config.SCREEN_H = 480
-        self.mock_config.SCREEN_SCALE = 2
+        self.mock_config.SCREEN_SCALE = 2  # Debe ser int, no Mock
         self.mock_config.FPS = 60
         self.mock_config.COLOR_BG = (0, 0, 0)
         self.mock_config.DEBUG_DRAW_DOOR_TRIGGERS = False
         self.mock_config.PLAYER_START_LIVES = 3
+        self.mock_config.TILE_SIZE = 32
+        self.mock_config.MAP_W = 30
+        self.mock_config.MAP_H = 20
         self.mock_config.dungeon_params = Mock(return_value={
             'grid_w': 7, 'grid_h': 7, 'main_len': 8
         })
@@ -46,11 +49,16 @@ class TestGameInitialization:
     @patch('Game.Shop')
     @patch('Game.HudPanels')
     @patch('Game.StatisticsManager')
-    @patch('Game.Path')
-    def test_game_initialization(self, mock_path, mock_stats, mock_hud, 
+    @patch('Game.pygame.image.load')
+    def test_game_initialization(self, mock_load, mock_stats, mock_hud, 
                                   mock_shop, mock_minimap, mock_tileset):
         """Verifica que Game se inicializa correctamente."""
         from Game import Game
+        
+        # Mock del cursor surface
+        mock_surface = Mock()
+        mock_surface.convert_alpha = Mock(return_value=mock_surface)
+        mock_load.return_value = mock_surface
         
         game = Game(self.mock_config)
         
@@ -73,7 +81,7 @@ class TestStartNewRun:
     @pytest.fixture
     def game(self):
         """Fixture que crea una instancia de Game mockeada."""
-        with patch('Game.pygame'), \
+        with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
@@ -81,6 +89,11 @@ class TestStartNewRun:
              patch('Game.StatisticsManager'), \
              patch('Game.Dungeon') as mock_dungeon, \
              patch('Game.Player') as mock_player:
+            
+            # Mock del cursor
+            mock_surface = Mock()
+            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            mock_img_load.return_value = mock_surface
             
             from Game import Game
             mock_config = Mock()
@@ -90,6 +103,9 @@ class TestStartNewRun:
             mock_config.FPS = 60
             mock_config.COLOR_BG = (0, 0, 0)
             mock_config.DEBUG_DRAW_DOOR_TRIGGERS = False
+            mock_config.TILE_SIZE = 32
+            mock_config.MAP_W = 30
+            mock_config.MAP_H = 20
             mock_config.dungeon_params = Mock(return_value={})
             
             game = Game(mock_config)
@@ -101,7 +117,7 @@ class TestStartNewRun:
             game.player.gold = 0
             game.player.reset_loadout = Mock()
             
-            # Mock de dungeon
+            # Mock de dungeon con center_px que devuelve tupla
             game.dungeon = Mock()
             game.dungeon.seed = 12345
             game.dungeon.current_room = Mock()
@@ -150,17 +166,29 @@ class TestHandleCollisions:
     @pytest.fixture
     def game_with_room(self):
         """Fixture con un juego y sala configurados."""
-        with patch('Game.pygame'), \
+        with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
              patch('Game.HudPanels'), \
              patch('Game.StatisticsManager'):
             
+            # Mock del cursor
+            mock_surface = Mock()
+            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            mock_img_load.return_value = mock_surface
+            
             from Game import Game
             mock_config = Mock()
             mock_config.SCREEN_W = 640
             mock_config.SCREEN_H = 480
+            mock_config.SCREEN_SCALE = 2
+            mock_config.FPS = 60
+            mock_config.COLOR_BG = (0, 0, 0)
+            mock_config.DEBUG_DRAW_DOOR_TRIGGERS = False
+            mock_config.TILE_SIZE = 32
+            mock_config.MAP_W = 30
+            mock_config.MAP_H = 20
             mock_config.dungeon_params = Mock(return_value={})
             
             game = Game(mock_config)
@@ -289,7 +317,7 @@ class TestDropEnemyMicrochips:
     @pytest.fixture
     def game_with_sprites(self):
         """Fixture con sprites de microchip."""
-        with patch('Game.pygame'), \
+        with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
@@ -297,10 +325,22 @@ class TestDropEnemyMicrochips:
              patch('Game.StatisticsManager'), \
              patch('Game.MicrochipPickup') as mock_pickup:
             
+            # Mock del cursor
+            mock_surface = Mock()
+            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            mock_img_load.return_value = mock_surface
+            
             from Game import Game
             mock_config = Mock()
             mock_config.SCREEN_W = 640
             mock_config.SCREEN_H = 480
+            mock_config.SCREEN_SCALE = 2
+            mock_config.FPS = 60
+            mock_config.COLOR_BG = (0, 0, 0)
+            mock_config.DEBUG_DRAW_DOOR_TRIGGERS = False
+            mock_config.TILE_SIZE = 32
+            mock_config.MAP_W = 30
+            mock_config.MAP_H = 20
             mock_config.dungeon_params = Mock(return_value={})
             
             game = Game(mock_config)
@@ -371,17 +411,29 @@ class TestAddPlayerGold:
     @pytest.fixture
     def game_with_player(self):
         """Fixture con jugador."""
-        with patch('Game.pygame'), \
+        with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
              patch('Game.HudPanels'), \
              patch('Game.StatisticsManager'):
             
+            # Mock del cursor
+            mock_surface = Mock()
+            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            mock_img_load.return_value = mock_surface
+            
             from Game import Game
             mock_config = Mock()
             mock_config.SCREEN_W = 640
             mock_config.SCREEN_H = 480
+            mock_config.SCREEN_SCALE = 2
+            mock_config.FPS = 60
+            mock_config.COLOR_BG = (0, 0, 0)
+            mock_config.DEBUG_DRAW_DOOR_TRIGGERS = False
+            mock_config.TILE_SIZE = 32
+            mock_config.MAP_W = 30
+            mock_config.MAP_H = 20
             mock_config.dungeon_params = Mock(return_value={})
             
             game = Game(mock_config)
@@ -423,17 +475,29 @@ class TestHandlePlayerDeath:
     @pytest.fixture
     def game_with_death_setup(self):
         """Fixture con configuración para muerte."""
-        with patch('Game.pygame'), \
+        with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
              patch('Game.HudPanels'), \
              patch('Game.StatisticsManager'):
             
+            # Mock del cursor
+            mock_surface = Mock()
+            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            mock_img_load.return_value = mock_surface
+            
             from Game import Game
             mock_config = Mock()
             mock_config.SCREEN_W = 640
             mock_config.SCREEN_H = 480
+            mock_config.SCREEN_SCALE = 2
+            mock_config.FPS = 60
+            mock_config.COLOR_BG = (0, 0, 0)
+            mock_config.DEBUG_DRAW_DOOR_TRIGGERS = False
+            mock_config.TILE_SIZE = 32
+            mock_config.MAP_W = 30
+            mock_config.MAP_H = 20
             mock_config.dungeon_params = Mock(return_value={})
             
             game = Game(mock_config)
@@ -509,17 +573,29 @@ class TestUpdateRoomLock:
     @pytest.fixture
     def game_with_lockable_room(self):
         """Fixture con sala que puede bloquearse."""
-        with patch('Game.pygame'), \
+        with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
              patch('Game.HudPanels'), \
              patch('Game.StatisticsManager'):
             
+            # Mock del cursor
+            mock_surface = Mock()
+            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            mock_img_load.return_value = mock_surface
+            
             from Game import Game
             mock_config = Mock()
             mock_config.SCREEN_W = 640
             mock_config.SCREEN_H = 480
+            mock_config.SCREEN_SCALE = 2
+            mock_config.FPS = 60
+            mock_config.COLOR_BG = (0, 0, 0)
+            mock_config.DEBUG_DRAW_DOOR_TRIGGERS = False
+            mock_config.TILE_SIZE = 32
+            mock_config.MAP_W = 30
+            mock_config.MAP_H = 20
             mock_config.dungeon_params = Mock(return_value={})
             
             game = Game(mock_config)
@@ -581,17 +657,29 @@ class TestCollectRunSummary:
     @pytest.fixture
     def game_with_stats(self):
         """Fixture con estadísticas."""
-        with patch('Game.pygame'), \
+        with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
              patch('Game.HudPanels'), \
              patch('Game.StatisticsManager'):
             
+            # Mock del cursor
+            mock_surface = Mock()
+            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            mock_img_load.return_value = mock_surface
+            
             from Game import Game
             mock_config = Mock()
             mock_config.SCREEN_W = 640
             mock_config.SCREEN_H = 480
+            mock_config.SCREEN_SCALE = 2
+            mock_config.FPS = 60
+            mock_config.COLOR_BG = (0, 0, 0)
+            mock_config.DEBUG_DRAW_DOOR_TRIGGERS = False
+            mock_config.TILE_SIZE = 32
+            mock_config.MAP_W = 30
+            mock_config.MAP_H = 20
             mock_config.dungeon_params = Mock(return_value={})
             
             game = Game(mock_config)
