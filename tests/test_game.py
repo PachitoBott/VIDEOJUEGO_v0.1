@@ -23,6 +23,19 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "CODIGO"))
 pygame.init()
 
 
+def _create_mock_surface():
+    """Helper para crear un surface mock completo."""
+    mock_surface = Mock()
+    mock_surface.convert_alpha = Mock(return_value=mock_surface)
+    mock_surface.get_width = Mock(return_value=32)
+    mock_surface.get_height = Mock(return_value=32)
+    mock_surface.get_size = Mock(return_value=(32, 32))
+    mock_surface.get_rect = Mock(return_value=pygame.Rect(0, 0, 32, 32))
+    mock_surface.blit = Mock()
+    mock_surface.fill = Mock()
+    return mock_surface
+
+
 class TestGameInitialization:
     """Tests para la inicialización del juego."""
     
@@ -50,17 +63,31 @@ class TestGameInitialization:
     @patch('Game.HudPanels')
     @patch('Game.StatisticsManager')
     @patch('Game.pygame.image.load')
-    def test_game_initialization(self, mock_load, mock_stats, mock_hud, 
-                                  mock_shop, mock_minimap, mock_tileset):
+    @patch('Game.pygame.Surface')
+    def test_game_initialization(self, mock_pygame_surface, mock_load, 
+                                  mock_stats, mock_hud, mock_shop, 
+                                  mock_minimap, mock_tileset):
         """Verifica que Game se inicializa correctamente."""
         from Game import Game
         
-        # Mock del cursor surface
-        mock_surface = Mock()
-        mock_surface.convert_alpha = Mock(return_value=mock_surface)
+        # Mock de surfaces
+        mock_surface = _create_mock_surface()
         mock_load.return_value = mock_surface
+        mock_pygame_surface.return_value = mock_surface
         
         game = Game(self.mock_config)
+        
+        # Verificar que se crearon los componentes esenciales
+        assert game.cfg == self.mock_config
+        assert game.running is True
+        assert game.projectiles is not None
+        assert game.enemy_projectiles is not None
+        assert game.door_cooldown == 0.0
+        
+        # Verificar que los sistemas de UI se inicializaron
+        assert game.ui_font is not None
+        assert game.shop is not None
+        assert game.hud_panels is not None
         
         # Verificar que se crearon los componentes esenciales
         assert game.cfg == self.mock_config
@@ -82,6 +109,7 @@ class TestStartNewRun:
     def game(self):
         """Fixture que crea una instancia de Game mockeada."""
         with patch('Game.pygame.image.load') as mock_img_load, \
+             patch('Game.pygame.Surface') as mock_pygame_surface, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
@@ -90,10 +118,10 @@ class TestStartNewRun:
              patch('Game.Dungeon') as mock_dungeon, \
              patch('Game.Player') as mock_player:
             
-            # Mock del cursor
-            mock_surface = Mock()
-            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            # Mock de surfaces
+            mock_surface = _create_mock_surface()
             mock_img_load.return_value = mock_surface
+            mock_pygame_surface.return_value = mock_surface
             
             from Game import Game
             mock_config = Mock()
@@ -167,16 +195,17 @@ class TestHandleCollisions:
     def game_with_room(self):
         """Fixture con un juego y sala configurados."""
         with patch('Game.pygame.image.load') as mock_img_load, \
+             patch('Game.pygame.Surface') as mock_pygame_surface, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
              patch('Game.HudPanels'), \
              patch('Game.StatisticsManager'):
             
-            # Mock del cursor
-            mock_surface = Mock()
-            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            # Mock de surfaces
+            mock_surface = _create_mock_surface()
             mock_img_load.return_value = mock_surface
+            mock_pygame_surface.return_value = mock_surface
             
             from Game import Game
             mock_config = Mock()
@@ -318,6 +347,7 @@ class TestDropEnemyMicrochips:
     def game_with_sprites(self):
         """Fixture con sprites de microchip."""
         with patch('Game.pygame.image.load') as mock_img_load, \
+             patch('Game.pygame.Surface') as mock_pygame_surface, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
@@ -325,10 +355,10 @@ class TestDropEnemyMicrochips:
              patch('Game.StatisticsManager'), \
              patch('Game.MicrochipPickup') as mock_pickup:
             
-            # Mock del cursor
-            mock_surface = Mock()
-            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            # Mock de surfaces
+            mock_surface = _create_mock_surface()
             mock_img_load.return_value = mock_surface
+            mock_pygame_surface.return_value = mock_surface
             
             from Game import Game
             mock_config = Mock()
@@ -412,16 +442,17 @@ class TestAddPlayerGold:
     def game_with_player(self):
         """Fixture con jugador."""
         with patch('Game.pygame.image.load') as mock_img_load, \
+             patch('Game.pygame.Surface') as mock_pygame_surface, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
              patch('Game.HudPanels'), \
              patch('Game.StatisticsManager'):
             
-            # Mock del cursor
-            mock_surface = Mock()
-            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            # Mock de surfaces
+            mock_surface = _create_mock_surface()
             mock_img_load.return_value = mock_surface
+            mock_pygame_surface.return_value = mock_surface
             
             from Game import Game
             mock_config = Mock()
@@ -476,16 +507,17 @@ class TestHandlePlayerDeath:
     def game_with_death_setup(self):
         """Fixture con configuración para muerte."""
         with patch('Game.pygame.image.load') as mock_img_load, \
+             patch('Game.pygame.Surface') as mock_pygame_surface, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
              patch('Game.HudPanels'), \
              patch('Game.StatisticsManager'):
             
-            # Mock del cursor
-            mock_surface = Mock()
-            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            # Mock de surfaces
+            mock_surface = _create_mock_surface()
             mock_img_load.return_value = mock_surface
+            mock_pygame_surface.return_value = mock_surface
             
             from Game import Game
             mock_config = Mock()
@@ -574,16 +606,17 @@ class TestUpdateRoomLock:
     def game_with_lockable_room(self):
         """Fixture con sala que puede bloquearse."""
         with patch('Game.pygame.image.load') as mock_img_load, \
+             patch('Game.pygame.Surface') as mock_pygame_surface, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
              patch('Game.HudPanels'), \
              patch('Game.StatisticsManager'):
             
-            # Mock del cursor
-            mock_surface = Mock()
-            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            # Mock de surfaces
+            mock_surface = _create_mock_surface()
             mock_img_load.return_value = mock_surface
+            mock_pygame_surface.return_value = mock_surface
             
             from Game import Game
             mock_config = Mock()
@@ -658,16 +691,17 @@ class TestCollectRunSummary:
     def game_with_stats(self):
         """Fixture con estadísticas."""
         with patch('Game.pygame.image.load') as mock_img_load, \
+             patch('Game.pygame.Surface') as mock_pygame_surface, \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
              patch('Game.HudPanels'), \
              patch('Game.StatisticsManager'):
             
-            # Mock del cursor
-            mock_surface = Mock()
-            mock_surface.convert_alpha = Mock(return_value=mock_surface)
+            # Mock de surfaces
+            mock_surface = _create_mock_surface()
             mock_img_load.return_value = mock_surface
+            mock_pygame_surface.return_value = mock_surface
             
             from Game import Game
             mock_config = Mock()
