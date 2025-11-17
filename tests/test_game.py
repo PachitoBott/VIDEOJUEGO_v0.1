@@ -36,6 +36,13 @@ def _create_mock_surface():
     return mock_surface
 
 
+def _mock_create_microchip_sprites(self):
+    """Mock para _create_microchip_sprites que devuelve surfaces mockeados."""
+    icon_surface = _create_mock_surface()
+    pickup_surface = _create_mock_surface()
+    return (icon_surface, pickup_surface)
+
+
 class TestGameInitialization:
     """Tests para la inicialización del juego."""
     
@@ -64,6 +71,7 @@ class TestGameInitialization:
     @patch('Game.StatisticsManager')
     @patch('Game.pygame.image.load')
     @patch('Game.pygame.Surface')
+    @patch('Game.Game._create_microchip_sprites', _mock_create_microchip_sprites)
     def test_game_initialization(self, mock_pygame_surface, mock_load, 
                                   mock_stats, mock_hud, mock_shop, 
                                   mock_minimap, mock_tileset):
@@ -110,6 +118,7 @@ class TestStartNewRun:
         """Fixture que crea una instancia de Game mockeada."""
         with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.pygame.Surface') as mock_pygame_surface, \
+             patch('Game.Game._create_microchip_sprites', _mock_create_microchip_sprites), \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
@@ -196,6 +205,7 @@ class TestHandleCollisions:
         """Fixture con un juego y sala configurados."""
         with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.pygame.Surface') as mock_pygame_surface, \
+             patch('Game.Game._create_microchip_sprites', _mock_create_microchip_sprites), \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
@@ -348,6 +358,7 @@ class TestDropEnemyMicrochips:
         """Fixture con sprites de microchip."""
         with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.pygame.Surface') as mock_pygame_surface, \
+             patch('Game.Game._create_microchip_sprites', _mock_create_microchip_sprites), \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
@@ -443,6 +454,7 @@ class TestAddPlayerGold:
         """Fixture con jugador."""
         with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.pygame.Surface') as mock_pygame_surface, \
+             patch('Game.Game._create_microchip_sprites', _mock_create_microchip_sprites), \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
@@ -508,6 +520,7 @@ class TestHandlePlayerDeath:
         """Fixture con configuración para muerte."""
         with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.pygame.Surface') as mock_pygame_surface, \
+             patch('Game.Game._create_microchip_sprites', _mock_create_microchip_sprites), \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
@@ -607,6 +620,7 @@ class TestUpdateRoomLock:
         """Fixture con sala que puede bloquearse."""
         with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.pygame.Surface') as mock_pygame_surface, \
+             patch('Game.Game._create_microchip_sprites', _mock_create_microchip_sprites), \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
@@ -692,6 +706,7 @@ class TestCollectRunSummary:
         """Fixture con estadísticas."""
         with patch('Game.pygame.image.load') as mock_img_load, \
              patch('Game.pygame.Surface') as mock_pygame_surface, \
+             patch('Game.Game._create_microchip_sprites', _mock_create_microchip_sprites), \
              patch('Game.Tileset'), \
              patch('Game.Minimap'), \
              patch('Game.Shop'), \
