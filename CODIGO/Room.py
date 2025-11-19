@@ -10,6 +10,7 @@ import pygame
 from Config import CFG
 from Enemy import Enemy, FastChaserEnemy, TankEnemy, ShooterEnemy, BasicEnemy
 import Enemy as enemy_mod  # <- para usar enemy_mod.WANDER
+from Bosses import CorruptedServerBoss
 from asset_paths import assets_dir
 
 # Plantillas de encuentros por umbral de dificultad.
@@ -326,6 +327,13 @@ class Room:
         self.obstacles: list[dict] = []
         self._obstacle_tiles: set[tuple[int, int]] = set()
 
+        # Bosses
+        self.boss_blueprint = getattr(self, "boss_blueprint", None)
+        self.boss_loot_table = getattr(self, "boss_loot_table", None)
+        self.boss_instance = None
+        self.boss_defeated = False
+        self._boss_spawned = False
+
 
     # ------------------------------------------------------------------ #
     # API estática para sprites de obstáculos
@@ -570,6 +578,15 @@ class Room:
             self.locked = False
             if ShopkeeperCls:
                 self._ensure_shopkeeper(cfg, ShopkeeperCls)
+        elif self.type == "boss":
+            self.safe = False
+            self.no_spawn = True
+            self.no_combat = False
+            self.locked = True
+            if not self._boss_spawned:
+                self._spawn_boss()
+            self._populated_once = True
+            self._spawn_done = True
         elif self.type == "treasure":
             self.safe = True
             self.no_spawn = True
@@ -588,12 +605,50 @@ class Room:
         # Nada especial por defecto. Podrías pausar IA/ambiente si quieres.
         pass
 
+    def _spawn_boss(self) -> None:
+        if self._boss_spawned:
+            return
+        blueprint = self.boss_blueprint or CorruptedServerBoss
+        try:
+            cx, cy = self.center_px()
+        except AssertionError:
+            self.build_centered(9, 9)
+            cx, cy = self.center_px()
+        boss = blueprint(cx - 24, cy - 24)
+        boss.x = cx - boss.w / 2
+        boss.y = cy - boss.h / 2
+        if hasattr(boss, "on_spawn"):
+            boss.on_spawn(self)
+        self.enemies.clear()
+        self.enemies.append(boss)
+        self.boss_instance = boss
+        self._boss_spawned = True
+        self._spawn_done = True
+        self.locked = True
+
+    def has_active_boss(self) -> bool:
+        return self.type == "boss" and not self.boss_defeated
+
+    def on_boss_defeated(self, boss) -> None:
+        if self.boss_defeated or self.type != "boss":
+            return
+        self.boss_defeated = True
+        self.locked = False
+        self.cleared = True
+        if hasattr(boss, "telegraphs"):
+            boss.telegraphs.clear()
+        if hasattr(boss, "puddles"):
+            boss.puddles.clear()
+        self.boss_instance = None
+        if not self.treasure:
+            self.spawn_boss_reward()
+
     def handle_events(self, events, player, shop_ui, world_surface, ui_font, screen_scale=1):
         """
         Maneja interacción con la tienda dentro de la sala (si es shop).
         No lee pygame.event.get() aquí; recibe la lista de events desde Game.
         """
-        if self.type == "treasure":
+        if self.treasure:
             self._handle_treasure_events(events, player)
 
         if self.type != "shop" or self.shopkeeper is None:
@@ -654,7 +709,7 @@ class Room:
         """
         Dibuja elementos propios de la sala por encima del piso (p.ej. el mercader y tooltip).
         """
-        if self.type == "treasure" and self.treasure:
+        if self.treasure:
             self._draw_treasure_overlay(surface, ui_font, player)
 
         if self.type == "shop" and self.shopkeeper is not None:
@@ -718,7 +773,7 @@ class Room:
                 self.enemies.append(bonus)
                 break
 
-        if self.enemies:
+        if self.enemies and self.type != "boss":
             self.locked = True
             self.cleared = False
          
@@ -916,6 +971,14 @@ class Room:
     
     def refresh_lock_state(self) -> None:
         """Si no hay enemigos, se marca cleared y se desbloquea."""
+        if self.type == "boss":
+            if self.boss_defeated:
+                self.locked = False
+                if len(self.enemies) == 0:
+                    self.cleared = True
+            else:
+                self.locked = True
+            return
         if not self.cleared and len(self.enemies) == 0:
             self.cleared = True
             self.locked = False
@@ -980,7 +1043,7 @@ class Room:
                     ),
                 )
 
-        if self.type == "treasure" and self.treasure:
+        if self.treasure:
             self._draw_treasure(surf)
         # Puertas bloqueadas: dibuja “rejas” rojas en las aberturas
         if self.locked:
@@ -1017,6 +1080,27 @@ class Room:
             "opened": False,
             "loot_table": loot_table,
         }
+
+    def spawn_boss_reward(self) -> None:
+        loot_table = list(self.boss_loot_table or [
+            {"name": "Reserva de emergencia (+80)", "type": "gold", "amount": 80, "weight": 1}
+        ])
+        if not self.bounds:
+            self.build_centered(9, 9)
+        assert self.bounds is not None
+        rx, ry, rw, rh = self.bounds
+        ts = CFG.TILE_SIZE
+        cx = (rx + rw // 2) * ts
+        cy = (ry + rh // 2) * ts
+        width = 32
+        height = 24
+        self.treasure = {
+            "rect": pygame.Rect(cx - width // 2, cy - height // 2, width, height),
+            "opened": False,
+            "loot_table": loot_table,
+        }
+        self.treasure_message = ""
+        self.treasure_message_until = 0
 
     def _handle_treasure_events(self, events, player) -> None:
         if not self.treasure:

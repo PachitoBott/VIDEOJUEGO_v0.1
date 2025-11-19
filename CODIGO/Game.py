@@ -367,6 +367,8 @@ class Game:
     def _spawn_room_enemies(self, room) -> None:
         if getattr(room, "no_spawn", False):
             return
+        if getattr(room, "type", "") == "boss":
+            return
         cx, cy = self.dungeon.grid_w // 2, self.dungeon.grid_h // 2
         is_start = (self.dungeon.i, self.dungeon.j) == getattr(self.dungeon, "start", (cx, cy))
         if is_start:
@@ -466,6 +468,10 @@ class Game:
 
         survivors = []
         for enemy in room.enemies:
+            if getattr(enemy, "is_boss", False) and getattr(enemy, "hp", 1) <= 0:
+                handler = getattr(room, "on_boss_defeated", None)
+                if callable(handler):
+                    handler(enemy)
             if getattr(enemy, "hp", 1) <= 0 and not getattr(enemy, "_death_vfx_spawned", False):
                 center = None
                 try:
@@ -778,6 +784,9 @@ class Game:
     def _update_room_lock(self, room) -> None:
         if not hasattr(room, "enemies") or not hasattr(room, "cleared"):
             return
+        if getattr(room, "type", "") == "boss":
+            room.locked = not getattr(room, "boss_defeated", False)
+            return
         cx, cy = self.dungeon.grid_w // 2, self.dungeon.grid_h // 2
         is_start = (self.dungeon.i, self.dungeon.j) == getattr(self.dungeon, "start", (cx, cy))
         room.locked = (not is_start) and (len(room.enemies) > 0) and (not room.cleared)
@@ -802,6 +811,7 @@ class Game:
         self.world.fill(self.cfg.COLOR_BG)
         room = self.dungeon.current_room
         room.draw(self.world, self.tileset)
+        self._draw_boss_floor_effects(room)
 
         if hasattr(room, "enemies"):
             for enemy in room.enemies:
@@ -823,6 +833,16 @@ class Game:
     def _draw_debug_door_triggers(self, room) -> None:
         for rect in room._door_trigger_rects().values():
             pygame.draw.rect(self.world, (0, 255, 0), rect, 1)
+
+    def _draw_boss_floor_effects(self, room) -> None:
+        boss = getattr(room, "boss_instance", None)
+        if boss is None:
+            for enemy in getattr(room, "enemies", []):
+                if getattr(enemy, "is_boss", False):
+                    boss = enemy
+                    break
+        if boss and hasattr(boss, "draw_floor_effects"):
+            boss.draw_floor_effects(self.world)
 
     def _render_ui(self) -> None:
         scaled = pygame.transform.scale(
