@@ -55,7 +55,6 @@ class Dungeon:
             {"name": "Saco pesado de oro (+65)", "type": "gold", "amount": 65, "weight": 4},
             {"name": "Lingote antiguo (+120)", "type": "gold", "amount": 120, "weight": 2},
             {"name": "Vida extra (+1)", "type": "upgrade", "id": "hp_up", "weight": 5},
-            {"name": "Blindaje reforzado (+1 golpe)", "type": "upgrade", "id": "armor_up", "weight": 3},
             {"name": "Talismán de recarga (-10%)", "type": "upgrade", "id": "cdr_charm", "weight": 4},
             {"name": "Aumento de velocidad (+5%)", "type": "upgrade", "id": "spd_up", "weight": 4},
             {"name": "Manual de puntería (-12% cd)", "type": "upgrade", "id": "cdr_core", "weight": 2},

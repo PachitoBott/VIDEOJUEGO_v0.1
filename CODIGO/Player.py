@@ -92,6 +92,7 @@ class Player(Entity):
         self.base_max_lives = CFG.PLAYER_START_LIVES
         self.max_lives = self.base_max_lives
         self.lives = self.max_lives
+        self.life_charge_buffer = 0
         self.invulnerable_timer = 0.0
         self.post_hit_invulnerability = 0.45
         # Conteo de golpes por vida (cada golpe equivale a 1 punto de vida perdido)
@@ -238,6 +239,7 @@ class Player(Entity):
 
     def reset_lives(self) -> None:
         self.lives = self.max_lives
+        self.life_charge_buffer = 0
 
     def hits_taken_this_life(self) -> int:
         """Golpes recibidos en la vida actual (se resetea al revivir)."""
