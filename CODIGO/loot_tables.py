@@ -10,7 +10,6 @@ ENEMY_LOOT_TABLE = {
             "upgrades": [
                 {"type": "upgrade", "id": "spd_up", "weight": 2.0},
                 {"type": "upgrade", "id": "hp_up", "weight": 1.6},
-                {"type": "upgrade", "id": "armor_up", "weight": 1.3},
             ],
             "consumables": [
                 {"type": "consumable", "id": "heal_small", "amount": 2, "weight": 3.0},
@@ -72,7 +71,6 @@ ENEMY_LOOT_TABLE = {
             "upgrades": [
                 {"type": "upgrade", "id": "cdr_core", "weight": 1.8},
                 {"type": "upgrade", "id": "dash_drive", "weight": 1.5},
-                {"type": "upgrade", "id": "armor_up", "weight": 1.2},
                 {"type": "upgrade", "id": "hp_up", "weight": 1.0},
             ],
             "consumables": [
@@ -87,7 +85,6 @@ ENEMY_LOOT_TABLE = {
                         {"type": "gold", "amount": 70},
                         {"type": "consumable", "id": "heal_full", "amount": 999},
                         {"type": "upgrade", "id": "dash_core"},
-                        {"type": "upgrade", "id": "armor_up"},
                     ],
                 },
                 {

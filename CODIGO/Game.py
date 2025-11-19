@@ -21,7 +21,7 @@ from HudPanels import HudPanels
 from PauseMenu import PauseMenu, PauseMenuButton
 from GameOverScreen import GameOverScreen
 from Statistics import StatisticsManager
-from Pickup import MicrochipPickup
+from Pickup import MicrochipPickup, LootPickup
 from VFX import VFXManager
 from asset_paths import WEAPON_SPRITE_FILENAMES, assets_dir, weapon_sprite_path
 from loot_tables import ENEMY_LOOT_TABLE
@@ -32,6 +32,7 @@ class Game:
     MICROCHIP_SPRITE_NAME = "chip_moneda.png"
     MICROCHIP_ICON_DEFAULT_SCALE = 1.5
     MICROCHIP_PICKUP_SIZE = (12, 12)
+    MICROCHIP_VALUE_SCALE = 0.65
 
     def __init__(self, cfg: Config) -> None:
         pygame.init()
@@ -52,6 +53,8 @@ class Game:
         icon_source, pickup_sprite = self._create_microchip_sprites()
         self._microchip_icon_source = icon_source
         self._chip_pickup_sprite = pickup_sprite
+        self._heal_pickup_sprite = self._create_heal_pickup_sprite()
+        self._consumable_pickup_sprite = self._create_consumable_pickup_sprite()
         self.microchip_icon_scale = self.MICROCHIP_ICON_DEFAULT_SCALE * 0.8
         
         # Usa los métodos set_microchip_icon_scale/offset/value_offset para ajustar
@@ -488,7 +491,7 @@ class Game:
             dying_fn = getattr(enemy, "is_dying", None)
             if callable(ready_fn) and ready_fn():
                 self._drop_enemy_microchips(enemy, room)
-                self._maybe_spawn_enemy_loot(room)
+                self._maybe_spawn_enemy_loot(enemy, room)
                 continue
             if callable(dying_fn) and dying_fn():
                 survivors.append(enemy)
@@ -497,7 +500,7 @@ class Game:
                 survivors.append(enemy)
             else:
                 self._drop_enemy_microchips(enemy, room)
-                self._maybe_spawn_enemy_loot(room)
+                self._maybe_spawn_enemy_loot(enemy, room)
         defeated_enemies = max(0, initial_enemy_count - len(survivors))
         if defeated_enemies:
             self._run_kills = max(0, self._run_kills) + defeated_enemies
@@ -520,7 +523,10 @@ class Game:
         gold_chance = float(self._enemy_drop_rates.get("enemy_gold_chance", 1.0))
         if random.random() > max(0.0, min(1.0, gold_chance)):
             return
-        total_value = int(getattr(enemy, "gold_reward", 0))
+        raw_value = int(getattr(enemy, "gold_reward", 0))
+        total_value = int(math.ceil(raw_value * self.MICROCHIP_VALUE_SCALE)) if raw_value > 0 else 0
+        if raw_value > 0 and total_value <= 0:
+            total_value = 1
         if total_value <= 0:
             return
         if not hasattr(room, "pickups"):
@@ -565,11 +571,71 @@ class Game:
             return (2, 3)
         return (3, 4)
 
-    def _maybe_spawn_enemy_loot(self, room) -> None:
+    def _maybe_spawn_enemy_loot(self, enemy, room) -> None:
         reward = self._pick_enemy_reward(room)
         if not reward:
             return
+        rtype = str(reward.get("type", "")).lower()
+        is_consumable = rtype == "consumable"
+        is_heal = self._is_heal_reward(reward)
+        if is_consumable or is_heal:
+            self._spawn_loot_pickup(enemy, room, reward)
+            return
         apply_reward_entry(self.player, reward)
+        return
+
+    def _spawn_loot_pickup(self, enemy, room, reward: dict) -> None:
+        sprite = self._heal_pickup_sprite if self._is_heal_reward(reward) else self._consumable_pickup_sprite
+        if sprite is None:
+            apply_reward_entry(self.player, reward)
+            return
+        if not hasattr(room, "pickups"):
+            room.pickups = []
+
+        sprite_w = sprite.get_width()
+        sprite_h = sprite.get_height()
+        ex = getattr(enemy, "x", None)
+        ey = getattr(enemy, "y", None)
+        ew = getattr(enemy, "w", sprite_w)
+        eh = getattr(enemy, "h", sprite_h)
+        if ex is None or ey is None:
+            rect = getattr(enemy, "rect", None)
+            if callable(rect):
+                er = rect()
+                ex = er.x
+                ey = er.y
+                ew = er.width
+                eh = er.height
+            else:
+                ex = 0
+                ey = 0
+        center_x = ex + ew / 2.0
+        center_y = ey + eh / 2.0
+
+        angle = random.uniform(0.0, math.tau)
+        speed = random.uniform(65.0, 115.0)
+        jitter_x = math.cos(angle) * 5.0
+        jitter_y = math.sin(angle) * 5.0
+        pickup = LootPickup(
+            center_x - sprite_w / 2.0 + jitter_x,
+            center_y - sprite_h / 2.0 + jitter_y,
+            sprite,
+            reward,
+            angle=angle,
+            speed=speed,
+        )
+        room.pickups.append(pickup)
+
+    def _is_heal_reward(self, reward: dict | None) -> bool:
+        if not isinstance(reward, dict):
+            return False
+        rtype = str(reward.get("type", "")).lower()
+        if rtype == "heal":
+            return True
+        if rtype != "consumable":
+            return False
+        rid = str(reward.get("id", "")).lower()
+        return rid.startswith("heal") or "life" in rid
 
     def _pick_enemy_reward(self, room) -> dict | None:
         tiers = self._enemy_loot_table.get("tiers", {})
@@ -645,19 +711,28 @@ class Game:
 
         player_rect = self.player.rect()
         collected_total = 0
-        survivors: list[MicrochipPickup] = []
+        survivors: list[object] = []
+        reward_pickups: list[LootPickup] = []
         for pickup in pickups:
             pickup.update(dt, room)
             if pickup.collected:
                 continue
             if player_rect.colliderect(pickup.rect()):
                 pickup.collect()
-                collected_total += pickup.value
+                if isinstance(pickup, MicrochipPickup):
+                    collected_total += getattr(pickup, "value", 0)
+                elif hasattr(pickup, "apply"):
+                    reward_pickups.append(pickup)
             else:
                 survivors.append(pickup)
         room.pickups = survivors
         if collected_total:
             self._add_player_gold(collected_total)
+        for reward_pickup in reward_pickups:
+            try:
+                reward_pickup.apply(self.player)
+            except Exception:
+                continue
 
     def _add_player_gold(self, amount: int) -> None:
         amount = int(amount)
@@ -1058,6 +1133,33 @@ class Game:
         sprite = self._load_surface(sprite_path)
         icon_source = sprite if sprite is not None else procedural_icon
         return icon_source, pickup_sprite
+
+    def _create_heal_pickup_sprite(self) -> pygame.Surface:
+        width, height = 14, 18
+        surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        body_rect = pygame.Rect(1, 3, width - 2, height - 4)
+        pygame.draw.rect(surface, pygame.Color(210, 64, 72), body_rect, border_radius=3)
+        pygame.draw.rect(surface, pygame.Color(250, 220, 220), body_rect.inflate(-4, -4), border_radius=2)
+        cross_h = pygame.Rect(0, 0, width - 8, 3)
+        cross_h.center = (width // 2, height // 2)
+        cross_v = pygame.Rect(0, 0, 3, height - 10)
+        cross_v.center = (width // 2, height // 2)
+        pygame.draw.rect(surface, pygame.Color(255, 255, 255), cross_h, border_radius=1)
+        pygame.draw.rect(surface, pygame.Color(255, 255, 255), cross_v, border_radius=1)
+        cap_rect = pygame.Rect(width // 2 - 3, 0, 6, 4)
+        pygame.draw.rect(surface, pygame.Color(45, 45, 45), cap_rect, border_radius=2)
+        return surface
+
+    def _create_consumable_pickup_sprite(self) -> pygame.Surface:
+        width, height = 15, 15
+        surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        box_rect = pygame.Rect(1, 2, width - 2, height - 4)
+        pygame.draw.rect(surface, pygame.Color(60, 110, 185), box_rect, border_radius=3)
+        stripe_rect = pygame.Rect(2, height // 2 - 2, width - 4, 4)
+        pygame.draw.rect(surface, pygame.Color(240, 210, 120), stripe_rect, border_radius=2)
+        latch_rect = pygame.Rect(width // 2 - 1, 3, 3, height - 6)
+        pygame.draw.rect(surface, pygame.Color(255, 255, 255), latch_rect, border_radius=1)
+        return surface
 
     def _load_surface(self, path: Path) -> pygame.Surface | None:
         try:

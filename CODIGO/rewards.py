@@ -85,19 +85,6 @@ def apply_upgrade_reward(player: Any, upgrade_id: Any) -> bool:
         if callable(register):
             register(uid)
         return True
-    if uid == "armor_up":
-        max_hp = getattr(player, "max_hp", getattr(player, "hp", 3))
-        hp = getattr(player, "hp", max_hp)
-        max_hp += 1
-        hp = min(hp + 1, max_hp)
-        setattr(player, "max_hp", max_hp)
-        setattr(player, "hp", hp)
-        if hasattr(player, "_hits_taken_current_life"):
-            hits_taken = max(0, max_hp - hp)
-            setattr(player, "_hits_taken_current_life", hits_taken)
-        if callable(register):
-            register(uid)
-        return True
     if uid == "cdr_charm":
         core_active = callable(has_upgrade) and has_upgrade("cdr_core")
         multiplier = 0.94 if core_active else 0.9

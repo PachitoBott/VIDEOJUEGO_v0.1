@@ -19,7 +19,6 @@ class Shop:
             {"name": "Carabina incandescente", "price": 104, "type": "weapon", "id": "ember_carbine", "weight": 0.5},
             {"name": "Vida extra (+1)", "price": 45, "type": "upgrade", "id": "hp_up", "weight": 4},
             {"name": "Aumento de velocidad (+5%)", "price": 30, "type": "upgrade", "id": "spd_up", "weight": 3},
-            {"name": "Blindaje reforzado (+1 golpe)", "price": 60, "type": "upgrade", "id": "armor_up", "weight": 2},
             {"name": "Talismán de recarga (-10%)", "price": 54, "type": "upgrade", "id": "cdr_charm", "weight": 3},
             {"name": "Manual de puntería (-12% cd)", "price": 72, "type": "upgrade", "id": "cdr_core", "weight": 2},
             {"name": "Botas relámpago (+10% sprint)", "price": 48, "type": "upgrade", "id": "sprint_core", "weight": 3},
