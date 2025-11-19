@@ -13,6 +13,7 @@ class Minimap:
         self.current  = (255, 100, 100)   # posición del jugador
         self.shop_col = (255, 215, 0)     # dorado para la tienda
         self.treasure_col = (130, 205, 255)  # azul claro para cofres
+        self.boss_col = (255, 130, 60)    # naranja intenso para boss
 
         # Opcional: mostrar icono $ sobre la tienda
         self.show_shop_icon = True
@@ -66,6 +67,8 @@ class Minimap:
                         color = self.shop_col
                     elif room_type == "treasure":
                         color = self.treasure_col
+                    elif room_type == "boss":
+                        color = self.boss_col
                     else:
                         color = self.explored
 

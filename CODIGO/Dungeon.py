@@ -4,6 +4,7 @@ from collections import deque
 from typing import Dict, Tuple, Set
 from Config import CFG
 from Room import Room
+from Bosses import BOSS_BLUEPRINTS
 
 Vec = Tuple[int, int]
 DIRS: Dict[str, Vec] = {"N": (0, -1), "S": (0, 1), "E": (1, 0), "W": (-1, 0)}
@@ -89,6 +90,17 @@ class Dungeon:
             },
         ]
 
+        self._boss_loot_table: list[dict] = list(self._treasure_loot_table) + [
+            {"name": "Arca blindada (+120)", "type": "gold", "amount": 120, "weight": 5},
+            {"name": "Catalizador épico", "type": "upgrade", "id": "cdr_core", "weight": 2},
+            {"name": "Prototipo Centinela", "type": "weapon", "id": "ember_carbine", "weight": 1.5},
+            {"name": "Carga experimental", "type": "bundle", "contents": [
+                {"type": "gold", "amount": 80},
+                {"type": "upgrade", "id": "spd_up"},
+                {"type": "consumable", "id": "heal_medium", "amount": 2},
+            ], "weight": 3},
+        ]
+
         # 3) Definir puertas según vecinos + tallar corredores
         self._link_neighbors_and_carve()
 
@@ -100,6 +112,9 @@ class Dungeon:
 
         # <<< NUEVO: ubicar salas de tesoro en el recorrido
         self._place_treasure_rooms()
+
+        # Sala de boss dedicada
+        self._place_boss_room()
 
         # Obstáculos en salas hostiles
         self._populate_hostile_obstacles()
@@ -375,7 +390,7 @@ class Dungeon:
             return
 
         salt = 0xC0BB1E
-        safe_types = {"shop", "treasure"}
+        safe_types = {"shop", "treasure", "boss"}
 
         for pos, room in sorted(self.rooms.items()):
             if pos == self.start:
@@ -418,6 +433,38 @@ class Dungeon:
             new_room.on_enter(player, cfg, ShopkeeperCls=ShopkeeperCls)
 
         return True
+
+    def _place_boss_room(self) -> None:
+        if not self.rooms:
+            return
+        forbidden: set[tuple[int, int]] = {self.start}
+        if hasattr(self, "shop_pos"):
+            forbidden.add(self.shop_pos)
+        forbidden.update(getattr(self, "treasure_rooms", set()))
+        farthest: tuple[int, int] | None = None
+        farthest_depth = -1
+        for pos, room in self.rooms.items():
+            if pos in forbidden:
+                continue
+            depth = self.depth_map.get(pos, 0)
+            if depth > farthest_depth:
+                farthest_depth = depth
+                farthest = pos
+        if farthest is None:
+            return
+        room = self.rooms.get(farthest)
+        if room is None:
+            return
+        setattr(room, "type", "boss")
+        room.no_spawn = True
+        room.safe = False
+        room.locked = False
+        if hasattr(room, "clear_obstacles"):
+            room.clear_obstacles()
+        blueprint = random.choice(BOSS_BLUEPRINTS)
+        room.boss_blueprint = blueprint
+        room.boss_loot_table = list(self._boss_loot_table)
+        self.boss_pos = farthest
 
     def enter_initial_room(self, player, cfg, ShopkeeperCls=None):
         """Llama on_enter para la sala inicial (start)."""

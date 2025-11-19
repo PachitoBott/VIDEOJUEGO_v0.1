@@ -1,0 +1,447 @@
+from __future__ import annotations
+
+import math
+import random
+from typing import Callable
+
+import pygame
+
+from Config import CFG
+from Enemy import Enemy, FastChaserEnemy
+from Projectile import Projectile
+
+
+class BossEnemy(Enemy):
+    """Base genérica para bosses con fases y efectos de suelo."""
+
+    SPRITE_VARIANT = "boss_core"
+
+    def __init__(self, x: float, y: float, *, max_hp: int = 50, gold_reward: int = 60) -> None:
+        super().__init__(x, y, hp=max_hp, gold_reward=gold_reward)
+        self.max_hp = max_hp
+        self.hp = self.max_hp
+        self.phase = 1
+        self.enraged = False
+        self.is_boss = True
+        self.contact_damage = 2
+        self.detect_radius = 9999.0
+        self.lose_radius = 9999.0
+        self.reaction_delay = 0.0
+        self.telegraphs: list[dict] = []
+        self.puddles: list[dict] = []
+        self._player_rect_cache: pygame.Rect | None = None
+        self._phase_thresholds = (0.6, 0.3)
+        self._tracked_room = None
+
+    def on_spawn(self, room) -> None:
+        self._tracked_room = room
+
+    def update(self, dt: float, player, room) -> None:
+        self._tracked_room = room
+        self._player_rect_cache = self._player_rect(player)
+        self._update_phase_state()
+        super().update(dt, player, room)
+        self._update_telegraphs(dt, player)
+        self._update_puddles(dt, player)
+
+    def on_phase_changed(self, new_phase: int) -> None:  # pragma: no cover - gancho opcional
+        self.enraged = new_phase >= 3
+
+    def draw_floor_effects(self, surface: pygame.Surface) -> None:
+        for entry in self.telegraphs:
+            rect: pygame.Rect = entry["rect"]
+            duration = max(0.01, entry.get("duration", 0.8))
+            alpha = int(60 + 160 * (entry["timer"] / duration))
+            color = entry.get("color", (255, 80, 80, 140))
+            overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
+            overlay.fill((*color[:3], min(255, max(0, alpha))))
+            surface.blit(overlay, rect.topleft)
+            pygame.draw.rect(surface, (255, 200, 200), rect, 2)
+        for puddle in self.puddles:
+            rect: pygame.Rect = puddle["rect"]
+            color = puddle.get("color", (120, 40, 40, 140))
+            overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
+            overlay.fill((*color[:3], color[3] if len(color) > 3 else 150))
+            surface.blit(overlay, rect.topleft)
+            pygame.draw.rect(surface, (255, 180, 120), rect, 1)
+
+    def add_telegraph(
+        self,
+        rect: pygame.Rect,
+        delay: float = 0.8,
+        damage: int = 1,
+        color: tuple[int, int, int, int] = (255, 80, 80, 150),
+    ) -> None:
+        self.telegraphs.append(
+            {
+                "rect": rect,
+                "timer": delay,
+                "duration": delay,
+                "damage": max(1, damage),
+                "color": color,
+            }
+        )
+
+    def add_puddle(
+        self,
+        rect: pygame.Rect,
+        duration: float = 4.0,
+        damage: int = 1,
+        tick_interval: float = 0.55,
+        color: tuple[int, int, int, int] = (120, 0, 0, 180),
+    ) -> None:
+        self.puddles.append(
+            {
+                "rect": rect,
+                "timer": duration,
+                "damage": max(1, damage),
+                "tick": tick_interval,
+                "tick_timer": 0.0,
+                "color": color,
+            }
+        )
+
+    def _update_phase_state(self) -> None:
+        ratio = 1.0 if self.max_hp <= 0 else max(0.0, self.hp / self.max_hp)
+        new_phase = 1
+        if ratio <= self._phase_thresholds[1]:
+            new_phase = 3
+        elif ratio <= self._phase_thresholds[0]:
+            new_phase = 2
+        if new_phase != self.phase:
+            self.phase = new_phase
+            self.on_phase_changed(new_phase)
+
+    def _player_rect(self, player) -> pygame.Rect:
+        if hasattr(player, "rect"):
+            rect_callable = player.rect
+            if isinstance(rect_callable, pygame.Rect):
+                return rect_callable.copy()
+            if callable(rect_callable):
+                return rect_callable()
+        width = int(getattr(player, "w", 16))
+        height = int(getattr(player, "h", 16))
+        return pygame.Rect(int(getattr(player, "x", 0)), int(getattr(player, "y", 0)), width, height)
+
+    def _update_telegraphs(self, dt: float, player) -> None:
+        if not self.telegraphs:
+            return
+        remaining: list[dict] = []
+        for entry in self.telegraphs:
+            entry["timer"] -= dt
+            if entry["timer"] <= 0.0:
+                self._trigger_telegraph(entry, player)
+            else:
+                remaining.append(entry)
+        self.telegraphs = remaining
+
+    def _trigger_telegraph(self, entry: dict, player) -> None:
+        rect: pygame.Rect = entry["rect"]
+        damage = entry.get("damage", 1)
+        player_rect = self._player_rect_cache or self._player_rect(player)
+        if player_rect.colliderect(rect):
+            self._apply_damage_to_player(player, damage)
+
+    def _update_puddles(self, dt: float, player) -> None:
+        if not self.puddles:
+            return
+        player_rect = self._player_rect_cache or self._player_rect(player)
+        survivors: list[dict] = []
+        for puddle in self.puddles:
+            puddle["timer"] -= dt
+            puddle["tick_timer"] -= dt
+            if puddle["timer"] <= 0:
+                continue
+            if player_rect.colliderect(puddle["rect"]) and puddle["tick_timer"] <= 0:
+                self._apply_damage_to_player(player, puddle.get("damage", 1))
+                puddle["tick_timer"] = puddle.get("tick", 0.5)
+            survivors.append(puddle)
+        self.puddles = survivors
+
+    def _apply_damage_to_player(self, player, amount: int) -> None:
+        taker: Callable[[int], bool] | None = getattr(player, "take_damage", None)
+        if callable(taker):
+            taker(amount)
+
+
+class CorruptedServerBoss(BossEnemy):
+    SPRITE_VARIANT = "boss_core"
+
+    def __init__(self, x: float, y: float) -> None:
+        super().__init__(x, y, max_hp=50, gold_reward=90)
+        self.chase_speed = 35.0
+        self.wander_speed = 0.0
+        self.contact_damage = 2
+        self.radial_cooldown = 1.8
+        self.line_cooldown = 2.6
+        self.minion_cooldown = 8.2
+        self.telegraph_cooldown = 5.0
+        self.laser_cooldown = 4.5
+        self._radial_timer = 1.4
+        self._line_timer = 1.8
+        self._minion_timer = 6.0
+        self._telegraph_timer = 3.5
+        self._laser_timer = 2.5
+
+    def on_phase_changed(self, new_phase: int) -> None:
+        super().on_phase_changed(new_phase)
+        if new_phase >= 3:
+            self.chase_speed = 0.0
+
+    def maybe_shoot(self, dt, player, room, out_bullets) -> bool:
+        fired = False
+        self._radial_timer -= dt
+        self._line_timer -= dt
+        self._minion_timer -= dt
+        self._telegraph_timer -= dt
+        self._laser_timer -= dt
+        if self.phase == 1:
+            if self._radial_timer <= 0.0:
+                self._fire_radial(out_bullets, speed=140.0, bullets=18)
+                self._radial_timer = self.radial_cooldown
+                fired = True
+            if self._line_timer <= 0.0:
+                self._fire_line(player, out_bullets, speed=200.0, bullets=7)
+                self._line_timer = self.line_cooldown
+                fired = True
+        elif self.phase == 2:
+            if self._radial_timer <= 0.0:
+                self._fire_radial(out_bullets, speed=200.0, bullets=12)
+                self._radial_timer = max(0.9, self.radial_cooldown * 0.75)
+                fired = True
+            if self._line_timer <= 0.0:
+                self._fire_line(player, out_bullets, speed=260.0, bullets=5)
+                self._line_timer = max(1.2, self.line_cooldown * 0.7)
+                fired = True
+            if self._minion_timer <= 0.0:
+                self._spawn_minions(room)
+                self._minion_timer = self.minion_cooldown
+                fired = True
+        else:
+            if self._telegraph_timer <= 0.0:
+                self._spawn_telegraphs(player)
+                self._telegraph_timer = max(2.5, self.telegraph_cooldown * 0.6)
+                fired = True
+            if self._laser_timer <= 0.0:
+                self._fire_laser(player, out_bullets)
+                self._laser_timer = max(2.8, self.laser_cooldown * 0.75)
+                fired = True
+        return fired
+
+    def _fire_radial(self, out_bullets, *, bullets: int, speed: float) -> None:
+        cx = self.x + self.w / 2
+        cy = self.y + self.h / 2
+        for i in range(bullets):
+            angle = math.tau * (i / bullets)
+            dx = math.cos(angle)
+            dy = math.sin(angle)
+            proj = Projectile(
+                cx + dx * 12,
+                cy + dy * 12,
+                dx,
+                dy,
+                speed=speed,
+                radius=4,
+                color=(180, 220, 255),
+            )
+            out_bullets.add(proj)
+
+    def _fire_line(self, player, out_bullets, *, speed: float, bullets: int) -> None:
+        cx = self.x + self.w / 2
+        cy = self.y + self.h / 2
+        target = self._player_rect_cache or self._player_rect(player)
+        tx, ty = target.center
+        dx = tx - cx
+        dy = ty - cy
+        dist = math.hypot(dx, dy) or 1.0
+        dx /= dist
+        dy /= dist
+        for i in range(bullets):
+            offset = 14 + i * 12
+            proj = Projectile(
+                cx + dx * offset,
+                cy + dy * offset,
+                dx,
+                dy,
+                speed=speed,
+                radius=4,
+                color=(255, 160, 80),
+            )
+            out_bullets.add(proj)
+
+    def _spawn_minions(self, room) -> None:
+        if not hasattr(room, "enemies"):
+            return
+        count = random.randint(1, 3)
+        cx = self.x + self.w / 2
+        cy = self.y + self.h / 2
+        for _ in range(count):
+            angle = random.uniform(0, math.tau)
+            distance = random.randint(38, 72)
+            px = cx + math.cos(angle) * distance
+            py = cy + math.sin(angle) * distance
+            minion = FastChaserEnemy(px - 6, py - 6)
+            room.enemies.append(minion)
+
+    def _spawn_telegraphs(self, player) -> None:
+        target = self._player_rect_cache or self._player_rect(player)
+        base_x, base_y = target.center
+        for _ in range(3):
+            offset_x = random.randint(-30, 30)
+            offset_y = random.randint(-30, 30)
+            size = CFG.TILE_SIZE + random.randint(-6, 12)
+            rect = pygame.Rect(
+                int(base_x + offset_x - size // 2),
+                int(base_y + offset_y - size // 2),
+                size,
+                size,
+            )
+            self.add_telegraph(rect, delay=0.8, damage=2)
+
+    def _fire_laser(self, player, out_bullets) -> None:
+        cx = self.x + self.w / 2
+        cy = self.y + self.h / 2
+        target = self._player_rect_cache or self._player_rect(player)
+        tx, ty = target.center
+        dx = tx - cx
+        dy = ty - cy
+        dist = math.hypot(dx, dy) or 1.0
+        dx /= dist
+        dy /= dist
+        for i in range(6):
+            offset = 12 + i * 18
+            proj = Projectile(
+                cx + dx * offset,
+                cy + dy * offset,
+                dx,
+                dy,
+                speed=320.0,
+                radius=3,
+                color=(255, 255, 120),
+            )
+            out_bullets.add(proj)
+
+
+class SecurityManagerBoss(BossEnemy):
+    SPRITE_VARIANT = "boss_security"
+
+    def __init__(self, x: float, y: float) -> None:
+        super().__init__(x, y, max_hp=65, gold_reward=110)
+        self.chase_speed = 55.0
+        self.contact_damage = 2
+        self._dash_cooldown = 4.2
+        self._dash_timer = 1.5
+        self._dash_active = False
+        self._dash_dir = pygame.Vector2(0, 0)
+        self._dash_remaining = 0.0
+        self._dash_windup = 0.0
+        self._cone_timer = 1.0
+        self._cone_cooldown = 2.6
+        self._dash_origin: pygame.Vector2 | None = None
+
+    def on_phase_changed(self, new_phase: int) -> None:
+        super().on_phase_changed(new_phase)
+        if new_phase >= 2:
+            self.chase_speed = 70.0
+            self._dash_cooldown = 3.5
+            self._cone_cooldown = 2.0
+
+    def update(self, dt: float, player, room) -> None:
+        super().update(dt, player, room)
+        self._update_dash(dt, room)
+
+    def maybe_shoot(self, dt, player, room, out_bullets) -> bool:
+        fired = False
+        self._dash_timer = max(0.0, self._dash_timer - dt)
+        self._cone_timer = max(0.0, self._cone_timer - dt)
+        if not self._dash_active and self._dash_windup <= 0 and self._dash_timer <= 0:
+            self._queue_dash(player)
+            self._dash_timer = self._dash_cooldown
+            fired = True
+        elif self._cone_timer <= 0 and not self._dash_active:
+            self._fire_cone(player, out_bullets)
+            self._cone_timer = self._cone_cooldown
+            fired = True
+        return fired
+
+    def _queue_dash(self, player) -> None:
+        target = self._player_rect_cache or self._player_rect(player)
+        cx = self.x + self.w / 2
+        cy = self.y + self.h / 2
+        dx = target.centerx - cx
+        dy = target.centery - cy
+        dist = math.hypot(dx, dy) or 1.0
+        dx /= dist
+        dy /= dist
+        self._dash_dir.update(dx, dy)
+        self._dash_windup = 0.45 if self.phase == 1 else 0.28
+        self._dash_remaining = 0.45 if self.phase == 1 else 0.55
+        self.lock_movement(self._dash_windup + self._dash_remaining)
+        self._dash_origin = pygame.Vector2(cx, cy)
+
+    def _update_dash(self, dt: float, room) -> None:
+        if self._dash_windup > 0:
+            self._dash_windup = max(0.0, self._dash_windup - dt)
+            if self._dash_windup == 0:
+                self._dash_active = True
+        if not self._dash_active:
+            return
+        dash_speed = 210.0 if self.phase == 1 else 250.0
+        self.move(
+            self._dash_dir.x,
+            self._dash_dir.y,
+            dt * (dash_speed / max(1e-6, self.speed)),
+            room,
+        )
+        self._dash_remaining -= dt
+        if self._dash_remaining <= 0:
+            self._dash_active = False
+            if self.phase >= 2:
+                self._leave_puddle()
+
+    def _leave_puddle(self) -> None:
+        cx = self.x + self.w / 2
+        cy = self.y + self.h / 2
+        size = int(CFG.TILE_SIZE * 1.4)
+        rect = pygame.Rect(int(cx - size // 2), int(cy - size // 2), size, size)
+        self.add_puddle(rect, duration=4.5, damage=2, tick_interval=0.4)
+
+    def _fire_cone(self, player, out_bullets) -> None:
+        cx = self.x + self.w / 2
+        cy = self.y + self.h / 2
+        target = self._player_rect_cache or self._player_rect(player)
+        tx, ty = target.center
+        base_dx = tx - cx
+        base_dy = ty - cy
+        base_angle = math.atan2(base_dy, base_dx)
+        spread = math.radians(55)
+        pellets = 9
+        speed = 210.0 if self.phase == 1 else 260.0
+        for i in range(pellets):
+            if pellets == 1:
+                angle = base_angle
+            else:
+                t = i / (pellets - 1)
+                angle = base_angle - spread / 2 + spread * t
+            dx = math.cos(angle)
+            dy = math.sin(angle)
+            proj = Projectile(
+                cx + dx * 14,
+                cy + dy * 14,
+                dx,
+                dy,
+                speed=speed,
+                radius=4,
+                color=(255, 120, 90),
+            )
+            out_bullets.add(proj)
+
+
+BOSS_BLUEPRINTS = [CorruptedServerBoss, SecurityManagerBoss]
+
+__all__ = [
+    "BossEnemy",
+    "CorruptedServerBoss",
+    "SecurityManagerBoss",
+    "BOSS_BLUEPRINTS",
+]
