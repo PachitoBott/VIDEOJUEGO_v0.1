@@ -211,11 +211,29 @@ def apply_consumable_reward(player: Any, consumable_id: Any, data: dict | None =
         amount = random.randint(2, 3)
         return apply_heal_reward(player, amount)
     if cid == "heal_small":
-        amount = int((data or {}).get("amount", 1) or 1)
-        return apply_heal_reward(player, amount)
+        # Estas cápsulas amarillas solo deben restaurar un golpe de una
+        # batería futura, cargando la siguiente vida disponible en lugar de
+        # curar la actual.
+        charges = 1
+        applied = False
+        for _ in range(charges):
+            applied = _charge_next_life_segment(player, 1) or applied
+        return applied
     if cid == "life_refill":
-        max_lives = getattr(player, "max_lives", getattr(player, "lives", 1))
-        setattr(player, "lives", max_lives)
+        max_lives = max(0, int(getattr(player, "max_lives", getattr(player, "lives", 1))))
+        if max_lives <= 0:
+            return False
+        lives = max(0, int(getattr(player, "lives", 0)))
+        if lives >= max_lives:
+            return False
+        new_lives = min(max_lives, lives + 1)
+        setattr(player, "lives", new_lives)
+        max_hp = max(1, int(getattr(player, "max_hp", getattr(player, "hp", 1))))
+        buffer_capacity = max_hp * max(0, max_lives - new_lives)
+        if hasattr(player, "life_charge_buffer"):
+            buffer = max(0, int(getattr(player, "life_charge_buffer", 0)))
+            buffer = min(buffer, buffer_capacity)
+            setattr(player, "life_charge_buffer", buffer)
         return True
     return False
 
