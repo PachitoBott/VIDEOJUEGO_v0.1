@@ -44,7 +44,39 @@ def apply_heal_reward(player: Any, amount: Any) -> bool:
     setattr(player, "hp", new_hp)
     if hasattr(player, "_hits_taken_current_life"):
         setattr(player, "_hits_taken_current_life", max(0, max_hp - new_hp))
-    return new_hp != hp
+    overflow = amount - (new_hp - hp)
+    overflow_applied = False
+    if overflow > 0:
+        overflow_applied = _charge_next_life_segment(player, overflow)
+    return new_hp != hp or overflow_applied
+
+
+def _charge_next_life_segment(player: Any, amount: int) -> bool:
+    amount = int(amount)
+    if amount <= 0:
+        return False
+
+    max_lives = max(0, int(getattr(player, "max_lives", 0)))
+    lives = max(0, int(getattr(player, "lives", 0)))
+    if max_lives <= 0 or lives >= max_lives:
+        return False
+
+    max_hp = max(1, int(getattr(player, "max_hp", getattr(player, "hp", 1))))
+    buffer = max(0, int(getattr(player, "life_charge_buffer", 0)))
+    capacity = max_hp * max(0, max_lives - lives)
+    if capacity <= 0:
+        return False
+
+    applied = False
+    buffer = min(buffer + amount, capacity)
+    while buffer >= max_hp and lives < max_lives:
+        lives += 1
+        buffer -= max_hp
+        applied = True
+
+    setattr(player, "lives", lives)
+    setattr(player, "life_charge_buffer", buffer)
+    return applied or amount > 0
 
 
 def apply_weapon_reward(player: Any, weapon_id: Any) -> bool:

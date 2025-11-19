@@ -55,6 +55,9 @@ class Game:
         self._chip_pickup_sprite = pickup_sprite
         self._heal_pickup_sprite = self._create_heal_pickup_sprite()
         self._consumable_pickup_sprite = self._create_consumable_pickup_sprite()
+        self._upgrade_pickup_sprite = self._create_upgrade_pickup_sprite()
+        self._weapon_pickup_sprite = self._create_weapon_pickup_sprite()
+        self._bundle_pickup_sprite = self._create_bundle_pickup_sprite()
         self.microchip_icon_scale = self.MICROCHIP_ICON_DEFAULT_SCALE * 0.8
         
         # Usa los métodos set_microchip_icon_scale/offset/value_offset para ajustar
@@ -575,17 +578,10 @@ class Game:
         reward = self._pick_enemy_reward(room)
         if not reward:
             return
-        rtype = str(reward.get("type", "")).lower()
-        is_consumable = rtype == "consumable"
-        is_heal = self._is_heal_reward(reward)
-        if is_consumable or is_heal:
-            self._spawn_loot_pickup(enemy, room, reward)
-            return
-        apply_reward_entry(self.player, reward)
-        return
+        self._spawn_loot_pickup(enemy, room, reward)
 
-    def _spawn_loot_pickup(self, enemy, room, reward: dict) -> None:
-        sprite = self._heal_pickup_sprite if self._is_heal_reward(reward) else self._consumable_pickup_sprite
+    def _spawn_loot_pickup(self, enemy, room, reward: dict, sprite: pygame.Surface | None = None) -> None:
+        sprite = sprite or self._sprite_for_reward(reward)
         if sprite is None:
             apply_reward_entry(self.player, reward)
             return
@@ -625,6 +621,20 @@ class Game:
             speed=speed,
         )
         room.pickups.append(pickup)
+
+    def _sprite_for_reward(self, reward: dict | None) -> pygame.Surface | None:
+        if not isinstance(reward, dict):
+            return None
+        rtype = str(reward.get("type", "")).lower()
+        if rtype == "heal" or self._is_heal_reward(reward):
+            return self._heal_pickup_sprite
+        if rtype == "weapon":
+            return self._weapon_pickup_sprite
+        if rtype == "upgrade":
+            return self._upgrade_pickup_sprite
+        if rtype == "bundle":
+            return self._bundle_pickup_sprite
+        return self._consumable_pickup_sprite
 
     def _is_heal_reward(self, reward: dict | None) -> bool:
         if not isinstance(reward, dict):
@@ -1138,16 +1148,16 @@ class Game:
         width, height = 14, 18
         surface = pygame.Surface((width, height), pygame.SRCALPHA)
         body_rect = pygame.Rect(1, 3, width - 2, height - 4)
-        pygame.draw.rect(surface, pygame.Color(210, 64, 72), body_rect, border_radius=3)
-        pygame.draw.rect(surface, pygame.Color(250, 220, 220), body_rect.inflate(-4, -4), border_radius=2)
+        pygame.draw.rect(surface, pygame.Color(36, 140, 82), body_rect, border_radius=3)
+        pygame.draw.rect(surface, pygame.Color(96, 210, 140), body_rect.inflate(-4, -4), border_radius=2)
         cross_h = pygame.Rect(0, 0, width - 8, 3)
-        cross_h.center = (width // 2, height // 2)
+        cross_h.center = (width // 2, height // 2 + 1)
         cross_v = pygame.Rect(0, 0, 3, height - 10)
-        cross_v.center = (width // 2, height // 2)
+        cross_v.center = (width // 2, height // 2 + 1)
         pygame.draw.rect(surface, pygame.Color(255, 255, 255), cross_h, border_radius=1)
         pygame.draw.rect(surface, pygame.Color(255, 255, 255), cross_v, border_radius=1)
         cap_rect = pygame.Rect(width // 2 - 3, 0, 6, 4)
-        pygame.draw.rect(surface, pygame.Color(45, 45, 45), cap_rect, border_radius=2)
+        pygame.draw.rect(surface, pygame.Color(26, 74, 44), cap_rect, border_radius=2)
         return surface
 
     def _create_consumable_pickup_sprite(self) -> pygame.Surface:
@@ -1159,6 +1169,47 @@ class Game:
         pygame.draw.rect(surface, pygame.Color(240, 210, 120), stripe_rect, border_radius=2)
         latch_rect = pygame.Rect(width // 2 - 1, 3, 3, height - 6)
         pygame.draw.rect(surface, pygame.Color(255, 255, 255), latch_rect, border_radius=1)
+        return surface
+
+    def _create_upgrade_pickup_sprite(self) -> pygame.Surface:
+        width, height = 16, 16
+        surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        center = pygame.Vector2(width / 2, height / 2)
+        radius = 6
+        points = []
+        for i in range(6):
+            angle = math.tau * (i / 6.0)
+            x = center.x + math.cos(angle) * radius
+            y = center.y + math.sin(angle) * radius
+            points.append((x, y))
+        pygame.draw.polygon(surface, pygame.Color(198, 142, 255), points)
+        pygame.draw.polygon(surface, pygame.Color(110, 60, 180), points, width=2)
+        spark_rect = pygame.Rect(0, 0, 4, 8)
+        spark_rect.center = center
+        pygame.draw.rect(surface, pygame.Color(255, 255, 255), spark_rect)
+        return surface
+
+    def _create_weapon_pickup_sprite(self) -> pygame.Surface:
+        width, height = 20, 8
+        surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        barrel = pygame.Rect(0, height // 2 - 1, width - 4, 3)
+        pygame.draw.rect(surface, pygame.Color(160, 180, 210), barrel, border_radius=2)
+        grip = pygame.Rect(width - 6, height // 2 - 1, 6, 5)
+        pygame.draw.rect(surface, pygame.Color(70, 70, 90), grip, border_radius=2)
+        accent = pygame.Rect(width // 3, height // 2 - 2, 4, 4)
+        pygame.draw.rect(surface, pygame.Color(255, 220, 110), accent)
+        return surface
+
+    def _create_bundle_pickup_sprite(self) -> pygame.Surface:
+        width, height = 16, 16
+        surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        crate_rect = pygame.Rect(1, 3, width - 2, height - 4)
+        pygame.draw.rect(surface, pygame.Color(150, 105, 60), crate_rect)
+        pygame.draw.rect(surface, pygame.Color(90, 60, 36), crate_rect, width=2)
+        band_rect = pygame.Rect(2, height // 2 - 2, width - 4, 4)
+        pygame.draw.rect(surface, pygame.Color(230, 210, 120), band_rect)
+        knot_rect = pygame.Rect(width // 2 - 2, band_rect.top - 2, 4, 4)
+        pygame.draw.rect(surface, pygame.Color(200, 80, 80), knot_rect, border_radius=2)
         return surface
 
     def _load_surface(self, path: Path) -> pygame.Surface | None:
@@ -1396,12 +1447,19 @@ class Game:
         lives_remaining = max(0, int(getattr(self.player, "lives", 0)))
         max_hp = max(1, int(getattr(self.player, "max_hp", 1)))
         hits_remaining = max(0, min(max_hp, self._player_hits_remaining()))
+        buffer_hp = max(0, int(getattr(self.player, "life_charge_buffer", 0)))
 
         lost_lives = max(0, min(max_lives, max_lives - lives_remaining))
         icons: list[pygame.Surface] = []
         for index in range(max_lives):
-            if index < lost_lives or lives_remaining <= 0:
+            if lives_remaining <= 0:
                 hp_value = 0
+            elif index < lost_lives:
+                if buffer_hp > 0:
+                    hp_value = min(max_hp, buffer_hp)
+                    buffer_hp -= hp_value
+                else:
+                    hp_value = 0
             elif index == lost_lives:
                 hp_value = hits_remaining
             else:
