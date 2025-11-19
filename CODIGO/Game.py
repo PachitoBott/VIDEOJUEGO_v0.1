@@ -22,6 +22,7 @@ from PauseMenu import PauseMenu, PauseMenuButton
 from GameOverScreen import GameOverScreen
 from Statistics import StatisticsManager
 from Pickup import MicrochipPickup
+from VFX import VFXManager
 from asset_paths import WEAPON_SPRITE_FILENAMES, assets_dir, weapon_sprite_path
 
 
@@ -97,6 +98,7 @@ class Game:
         self.running = True
         self.debug_draw_doors = cfg.DEBUG_DRAW_DOOR_TRIGGERS
         self._skip_frame = False
+        self.vfx = VFXManager()
 
 
         # --- Menú de pausa ---
@@ -152,6 +154,7 @@ class Game:
             self.player = Player(spawn_x, spawn_y)
         else:
             self.player.x, self.player.y = spawn_x, spawn_y
+        self._bind_player_events()
         if hasattr(self.player, "reset_loadout"):
             self.player.reset_loadout()
         setattr(self.player, "gold", 0)
@@ -173,6 +176,7 @@ class Game:
         self.cleared = False
         self._run_gold_spent = 0
         self._run_kills = 0
+        self.vfx.reset()
 
     def _register_gold_spent(self, amount: int) -> None:
         if amount <= 0:
@@ -326,6 +330,7 @@ class Game:
             )
 
     def _update(self, dt: float, events: list) -> None:
+        self.vfx.update(dt)
         room = self.dungeon.current_room
         self._update_player(dt, room)
         self._spawn_room_enemies(room)
@@ -344,6 +349,20 @@ class Game:
         mx //= self.cfg.SCREEN_SCALE
         my //= self.cfg.SCREEN_SCALE
         self.player.try_shoot((mx, my), self.projectiles)
+
+    def _bind_player_events(self) -> None:
+        player = getattr(self, "player", None)
+        if player is None:
+            return
+        if hasattr(player, "on_shoot"):
+            player.on_shoot = self._handle_player_shoot_vfx
+
+    def _handle_player_shoot_vfx(
+        self,
+        position: tuple[float, float],
+        direction: tuple[float, float],
+    ) -> None:
+        self.vfx.spawn_muzzle_flash(position, direction)
 
     def _spawn_room_enemies(self, room) -> None:
         if getattr(room, "no_spawn", False):
@@ -419,6 +438,7 @@ class Game:
             if hasattr(self.player, "take_damage"):
                 took_hit = bool(self.player.take_damage(contact_damage))
             if took_hit:
+                self.vfx.trigger_damage_flash()
                 player_invulnerable = getattr(self.player, "is_invulnerable", lambda: False)()
         for projectile in self.enemy_projectiles:
             if not projectile.alive:
@@ -439,12 +459,21 @@ class Game:
                 took_hit = bool(self.player.take_damage(1))
             if took_hit:
                 projectile.alive = False
+                self.vfx.trigger_damage_flash()
                 player_invulnerable = getattr(self.player, "is_invulnerable", lambda: False)()
             else:
                 projectile.alive = False
 
         survivors = []
         for enemy in room.enemies:
+            if getattr(enemy, "hp", 1) <= 0 and not getattr(enemy, "_death_vfx_spawned", False):
+                center = None
+                try:
+                    center = enemy.rect().center
+                except AttributeError:
+                    center = None
+                self.vfx.spawn_enemy_flash(center)
+                setattr(enemy, "_death_vfx_spawned", True)
             ready_fn = getattr(enemy, "is_ready_to_remove", None)
             dying_fn = getattr(enemy, "is_dying", None)
             if callable(ready_fn) and ready_fn():
@@ -784,6 +813,7 @@ class Game:
         self.player.draw(self.world)
         self.projectiles.draw(self.world)
         self.enemy_projectiles.draw(self.world)
+        self.vfx.draw_world(self.world)
         self._draw_debug_door_triggers(room)
 
         if hasattr(room, "draw_overlay"):
@@ -845,6 +875,8 @@ class Game:
         self.hud_panels.blit_minimap_panel(self.screen, minimap_surface, minimap_position)
 
         self.hud_panels.blit_corner_panel(self.screen)
+
+        self.vfx.draw_screen(self.screen)
 
         mx, my = pygame.mouse.get_pos()
         cursor_rect = self._cursor_surface.get_rect(center=(mx, my))

@@ -1,4 +1,5 @@
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -81,6 +82,7 @@ class Player(Entity):
         self.dash_core_bonus_iframe = 0.0
         self._recent_enemy_shot_timer = 0.0
         self._was_dashing = False
+        self.on_shoot: Callable[[tuple[float, float], tuple[float, float]], None] | None = None
 
         # --- Atributos de supervivencia y movilidad ---
         self.base_speed = self.speed
@@ -282,6 +284,11 @@ class Player(Entity):
                 adder(bullet)
             else:
                 out_projectiles.append(bullet)
+            if callable(self.on_shoot):
+                direction = pygame.Vector2(bullet.dx, bullet.dy)
+                if direction.length_squared() > 0.0:
+                    direction = direction.normalize()
+                self.on_shoot((bullet.x, bullet.y), (direction.x, direction.y))
 
     def draw(self, surf):
         self._draw_dash_trail(surf)
