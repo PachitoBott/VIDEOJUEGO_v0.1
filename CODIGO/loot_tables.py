@@ -12,7 +12,7 @@ ENEMY_LOOT_TABLE = {
                 {"type": "upgrade", "id": "hp_up", "weight": 1.6},
             ],
             "consumables": [
-                {"type": "consumable", "id": "heal_small", "amount": 1, "weight": 0.9},
+                {"type": "consumable", "id": "heal_small", "amount": 1, "weight": 0.35},
                 {"type": "consumable", "id": "heal_medium", "amount": 3, "weight": 0.45},
             ],
             "bundles": [
@@ -37,9 +37,9 @@ ENEMY_LOOT_TABLE = {
                 {"type": "upgrade", "id": "dash_core", "weight": 1.3},
             ],
             "consumables": [
-                {"type": "consumable", "id": "heal_medium", "amount": 3, "weight": 0.9},
-                {"type": "consumable", "id": "heal_full", "amount": 999, "weight": 0.35},
-                {"type": "consumable", "id": "life_refill", "amount": 1, "weight": 0.2},
+                {"type": "consumable", "id": "heal_medium", "amount": 3, "weight": 0.7},
+                {"type": "consumable", "id": "heal_full", "amount": 999, "weight": 0.3},
+                {"type": "consumable", "id": "life_refill", "amount": 1, "weight": 0.08},
             ],
             "bundles": [
                 {
@@ -74,8 +74,8 @@ ENEMY_LOOT_TABLE = {
                 {"type": "upgrade", "id": "hp_up", "weight": 1.0},
             ],
             "consumables": [
-                {"type": "consumable", "id": "heal_full", "amount": 999, "weight": 0.5},
-                {"type": "consumable", "id": "life_refill", "amount": 1, "weight": 0.25},
+                {"type": "consumable", "id": "heal_full", "amount": 999, "weight": 0.4},
+                {"type": "consumable", "id": "life_refill", "amount": 1, "weight": 0.12},
             ],
             "bundles": [
                 {
@@ -100,8 +100,8 @@ ENEMY_LOOT_TABLE = {
     },
     "global_drop_rates": {
         "enemy_gold_chance": 0.45,
-        "enemy_heal_chance": 0.04,
-        "enemy_consumable_chance": 0.02,
+        "enemy_heal_chance": 0.02,
+        "enemy_consumable_chance": 0.01,
         "enemy_weapon_rare_chance": 0.01,
     },
 }
