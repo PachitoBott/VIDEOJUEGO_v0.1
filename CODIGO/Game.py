@@ -24,6 +24,8 @@ from Statistics import StatisticsManager
 from Pickup import MicrochipPickup
 from VFX import VFXManager
 from asset_paths import WEAPON_SPRITE_FILENAMES, assets_dir, weapon_sprite_path
+from loot_tables import ENEMY_LOOT_TABLE
+from rewards import apply_reward_entry
 
 
 class Game:
@@ -78,6 +80,8 @@ class Game:
 
         # --- Tienda ---
         self.shop = Shop(font=self.ui_font, on_gold_spent=self._register_gold_spent)
+        self._enemy_loot_table = ENEMY_LOOT_TABLE
+        self._enemy_drop_rates = ENEMY_LOOT_TABLE.get("global_drop_rates", {})
 
         # --- HUD ---
         self.hud_panels = HudPanels()
@@ -484,6 +488,7 @@ class Game:
             dying_fn = getattr(enemy, "is_dying", None)
             if callable(ready_fn) and ready_fn():
                 self._drop_enemy_microchips(enemy, room)
+                self._maybe_spawn_enemy_loot(room)
                 continue
             if callable(dying_fn) and dying_fn():
                 survivors.append(enemy)
@@ -492,6 +497,7 @@ class Game:
                 survivors.append(enemy)
             else:
                 self._drop_enemy_microchips(enemy, room)
+                self._maybe_spawn_enemy_loot(room)
         defeated_enemies = max(0, initial_enemy_count - len(survivors))
         if defeated_enemies:
             self._run_kills = max(0, self._run_kills) + defeated_enemies
@@ -511,6 +517,9 @@ class Game:
         return False
 
     def _drop_enemy_microchips(self, enemy, room) -> None:
+        gold_chance = float(self._enemy_drop_rates.get("enemy_gold_chance", 1.0))
+        if random.random() > max(0.0, min(1.0, gold_chance)):
+            return
         total_value = int(getattr(enemy, "gold_reward", 0))
         if total_value <= 0:
             return
@@ -555,6 +564,77 @@ class Game:
         if total_value <= 9:
             return (2, 3)
         return (3, 4)
+
+    def _maybe_spawn_enemy_loot(self, room) -> None:
+        reward = self._pick_enemy_reward(room)
+        if not reward:
+            return
+        apply_reward_entry(self.player, reward)
+
+    def _pick_enemy_reward(self, room) -> dict | None:
+        tiers = self._enemy_loot_table.get("tiers", {})
+        tier_key = str(self._enemy_loot_tier(room))
+        tier_data = tiers.get(tier_key)
+        if not tier_data:
+            return None
+        category = self._roll_enemy_loot_category()
+        entries = self._entries_for_category(tier_data, category)
+        if not entries:
+            return None
+        weighted = [entry for entry in entries if float(entry.get("weight", 1.0)) > 0.0]
+        if not weighted:
+            return None
+        weights = [float(entry.get("weight", 1.0)) for entry in weighted]
+        return random.choices(weighted, weights=weights, k=1)[0]
+
+    def _enemy_loot_tier(self, room) -> int:
+        depth = 0
+        if hasattr(self.dungeon, "room_depth"):
+            pos = None
+            if hasattr(self.dungeon, "rooms"):
+                for coords, candidate in getattr(self.dungeon, "rooms", {}).items():
+                    if candidate is room:
+                        pos = coords
+                        break
+            if pos is None:
+                pos = (self.dungeon.i, self.dungeon.j)
+            depth = int(self.dungeon.room_depth(pos))
+        if depth >= 8:
+            return 3
+        if depth >= 4:
+            return 2
+        return 1
+
+    def _roll_enemy_loot_category(self) -> str | None:
+        rates = self._enemy_drop_rates
+        weapon_rate = max(0.0, float(rates.get("enemy_weapon_rare_chance", 0.0)))
+        utility_rate = max(0.0, float(rates.get("enemy_consumable_chance", 0.0)))
+        heal_rate = max(0.0, float(rates.get("enemy_heal_chance", 0.0)))
+        roll = random.random()
+        if roll < weapon_rate:
+            return "weapon"
+        if roll < weapon_rate + utility_rate:
+            return "utility"
+        if roll < weapon_rate + utility_rate + heal_rate:
+            return "heal"
+        return None
+
+    def _entries_for_category(self, tier_data: dict, category: str | None) -> list[dict]:
+        if category == "weapon":
+            return list(tier_data.get("weapons", ()))
+        if category == "heal":
+            consumables = tier_data.get("consumables", ())
+            return [entry for entry in consumables if str(entry.get("id", "")).startswith("heal")]
+        if category == "utility":
+            consumables = tier_data.get("consumables", ())
+            utility_items = [
+                entry
+                for entry in consumables
+                if not str(entry.get("id", "")).startswith("heal")
+            ]
+            utility_items.extend(tier_data.get("upgrades", ()))
+            return utility_items
+        return list(tier_data.get("bundles", ()))
 
     def _update_pickups(self, dt: float, room) -> None:
         pickups = getattr(room, "pickups", None)
