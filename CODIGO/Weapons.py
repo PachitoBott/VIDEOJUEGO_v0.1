@@ -214,7 +214,7 @@ class WeaponFactory:
             "dual_pistols": WeaponSpec(
                 weapon_id="dual_pistols",
                 cooldown=0.36,
-                spread_deg=16.0,
+                spread_deg=18.0,
                 bullet_speed=320.0,
                 offsets=(-6.0, 6.0),
                 magazine_size=12,
@@ -222,7 +222,7 @@ class WeaponFactory:
             ),
             "light_rifle": WeaponSpec(
                 weapon_id="light_rifle",
-                cooldown=0.16,
+                cooldown=0.18,
                 spread_deg=4.0,
                 bullet_speed=360.0,
                 magazine_size=14,
@@ -231,7 +231,7 @@ class WeaponFactory:
             "arcane_salvo": WeaponSpec(
                 weapon_id="arcane_salvo",
                 cooldown=0.68,
-                spread_deg=32.0,
+                spread_deg=36.0,
                 bullet_speed=280.0,
                 offsets=(-12.0, -6.0, 0.0, 6.0, 12.0),
                 projectile_radius=4,
@@ -240,7 +240,7 @@ class WeaponFactory:
             ),
             "pulse_rifle": WeaponSpec(
                 weapon_id="pulse_rifle",
-                cooldown=0.12,
+                cooldown=0.13,
                 spread_deg=2.5,
                 bullet_speed=390.0,
                 magazine_size=16,
@@ -248,7 +248,7 @@ class WeaponFactory:
                 special={
                     "heat": {
                         "threshold": 2.0,
-                        "penalty": 0.1,
+                        "penalty": 0.12,
                         "grace": 0.25,
                         "decay": 3.5,
                     }
@@ -269,23 +269,23 @@ class WeaponFactory:
                     {
                         "type": "shock",
                         "slow": 0.2,
-                        "duration": 0.6,
+                        "duration": 0.8,
                     },
                 ),
             ),
             "ember_carbine": WeaponSpec(
                 weapon_id="ember_carbine",
-                cooldown=0.22,
+                cooldown=0.24,
                 spread_deg=8.0,
                 bullet_speed=325.0,
                 offsets=(0.0,),
                 forward_spawn=9.0,
-                magazine_size=18,
+                magazine_size=16,
                 reload_time=2.1,
                 special={
                     "recoil_ramp": {
                         "shots": 6,
-                        "extra": 2.0,
+                        "extra": 3.0,
                     }
                 },
             ),
