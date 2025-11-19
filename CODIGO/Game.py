@@ -1450,16 +1450,21 @@ class Game:
         buffer_hp = max(0, int(getattr(self.player, "life_charge_buffer", 0)))
 
         lost_lives = max(0, min(max_lives, max_lives - lives_remaining))
+        buffer_distribution = [0] * lost_lives
+        remaining_buffer = buffer_hp
+        for slot in range(lost_lives - 1, -1, -1):
+            if remaining_buffer <= 0:
+                break
+            fill = min(max_hp, remaining_buffer)
+            buffer_distribution[slot] = fill
+            remaining_buffer -= fill
+
         icons: list[pygame.Surface] = []
         for index in range(max_lives):
             if lives_remaining <= 0:
                 hp_value = 0
             elif index < lost_lives:
-                if buffer_hp > 0:
-                    hp_value = min(max_hp, buffer_hp)
-                    buffer_hp -= hp_value
-                else:
-                    hp_value = 0
+                hp_value = buffer_distribution[index]
             elif index == lost_lives:
                 hp_value = hits_remaining
             else:
