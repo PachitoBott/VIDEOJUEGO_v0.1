@@ -54,15 +54,13 @@ class Dungeon:
             {"name": "Bolsa de oro (+40)", "type": "gold", "amount": 40, "weight": 6},
             {"name": "Saco pesado de oro (+65)", "type": "gold", "amount": 65, "weight": 4},
             {"name": "Lingote antiguo (+120)", "type": "gold", "amount": 120, "weight": 2},
-            {"name": "Vida extra (+1)", "type": "upgrade", "id": "hp_up", "weight": 5},
             {"name": "Talismán de recarga (-10%)", "type": "upgrade", "id": "cdr_charm", "weight": 4},
             {"name": "Aumento de velocidad (+5%)", "type": "upgrade", "id": "spd_up", "weight": 4},
             {"name": "Manual de puntería (-12% cd)", "type": "upgrade", "id": "cdr_core", "weight": 2},
             {"name": "Botas relámpago (+10% sprint)", "type": "upgrade", "id": "sprint_core", "weight": 3},
             {"name": "Condensador de fase (-15% dash)", "type": "upgrade", "id": "dash_core", "weight": 2},
             {"name": "Impulso cinético (+duración dash)", "type": "upgrade", "id": "dash_drive", "weight": 2},
-            {"name": "Tónico curativo (+2 HP)", "type": "heal", "amount": 2, "weight": 3},
-            {"name": "Viales reparadores (curación total)", "type": "consumable", "id": "heal_full", "weight": 2},
+            {"name": "Batería verde completa", "type": "consumable", "id": "heal_battery_full", "weight": 1.5},
             {"name": "Ración de campaña (+1 HP)", "type": "consumable", "id": "heal_small", "amount": 1, "weight": 4},
             {"name": "Pistolas dobles", "type": "weapon", "id": "dual_pistols", "weight": 1},
             {"name": "Rifle ligero", "type": "weapon", "id": "light_rifle", "weight": 1},
@@ -83,7 +81,7 @@ class Dungeon:
                 "type": "bundle",
                 "contents": [
                     {"type": "gold", "amount": 70},
-                    {"type": "consumable", "id": "heal_medium", "amount": 2},
+                    {"type": "consumable", "id": "heal_small", "amount": 2},
                 ],
                 "weight": 2,
             },
@@ -96,7 +94,7 @@ class Dungeon:
             {"name": "Carga experimental", "type": "bundle", "contents": [
                 {"type": "gold", "amount": 80},
                 {"type": "upgrade", "id": "spd_up"},
-                {"type": "consumable", "id": "heal_medium", "amount": 2},
+                {"type": "consumable", "id": "heal_small", "amount": 2},
             ], "weight": 3},
         ]
 
