@@ -12,8 +12,8 @@ ENEMY_LOOT_TABLE = {
                 {"type": "upgrade", "id": "hp_up", "weight": 1.6},
             ],
             "consumables": [
-                {"type": "consumable", "id": "heal_small", "amount": 1, "weight": 0.35},
-                {"type": "consumable", "id": "heal_medium", "amount": 3, "weight": 0.45},
+                {"type": "consumable", "id": "heal_small", "amount": 1, "weight": 0.28},
+                {"type": "consumable", "id": "heal_battery_full", "amount": 1, "weight": 0.02},
             ],
             "bundles": [
                 {
@@ -37,9 +37,8 @@ ENEMY_LOOT_TABLE = {
                 {"type": "upgrade", "id": "dash_core", "weight": 1.3},
             ],
             "consumables": [
-                {"type": "consumable", "id": "heal_medium", "amount": 3, "weight": 0.7},
-                {"type": "consumable", "id": "heal_full", "amount": 999, "weight": 0.3},
-                {"type": "consumable", "id": "life_refill", "amount": 1, "weight": 0.08},
+                {"type": "consumable", "id": "heal_small", "amount": 1, "weight": 0.24},
+                {"type": "consumable", "id": "heal_battery_full", "amount": 1, "weight": 0.03},
             ],
             "bundles": [
                 {
@@ -56,7 +55,7 @@ ENEMY_LOOT_TABLE = {
                     "weight": 0.7,
                     "contents": [
                         {"type": "gold", "amount": 40},
-                        {"type": "consumable", "id": "heal_medium", "amount": 3},
+                        {"type": "consumable", "id": "heal_small", "amount": 3},
                         {"type": "upgrade", "id": "cdr_charm"},
                     ],
                 },
@@ -74,8 +73,8 @@ ENEMY_LOOT_TABLE = {
                 {"type": "upgrade", "id": "hp_up", "weight": 1.0},
             ],
             "consumables": [
-                {"type": "consumable", "id": "heal_full", "amount": 999, "weight": 0.4},
-                {"type": "consumable", "id": "life_refill", "amount": 1, "weight": 0.12},
+                {"type": "consumable", "id": "heal_small", "amount": 1, "weight": 0.18},
+                {"type": "consumable", "id": "heal_battery_full", "amount": 1, "weight": 0.025},
             ],
             "bundles": [
                 {
@@ -83,7 +82,7 @@ ENEMY_LOOT_TABLE = {
                     "weight": 1.4,
                     "contents": [
                         {"type": "gold", "amount": 70},
-                        {"type": "consumable", "id": "heal_full", "amount": 999},
+                        {"type": "consumable", "id": "heal_small", "amount": 2},
                         {"type": "upgrade", "id": "dash_core"},
                     ],
                 },
@@ -91,7 +90,7 @@ ENEMY_LOOT_TABLE = {
                     "type": "bundle",
                     "weight": 0.8,
                     "contents": [
-                        {"type": "consumable", "id": "life_refill", "amount": 1},
+                        {"type": "consumable", "id": "heal_battery_full", "amount": 1},
                         {"type": "upgrade", "id": "cdr_core"},
                     ],
                 },
@@ -100,8 +99,8 @@ ENEMY_LOOT_TABLE = {
     },
     "global_drop_rates": {
         "enemy_gold_chance": 0.45,
-        "enemy_heal_chance": 0.02,
-        "enemy_consumable_chance": 0.01,
+        "enemy_heal_chance": 0.016,
+        "enemy_consumable_chance": 0.014,
         "enemy_weapon_rare_chance": 0.01,
     },
 }

@@ -62,7 +62,7 @@ class Dungeon:
             {"name": "Condensador de fase (-15% dash)", "type": "upgrade", "id": "dash_core", "weight": 2},
             {"name": "Impulso cinético (+duración dash)", "type": "upgrade", "id": "dash_drive", "weight": 2},
             {"name": "Tónico curativo (+2 HP)", "type": "heal", "amount": 2, "weight": 3},
-            {"name": "Viales reparadores (curación total)", "type": "consumable", "id": "heal_full", "weight": 2},
+            {"name": "Batería verde completa", "type": "consumable", "id": "heal_battery_full", "weight": 1.5},
             {"name": "Ración de campaña (+1 HP)", "type": "consumable", "id": "heal_small", "amount": 1, "weight": 4},
             {"name": "Pistolas dobles", "type": "weapon", "id": "dual_pistols", "weight": 1},
             {"name": "Rifle ligero", "type": "weapon", "id": "light_rifle", "weight": 1},
@@ -83,7 +83,7 @@ class Dungeon:
                 "type": "bundle",
                 "contents": [
                     {"type": "gold", "amount": 70},
-                    {"type": "consumable", "id": "heal_medium", "amount": 2},
+                    {"type": "consumable", "id": "heal_small", "amount": 2},
                 ],
                 "weight": 2,
             },
@@ -96,7 +96,7 @@ class Dungeon:
             {"name": "Carga experimental", "type": "bundle", "contents": [
                 {"type": "gold", "amount": 80},
                 {"type": "upgrade", "id": "spd_up"},
-                {"type": "consumable", "id": "heal_medium", "amount": 2},
+                {"type": "consumable", "id": "heal_small", "amount": 2},
             ], "weight": 3},
         ]
 

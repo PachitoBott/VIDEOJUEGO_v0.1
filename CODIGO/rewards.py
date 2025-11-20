@@ -34,21 +34,14 @@ def apply_gold_reward(player: Any, amount: Any) -> bool:
     return True
 
 
-def apply_heal_reward(player: Any, amount: Any) -> bool:
-    amount = int(amount)
-    if amount <= 0:
-        return False
-    max_hp = getattr(player, "max_hp", getattr(player, "hp", 1))
-    hp = getattr(player, "hp", max_hp)
-    new_hp = min(max_hp, hp + amount)
-    setattr(player, "hp", new_hp)
-    if hasattr(player, "_hits_taken_current_life"):
-        setattr(player, "_hits_taken_current_life", max(0, max_hp - new_hp))
-    overflow = amount - (new_hp - hp)
-    overflow_applied = False
-    if overflow > 0:
-        overflow_applied = _charge_next_life_segment(player, overflow)
-    return new_hp != hp or overflow_applied
+def apply_heal_reward(player: Any, amount: Any, *, allow_overflow: bool = True) -> bool:
+    """Restaura puntos de vida de la batería activa.
+
+    Si ``allow_overflow`` es True, el excedente se almacena en
+    ``life_charge_buffer`` para recargar futuras vidas.
+    """
+
+    return _restore_current_life(player, amount, allow_overflow=allow_overflow)
 
 
 def _charge_next_life_segment(player: Any, amount: int) -> bool:
@@ -201,40 +194,13 @@ def apply_upgrade_reward(player: Any, upgrade_id: Any) -> bool:
 
 def apply_consumable_reward(player: Any, consumable_id: Any, data: dict | None = None) -> bool:
     cid = str(consumable_id) if consumable_id else ""
-    if cid == "heal_full":
+    if cid in {"heal_small", "heal_medium"}:
+        # Única cápsula amarilla: recupera solo un golpe de la batería actual.
+        return _restore_current_life(player, 1, allow_overflow=False)
+    if cid == "heal_battery_full":
+        # Batería verde: recarga por completo la vida en uso.
         max_hp = getattr(player, "max_hp", getattr(player, "hp", 1))
-        setattr(player, "hp", max_hp)
-        if hasattr(player, "_hits_taken_current_life"):
-            setattr(player, "_hits_taken_current_life", 0)
-        return True
-    if cid == "heal_medium":
-        amount = random.randint(2, 3)
-        return apply_heal_reward(player, amount)
-    if cid == "heal_small":
-        # Estas cápsulas amarillas solo deben restaurar un golpe de una
-        # batería futura, cargando la siguiente vida disponible en lugar de
-        # curar la actual.
-        charges = 1
-        applied = False
-        for _ in range(charges):
-            applied = _charge_next_life_segment(player, 1) or applied
-        return applied
-    if cid == "life_refill":
-        max_lives = max(0, int(getattr(player, "max_lives", getattr(player, "lives", 1))))
-        if max_lives <= 0:
-            return False
-        lives = max(0, int(getattr(player, "lives", 0)))
-        if lives >= max_lives:
-            return False
-        new_lives = min(max_lives, lives + 1)
-        setattr(player, "lives", new_lives)
-        max_hp = max(1, int(getattr(player, "max_hp", getattr(player, "hp", 1))))
-        buffer_capacity = max_hp * max(0, max_lives - new_lives)
-        if hasattr(player, "life_charge_buffer"):
-            buffer = max(0, int(getattr(player, "life_charge_buffer", 0)))
-            buffer = min(buffer, buffer_capacity)
-            setattr(player, "life_charge_buffer", buffer)
-        return True
+        return _restore_current_life(player, max_hp, allow_overflow=False)
     return False
 
 
@@ -247,3 +213,23 @@ def apply_bundle_reward(player: Any, contents: Iterable[dict] | None) -> bool:
             continue
         applied_any = apply_reward_entry(player, entry) or applied_any
     return applied_any
+
+
+def _restore_current_life(player: Any, amount: Any, *, allow_overflow: bool = True) -> bool:
+    amount = int(amount)
+    if amount <= 0:
+        return False
+
+    max_hp = max(1, int(getattr(player, "max_hp", getattr(player, "hp", 1))))
+    hp = max(0, int(getattr(player, "hp", max_hp)))
+    new_hp = min(max_hp, hp + amount)
+
+    setattr(player, "hp", new_hp)
+    if hasattr(player, "_hits_taken_current_life"):
+        setattr(player, "_hits_taken_current_life", max(0, max_hp - new_hp))
+
+    restored = new_hp - hp
+    overflow = max(0, amount - restored)
+    if allow_overflow and overflow > 0:
+        return _charge_next_life_segment(player, overflow) or restored > 0
+    return restored > 0
