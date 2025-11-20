@@ -94,16 +94,6 @@ def apply_upgrade_reward(player: Any, upgrade_id: Any) -> bool:
     set_modifier = getattr(player, "set_cooldown_modifier", None)
     uid = str(upgrade_id)
 
-    if uid == "hp_up":
-        max_lives = getattr(player, "max_lives", getattr(player, "lives", 1))
-        lives = getattr(player, "lives", max_lives)
-        max_lives += 1
-        lives = min(lives + 1, max_lives)
-        setattr(player, "max_lives", max_lives)
-        setattr(player, "lives", lives)
-        if callable(register):
-            register(uid)
-        return True
     if uid == "spd_up":
         speed = getattr(player, "speed", 1.0)
         setattr(player, "speed", speed * 1.05)

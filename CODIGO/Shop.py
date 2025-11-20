@@ -17,7 +17,6 @@ class Shop:
             {"name": "Rifle de pulsos", "price": 108, "type": "weapon", "id": "pulse_rifle", "weight": 0.6},
             {"name": "Guantes tesla", "price": 78, "type": "weapon", "id": "tesla_gloves", "weight": 0.6},
             {"name": "Carabina incandescente", "price": 104, "type": "weapon", "id": "ember_carbine", "weight": 0.5},
-            {"name": "Vida extra (+1)", "price": 45, "type": "upgrade", "id": "hp_up", "weight": 4},
             {"name": "Aumento de velocidad (+5%)", "price": 30, "type": "upgrade", "id": "spd_up", "weight": 3},
             {"name": "Talismán de recarga (-10%)", "price": 54, "type": "upgrade", "id": "cdr_charm", "weight": 3},
             {"name": "Manual de puntería (-12% cd)", "price": 72, "type": "upgrade", "id": "cdr_core", "weight": 2},

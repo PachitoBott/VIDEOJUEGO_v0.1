@@ -9,11 +9,10 @@ ENEMY_LOOT_TABLE = {
             ],
             "upgrades": [
                 {"type": "upgrade", "id": "spd_up", "weight": 2.0},
-                {"type": "upgrade", "id": "hp_up", "weight": 1.6},
             ],
             "consumables": [
-                {"type": "consumable", "id": "heal_small", "amount": 1, "weight": 0.28},
-                {"type": "consumable", "id": "heal_battery_full", "amount": 1, "weight": 0.02},
+                {"type": "consumable", "id": "heal_small", "amount": 1, "weight": 0.2},
+                {"type": "consumable", "id": "heal_battery_full", "amount": 1, "weight": 0.03},
             ],
             "bundles": [
                 {
@@ -37,8 +36,8 @@ ENEMY_LOOT_TABLE = {
                 {"type": "upgrade", "id": "dash_core", "weight": 1.3},
             ],
             "consumables": [
-                {"type": "consumable", "id": "heal_small", "amount": 1, "weight": 0.24},
-                {"type": "consumable", "id": "heal_battery_full", "amount": 1, "weight": 0.03},
+                {"type": "consumable", "id": "heal_small", "amount": 1, "weight": 0.18},
+                {"type": "consumable", "id": "heal_battery_full", "amount": 1, "weight": 0.02},
             ],
             "bundles": [
                 {
@@ -70,11 +69,10 @@ ENEMY_LOOT_TABLE = {
             "upgrades": [
                 {"type": "upgrade", "id": "cdr_core", "weight": 1.8},
                 {"type": "upgrade", "id": "dash_drive", "weight": 1.5},
-                {"type": "upgrade", "id": "hp_up", "weight": 1.0},
             ],
             "consumables": [
-                {"type": "consumable", "id": "heal_small", "amount": 1, "weight": 0.18},
-                {"type": "consumable", "id": "heal_battery_full", "amount": 1, "weight": 0.025},
+                {"type": "consumable", "id": "heal_small", "amount": 1, "weight": 0.16},
+                {"type": "consumable", "id": "heal_battery_full", "amount": 1, "weight": 0.03},
             ],
             "bundles": [
                 {
@@ -99,8 +97,8 @@ ENEMY_LOOT_TABLE = {
     },
     "global_drop_rates": {
         "enemy_gold_chance": 0.45,
-        "enemy_heal_chance": 0.016,
-        "enemy_consumable_chance": 0.014,
+        "enemy_heal_chance": 0.22,
+        "enemy_consumable_chance": 0.06,
         "enemy_weapon_rare_chance": 0.01,
     },
 }
