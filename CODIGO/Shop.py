@@ -24,8 +24,8 @@ class Shop:
             {"name": "Botas relámpago (+10% sprint)", "price": 48, "type": "upgrade", "id": "sprint_core", "weight": 3},
             {"name": "Condensador de fase (-15% dash)", "price": 66, "type": "upgrade", "id": "dash_core", "weight": 2},
             {"name": "Impulso cinético (+duración dash)", "price": 56, "type": "upgrade", "id": "dash_drive", "weight": 2},
-            {"name": "Botiquín de campaña (+2 HP)", "price": 28, "type": "consumable", "id": "heal_medium", "amount": 2, "weight": 4},
-            {"name": "Botiquín de nanobots (curación total)", "price": 90, "type": "consumable", "id": "heal_full", "weight": 1},
+            {"name": "Pack de cápsulas (+2 golpes)", "price": 28, "type": "consumable", "id": "heal_small", "amount": 2, "weight": 4},
+            {"name": "Batería verde (vida completa)", "price": 90, "type": "consumable", "id": "heal_battery_full", "weight": 1},
             {
                 "name": "Kit de incursión",
                 "price": 62,
