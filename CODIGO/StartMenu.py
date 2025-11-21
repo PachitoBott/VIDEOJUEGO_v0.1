@@ -47,19 +47,20 @@ class StartMenu:
         pygame.display.set_caption("CyberQuest")
         self.clock = pygame.time.Clock()
 
-        # --- GESTIÓN DE RUTAS (FIX BASADO EN TU IMAGEN) ---
-        # Calculamos la carpeta donde está ESTE archivo script (carpeta "CODIGO")
+        # --- GESTIÓN DE RUTAS ---
         self.base_dir = Path(__file__).parent.resolve()
-        # Apuntamos directamente a CODIGO/assets/ui
         self.ui_assets_dir = self.base_dir / "assets" / "ui"
+        self.audio_assets_dir = self.base_dir / "assets" / "audio"  # Nueva ruta para audio
 
-        # Debug para verificar en consola si falla
+        # Debug info
         print(f"--- DEBUG START MENU ---")
-        print(f"Script location: {self.base_dir}")
-        print(f"Assets UI location: {self.ui_assets_dir}")
+        print(f"Assets UI: {self.ui_assets_dir}")
+        print(f"Assets Audio: {self.audio_assets_dir}")
+
+        # --- Inicializar Audio ---
+        self._init_audio()
 
         # --- Carga de Fuentes ---
-        # Busca VT323-Regular.ttf en CODIGO/assets/ui/
         self.title_font = self._get_font("VT323-Regular.ttf", 96)
         self.subtitle_font = self._get_font("VT323-Regular.ttf", 42)
         self.button_font = self._get_font("VT323-Regular.ttf", 48)
@@ -76,12 +77,9 @@ class StartMenu:
         self.seed_rect = pygame.Rect(0, 0, self.INPUT_WIDTH, self.INPUT_HEIGHT)
 
         # --- Carga de Fondo ---
-        # Busca fondoMenu.png en CODIGO/assets/ui/
         self.background = self._load_image("fondoMenu.png")
         
-        # Si no encuentra el fondo local, intenta el de config (fallback)
         if not self.background and self.menu_cfg.background_image:
-             # Intentamos cargar usando ruta completa si viene en config
              path_cfg = Path(self.menu_cfg.background_image)
              if path_cfg.exists():
                  try:
@@ -95,44 +93,91 @@ class StartMenu:
         self._start_requested = False
 
     # ------------------------------------------------------------------
-    # Helpers & Path Finding
+    # Audio Management
+    # ------------------------------------------------------------------
+    def _init_audio(self) -> None:
+        """Inicializa el mixer, carga efectos y arranca la música."""
+        if not pygame.mixer.get_init():
+            try:
+                pygame.mixer.init()
+            except pygame.error:
+                print("No se pudo inicializar el módulo de audio.")
+                return
+
+        # 1. Cargar SFX Botón
+        self.click_sound = self._load_sound("boton.mp3")
+
+        # 2. Cargar y reproducir Música de Fondo
+        music_file = "Perturbator.mp3"
+        music_path = self._get_audio_path(music_file)
+        
+        if music_path and music_path.exists():
+            try:
+                pygame.mixer.music.load(str(music_path))
+                pygame.mixer.music.set_volume(0.5) # Volumen al 50%
+                pygame.mixer.music.play(-1) # -1 significa loop infinito
+                print(f"Reproduciendo música: {music_file}")
+            except Exception as e:
+                print(f"Error reproduciendo música {music_file}: {e}")
+        else:
+            print(f"No se encontró música: {music_path}")
+
+    def _get_audio_path(self, filename: str) -> Path | None:
+        """Busca archivos de audio en assets/audio."""
+        candidates = [
+            self.audio_assets_dir / filename,
+            self.base_dir / "assets" / "audio" / filename,
+            Path.cwd() / "assets" / "audio" / filename
+        ]
+        for path in candidates:
+            if path.exists():
+                return path
+        return None
+
+    def _load_sound(self, filename: str) -> pygame.mixer.Sound | None:
+        path = self._get_audio_path(filename)
+        if path:
+            try:
+                return pygame.mixer.Sound(str(path))
+            except Exception as e:
+                print(f"Error cargando SFX {filename}: {e}")
+        return None
+
+    def _play_click(self) -> None:
+        """Helper para reproducir el sonido de click si existe."""
+        if self.click_sound:
+            self.click_sound.play()
+
+    # ------------------------------------------------------------------
+    # Helpers & Path Finding (UI)
     # ------------------------------------------------------------------
     def _get_path(self, filename: str) -> Path:
-        """Construye la ruta completa al archivo dentro de assets/ui"""
         return self.ui_assets_dir / filename
 
     def _get_font(self, font_name: str, size: int) -> pygame.font.Font:
-        """Carga fuente desde assets/ui, o usa sistema si falla."""
         font_path = self._get_path(font_name)
-        
         if font_path.exists():
             try:
                 return pygame.font.Font(str(font_path), size)
             except Exception as e:
                 print(f"Error cargando fuente {font_name}: {e}")
         else:
-            print(f"Fuente no encontrada en: {font_path}")
-        
-        # Fallback
+            # Fallback silencioso si no encuentra la fuente exacta
+            pass
         return pygame.font.SysFont("consolas", int(size * 0.7))
 
     def _load_image(self, filename: Optional[str]) -> Optional[pygame.Surface]:
-        if not filename:
-            return None
-            
-        # Si el nombre viene con rutas extrañas, nos quedamos solo con el nombre final
+        if not filename: return None
         clean_name = Path(filename).name
         image_path = self._get_path(clean_name)
         
         if not image_path.exists():
-            print(f"Imagen no encontrada en: {image_path}")
             return None
 
         try:
             image = pygame.image.load(str(image_path)).convert_alpha()
             return image
-        except Exception as e:
-            print(f"Error cargando imagen {clean_name}: {e}")
+        except Exception:
             return None
 
     def _compute_layout(self) -> None:
@@ -202,7 +247,10 @@ class StartMenu:
             pygame.display.flip()
 
         if self._start_requested:
+            # Detener la música del menú con un fadeout de 500ms al iniciar el juego
+            pygame.mixer.music.fadeout(500)
             return StartMenuResult(start_game=True, seed=self.selected_seed())
+            
         return StartMenuResult(start_game=False, seed=None)
 
     # ------------------------------------------------------------------
@@ -214,6 +262,8 @@ class StartMenu:
                 self._start_requested = False
                 return False
             if event.key == pygame.K_RETURN:
+                # Sonido al iniciar con Enter
+                self._play_click()
                 return self._commit_play()
             if event.key == pygame.K_BACKSPACE:
                 self.seed_text = self.seed_text[:-1]
@@ -228,6 +278,8 @@ class StartMenu:
                 self.input_active = False
                 for action, rect in self.button_rects:
                     if rect.collidepoint(event.pos):
+                        # Sonido al hacer click en botón
+                        self._play_click()
                         return self._trigger_button(action)
         return True
 
