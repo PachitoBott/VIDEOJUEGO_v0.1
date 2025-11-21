@@ -10,6 +10,7 @@ class LootNotification:
         text: str,
         font: pygame.font.Font,
         *,
+        icon: pygame.Surface | None = None,
         duration: float = 2.5,
         fade_duration: float = 0.65,
         start_pos: tuple[float, float] = (0.0, 0.0),
@@ -29,11 +30,33 @@ class LootNotification:
 
         padding_x, padding_y = 10, 6
         text_surface = font.render(text, True, text_color)
+        icon_surface = None
+        icon_spacing = 8
+        if icon is not None:
+            try:
+                icon = icon.convert_alpha()
+            except Exception:
+                icon = None
+        if icon is not None:
+            target_height = max(1, text_surface.get_height() + padding_y * 2 - 2)
+            scale = target_height / icon.get_height()
+            icon_width = max(1, int(icon.get_width() * scale))
+            icon_height = max(1, int(icon.get_height() * scale))
+            icon_surface = pygame.transform.smoothscale(icon, (icon_width, icon_height))
+
         width = text_surface.get_width() + padding_x * 2
         height = text_surface.get_height() + padding_y * 2
+        if icon_surface is not None:
+            width += icon_surface.get_width() + icon_spacing
+            height = max(height, icon_surface.get_height() + padding_y * 2)
         surface = pygame.Surface((width, height), pygame.SRCALPHA)
         surface.fill(bg_color)
-        text_rect = text_surface.get_rect(center=(width // 2, height // 2))
+        text_x = padding_x
+        if icon_surface is not None:
+            icon_pos = (padding_x, height // 2 - icon_surface.get_height() // 2)
+            surface.blit(icon_surface, icon_pos)
+            text_x = icon_pos[0] + icon_surface.get_width() + icon_spacing
+        text_rect = text_surface.get_rect(midleft=(text_x, height // 2))
         surface.blit(text_surface, text_rect)
 
         # Borde sutil
@@ -98,11 +121,17 @@ class LootNotificationManager:
         width, height = size
         self._surface_size.update(width, height)
 
-    def push(self, message: str) -> None:
+    def push(self, message: str, icon: pygame.Surface | None = None) -> None:
         base_x = self.anchor_margin.x
         base_y = self._surface_size.y - self.anchor_margin.y
         start_pos = (base_x, base_y + 40.0)
-        note = LootNotification(message, self.font, start_pos=start_pos, scale=self.scale)
+        note = LootNotification(
+            message,
+            self.font,
+            icon=icon,
+            start_pos=start_pos,
+            scale=self.scale,
+        )
         self.notifications.append(note)
         self._update_targets()
 

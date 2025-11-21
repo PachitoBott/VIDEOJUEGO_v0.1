@@ -71,6 +71,11 @@ class Game:
         self._cursor_surface = self._create_cursor_surface()
 
         # ---------- UI ----------
+        loot_font_path = Path(__file__).resolve().parent / "assets" / "ui" / "VT323-Regular.ttf"
+        if loot_font_path.exists():
+            self.loot_font = pygame.font.Font(str(loot_font_path), 22)
+        else:
+            self.loot_font = pygame.font.SysFont("VT323", 22)
         self.ui_font = pygame.font.SysFont(None, 18)
         icon_source, pickup_sprite = self._create_microchip_sprites()
         self._microchip_icon_source = icon_source
@@ -82,7 +87,7 @@ class Game:
         self._bundle_pickup_sprite = self._create_bundle_pickup_sprite()
         self.microchip_icon_scale = self.MICROCHIP_ICON_DEFAULT_SCALE * 0.4
 
-        self.loot_notifications = LootNotificationManager(self.ui_font)
+        self.loot_notifications = LootNotificationManager(self.loot_font)
         self.loot_notifications.set_surface_size(self.screen.get_size())
         
         # Usa los métodos set_microchip_icon_scale/offset/value_offset para ajustar
@@ -781,7 +786,9 @@ class Game:
             except Exception:
                 continue
             if applied:
-                self._notify_reward(reward_pickup.reward_data)
+                self._notify_reward(
+                    reward_pickup.reward_data, getattr(reward_pickup, "sprite", None)
+                )
 
     def _add_player_gold(self, amount: int) -> None:
         amount = int(amount)
@@ -793,9 +800,9 @@ class Game:
     def _notify_microchips(self, amount: int) -> None:
         if amount <= 0:
             return
-        self.loot_notifications.push(f"+{amount} microchips")
+        self.loot_notifications.push(f"+{amount} microchips", self._microchip_icon_source)
 
-    def _notify_reward(self, reward: dict | None) -> None:
+    def _notify_reward(self, reward: dict | None, icon: pygame.Surface | None = None) -> None:
         if not isinstance(reward, dict):
             return
         rtype = str(reward.get("type", "")).lower()
@@ -806,7 +813,8 @@ class Game:
             return
         message = self._format_reward_message(reward)
         if message:
-            self.loot_notifications.push(message)
+            icon = icon or self._sprite_for_reward(reward)
+            self.loot_notifications.push(message, icon)
 
     def _friendly_reward_name(self, category: str, identifier: str) -> str:
         category = category.lower()
