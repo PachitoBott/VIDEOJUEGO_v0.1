@@ -123,6 +123,26 @@ def _load_treasure_sprite(size: tuple[int, int], opened: bool) -> pygame.Surface
 _OBSTACLE_ASSET_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _treasure_hitbox_from_sprite_rect(sprite_rect: pygame.Rect) -> pygame.Rect:
+    """Crea un ``pygame.Rect`` de hitbox centrado en el sprite del cofre."""
+
+    try:
+        hitbox_w, hitbox_h = CFG.TREASURE_HITBOX_SIZE  # type: ignore[attr-defined]
+        hitbox_w, hitbox_h = int(hitbox_w), int(hitbox_h)
+    except Exception:
+        hitbox_w = hitbox_h = 40
+
+    hitbox_w = hitbox_w if hitbox_w > 0 else 40
+    hitbox_h = hitbox_h if hitbox_h > 0 else 40
+
+    return pygame.Rect(
+        sprite_rect.centerx - hitbox_w // 2,
+        sprite_rect.centery - hitbox_h // 2,
+        hitbox_w,
+        hitbox_h,
+    )
+
+
 @dataclass(frozen=True)
 class ObstacleSpriteInfo:
     filename: str | Path | None = None
@@ -1140,8 +1160,10 @@ class Room:
         cy = (ry + rh // 2) * ts
 
         width, height = self._treasure_dimensions((28, 20))
+        sprite_rect = pygame.Rect(cx - width // 2, cy - height // 2, width, height)
         self.treasure = {
-            "rect": pygame.Rect(cx - width // 2, cy - height // 2, width, height),
+            "rect": sprite_rect,
+            "hitbox": _treasure_hitbox_from_sprite_rect(sprite_rect),
             "opened": False,
             "loot_table": loot_table,
         }
@@ -1159,8 +1181,10 @@ class Room:
         cx = (rx + rw // 2) * ts
         cy = (ry + rh // 2) * ts
         width, height = self._treasure_dimensions((32, 24))
+        sprite_rect = pygame.Rect(cx - width // 2, cy - height // 2, width, height)
         self.treasure = {
-            "rect": pygame.Rect(cx - width // 2, cy - height // 2, width, height),
+            "rect": sprite_rect,
+            "hitbox": _treasure_hitbox_from_sprite_rect(sprite_rect),
             "opened": False,
             "loot_table": loot_table,
         }
@@ -1204,7 +1228,7 @@ class Room:
         if not self.treasure:
             return
 
-        rect: pygame.Rect = self.treasure.get("rect")
+        rect: pygame.Rect = self.treasure.get("hitbox", self.treasure.get("rect"))
         ts = CFG.TILE_SIZE
         x0 = rect.left // ts
         y0 = rect.top // ts
@@ -1220,9 +1244,9 @@ class Room:
         if not self.treasure:
             return
 
-        chest_rect: pygame.Rect = self.treasure["rect"]
+        hitbox: pygame.Rect = self.treasure.get("hitbox", self.treasure["rect"])
         player_rect = self._player_rect(player)
-        interact_rect = chest_rect.inflate(30, 30)
+        interact_rect = hitbox.inflate(30, 30)
         can_interact = interact_rect.colliderect(player_rect)
 
         if self.treasure.get("opened", False):
@@ -1286,6 +1310,7 @@ class Room:
         if not self.treasure:
             return
         rect: pygame.Rect = self.treasure["rect"]
+        hitbox: pygame.Rect = self.treasure.get("hitbox", rect)
         opened = self.treasure.get("opened", False)
 
         sprite = _load_treasure_sprite(rect.size, opened)
@@ -1304,10 +1329,15 @@ class Room:
         pygame.draw.rect(surface, band_color, pygame.Rect(rect.centerx - 3, rect.y, 6, rect.height))
         pygame.draw.rect(surface, (20, 12, 8), rect, 2)
 
+        # Hitbox visible para depuración: se dibuja sólo si las banderas debug lo permiten.
+        if getattr(CFG, "DEBUG_DRAW_DOOR_TRIGGERS", False):
+            pygame.draw.rect(surface, (255, 0, 0), hitbox, 1)
+
     def _draw_treasure_overlay(self, surface, ui_font, player) -> None:
         rect = self.treasure["rect"]
+        hitbox = self.treasure.get("hitbox", rect)
         player_rect = self._player_rect(player)
-        near = rect.inflate(36, 36).colliderect(player_rect)
+        near = hitbox.inflate(36, 36).colliderect(player_rect)
 
         if not self.treasure.get("opened", False) and near:
             tip = ui_font.render("E - Abrir cofre", True, (255, 255, 255))
