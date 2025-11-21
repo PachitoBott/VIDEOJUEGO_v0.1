@@ -377,6 +377,7 @@ class Room:
         self.treasure: dict | None = None
         self.treasure_message: str = ""
         self.treasure_message_until: int = 0
+        self._treasure_tiles: set[tuple[int, int]] = set()
 
         self.obstacles: list[dict] = []
         self._obstacle_tiles: set[tuple[int, int]] = set()
@@ -860,7 +861,7 @@ class Room:
             return True
         if self.tiles[ty][tx] == CFG.WALL:
             return True
-        return (tx, ty) in self._obstacle_tiles
+        return (tx, ty) in self._obstacle_tiles or (tx, ty) in self._treasure_tiles
     
     def has_line_of_sight(self, x0_px: float, y0_px: float, x1_px: float, y1_px: float) -> bool:
         """
@@ -1127,6 +1128,7 @@ class Room:
         self.treasure_message = ""
         self.treasure_message_until = 0
         self.clear_obstacles()
+        self._treasure_tiles.clear()
 
         if not self.bounds:
             self.build_centered(9, 9)
@@ -1142,6 +1144,7 @@ class Room:
             "opened": False,
             "loot_table": loot_table,
         }
+        self._refresh_treasure_tiles()
 
     def spawn_boss_reward(self) -> None:
         loot_table = list(self.boss_loot_table or [
@@ -1154,7 +1157,7 @@ class Room:
         ts = CFG.TILE_SIZE
         cx = (rx + rw // 2) * ts
         cy = (ry + rh // 2) * ts
-        width, height = self._treasure_dimensions((28, 20))
+        width, height = self._treasure_dimensions((32, 24))
         self.treasure = {
             "rect": pygame.Rect(cx - width // 2, cy - height // 2, width, height),
             "opened": False,
@@ -1162,6 +1165,7 @@ class Room:
         }
         self.treasure_message = ""
         self.treasure_message_until = 0
+        self._refresh_treasure_tiles()
 
     def _treasure_dimensions(self, base_size: tuple[int, int]) -> tuple[int, int]:
         """Calcula el tamaño del cofre aplicando la escala configurada."""
@@ -1191,6 +1195,25 @@ class Room:
         width = max(4, int(round(bw * scale)))
         height = max(4, int(round(bh * scale)))
         return width, height
+
+    def _refresh_treasure_tiles(self) -> None:
+        """Actualiza los tiles sólidos ocupados por el cofre."""
+
+        self._treasure_tiles.clear()
+        if not self.treasure:
+            return
+
+        rect: pygame.Rect = self.treasure.get("rect")
+        ts = CFG.TILE_SIZE
+        x0 = rect.left // ts
+        y0 = rect.top // ts
+        x1 = (rect.right - 1) // ts
+        y1 = (rect.bottom - 1) // ts
+
+        for ty in range(y0, y1 + 1):
+            for tx in range(x0, x1 + 1):
+                if 0 <= tx < CFG.MAP_W and 0 <= ty < CFG.MAP_H:
+                    self._treasure_tiles.add((tx, ty))
 
     def _handle_treasure_events(self, events, player) -> None:
         if not self.treasure:
