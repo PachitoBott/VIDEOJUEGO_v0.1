@@ -57,6 +57,16 @@ class StartMenu:
         print(f"Assets UI: {self.ui_assets_dir}")
         print(f"Assets Audio: {self.audio_assets_dir}")
 
+        # --- Volumen ---
+        self.volume: float = (
+            pygame.mixer.music.get_volume() if pygame.mixer.get_init() else 0.5
+        )
+        self.dragging_volume = False
+        self.VOLUME_BAR_SIZE = (360, 10)
+        self.VOLUME_HANDLE_SIZE = (18, 26)
+        self.volume_bar_rect = pygame.Rect(0, 0, *self.VOLUME_BAR_SIZE)
+        self.volume_handle_rect = pygame.Rect(0, 0, *self.VOLUME_HANDLE_SIZE)
+
         # --- Inicializar Audio ---
         self._init_audio()
 
