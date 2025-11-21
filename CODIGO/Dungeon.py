@@ -113,6 +113,9 @@ class Dungeon:
         # Sala de boss dedicada
         self._place_boss_room()
 
+        # Cofre rúnico especial
+        self._place_rune_chest_room()
+
         # Obstáculos en salas hostiles
         self._populate_hostile_obstacles()
 
@@ -130,6 +133,11 @@ class Dungeon:
         di, dj = DIRS[direction]
         ni, nj = self.i + di, self.j + dj
         return (ni, nj) in self.rooms
+
+    def room_in_direction(self, direction: str):
+        di, dj = DIRS[direction]
+        pos = (self.i + di, self.j + dj)
+        return self.rooms.get(pos)
 
     def move(self, direction: str) -> None:
         di, dj = DIRS[direction]
@@ -452,16 +460,56 @@ class Dungeon:
         room = self.rooms.get(farthest)
         if room is None:
             return
+        self.boss_pos = farthest
         setattr(room, "type", "boss")
         room.no_spawn = True
         room.safe = False
         room.locked = False
         if hasattr(room, "clear_obstacles"):
             room.clear_obstacles()
-        blueprint = random.choice(BOSS_BLUEPRINTS)
-        room.boss_blueprint = blueprint
-        room.boss_loot_table = list(self._boss_loot_table)
-        self.boss_pos = farthest
+
+    def _place_rune_chest_room(self) -> None:
+        if not self.rooms:
+            return
+        forbidden: set[tuple[int, int]] = {self.start}
+        forbidden.update(getattr(self, "treasure_rooms", set()))
+        if hasattr(self, "shop_pos"):
+            forbidden.add(getattr(self, "shop_pos"))
+        boss_pos = getattr(self, "boss_pos", None)
+        if boss_pos:
+            forbidden.add(boss_pos)
+
+        max_depth = max(self.depth_map.values()) if self.depth_map else 0
+        target_depth = max_depth - 1 if max_depth > 2 else max_depth
+
+        def depth_of(pos: tuple[int, int]) -> int:
+            return self.depth_map.get(pos, 0)
+
+        candidates: list[tuple[int, int]] = []
+        for pos, room in self.rooms.items():
+            if pos in forbidden:
+                continue
+            if getattr(room, "type", "normal") != "normal":
+                continue
+            depth = depth_of(pos)
+            if depth < max(2, target_depth):
+                continue
+            candidates.append(pos)
+
+        if not candidates:
+            return
+        candidates.sort(key=depth_of, reverse=True)
+
+        chosen_pos = candidates[0]
+        room = self.rooms.get(chosen_pos)
+        if room is None:
+            return
+
+        prefer_bottom = bool(getattr(room, "no_spawn", False) or getattr(room, "safe", False))
+        loot = [{"name": "MotherBoard Boss", "type": "key_item", "id": "motherboard_boss", "weight": 1}]
+        if hasattr(room, "setup_rune_chest"):
+            room.setup_rune_chest(loot, prefer_bottom=prefer_bottom)
+        self.rune_chest_pos = chosen_pos
 
     def enter_initial_room(self, player, cfg, ShopkeeperCls=None):
         """Llama on_enter para la sala inicial (start)."""

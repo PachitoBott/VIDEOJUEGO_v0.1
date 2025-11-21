@@ -1018,6 +1018,21 @@ class Game:
         if not direction or not self.dungeon.can_move(direction):
             return
 
+        target_room = None
+        peek = getattr(self.dungeon, "room_in_direction", None)
+        if callable(peek):
+            target_room = peek(direction)
+        if target_room and getattr(target_room, "type", "") == "boss":
+            has_key = False
+            checker = getattr(self.player, "has_key_item", None)
+            if callable(checker):
+                has_key = checker("motherboard_boss")
+            if not has_key:
+                if hasattr(self, "loot_notifications"):
+                    self.loot_notifications.push("La puerta está sellada. Falta la MotherBoard Boss.")
+                self.door_cooldown = 0.45
+                return
+
         if hasattr(self.dungeon, "move_and_enter"):
             moved = self.dungeon.move_and_enter(direction, self.player, self.cfg, ShopkeeperCls=Shopkeeper)
         else:
