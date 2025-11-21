@@ -58,7 +58,7 @@ class Game:
         self._upgrade_pickup_sprite = self._create_upgrade_pickup_sprite()
         self._weapon_pickup_sprite = self._create_weapon_pickup_sprite()
         self._bundle_pickup_sprite = self._create_bundle_pickup_sprite()
-        self.microchip_icon_scale = self.MICROCHIP_ICON_DEFAULT_SCALE * 0.8
+        self.microchip_icon_scale = self.MICROCHIP_ICON_DEFAULT_SCALE * 0.4
         
         # Usa los métodos set_microchip_icon_scale/offset/value_offset para ajustar
         # manualmente la presentación del icono dentro del HUD.
