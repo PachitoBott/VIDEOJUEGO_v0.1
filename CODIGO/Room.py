@@ -95,7 +95,7 @@ def _load_treasure_sprite(size: tuple[int, int], opened: bool) -> pygame.Surface
             sprite = None
 
     if sprite is not None and sprite.get_size() != size:
-        sprite = pygame.transform.smoothscale(sprite, size)
+        sprite = pygame.transform.smoothscale(sprite, size*2)
 
     _TREASURE_SPRITE_CACHE[size] = sprite
     if sprite is not None:
