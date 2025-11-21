@@ -10,6 +10,17 @@ animations.  Each enemy variant is expected to live under
     attack_0.png .. attack_3.png   (4 frames, opcional)
     death_0.png .. death_N.png     (los detecta automáticamente)
 
+For bosses the assets are grouped under ``assets/enemigos/boss/<variant>/``
+and use prefixed filenames to separate layers::
+
+    legs_idle_0.png  .. legs_idle_3.png
+    legs_run_0.png   .. legs_run_7.png
+    torso_idle_0.png .. torso_idle_3.png
+    torso_shoot1_0.png .. torso_shoot1_4.png
+    torso_shoot2_0.png .. torso_shoot2_7.png
+    torso_shoot3_0.png .. torso_shoot3_3.png
+    death_0.png .. death_8.png
+
 Sprites can be safely added later; missing files are replaced by a
 placeholder surface tinted according to the enemy variant.
 """
@@ -29,6 +40,8 @@ from asset_paths import assets_dir
 
 _ENEMY_ASSET_DIR = assets_dir("enemigos")
 _ENEMY_ASSET_DIR.mkdir(parents=True, exist_ok=True)
+_BOSS_ASSET_DIR = _ENEMY_ASSET_DIR / "boss"
+_BOSS_ASSET_DIR.mkdir(parents=True, exist_ok=True)
 
 _STATE_FRAME_COUNTS: dict[str, int] = {
     "idle": 4,
@@ -401,7 +414,7 @@ def load_boss_animation_layers(variant: str) -> BossAnimationLayers:
     """Load layered animations (legs, torso, death) for bosses."""
 
     variant_slug = (variant or "default").strip().lower() or "default"
-    base_dir = _ENEMY_ASSET_DIR / variant_slug
+    base_dir = _BOSS_ASSET_DIR / variant_slug
     color = _VARIANT_COLORS.get(variant_slug, _VARIANT_COLORS["default"])
 
     leg_frames: dict[str, list[pygame.Surface]] = {}
@@ -448,6 +461,28 @@ def expected_enemy_filenames(variant: str) -> dict[str, list[str]]:
         filenames[extra_state] = [f"{extra_state}_{i}.png" for i in indices]
 
     return filenames
+
+
+def expected_boss_filenames(variant: str) -> dict[str, dict[str, list[str]] | list[str]]:
+    """List expected filenames for boss variants under assets/enemigos/boss."""
+
+    variant_slug = (variant or "default").strip().lower() or "default"
+    base_dir = _BOSS_ASSET_DIR / variant_slug
+
+    legs: dict[str, list[str]] = {}
+    for state, count in _BOSS_LEG_COUNTS.items():
+        indices = _existing_layer_indices(base_dir, "legs", state)
+        legs[state] = [f"legs_{state}_{i}.png" for i in (indices or range(count))]
+
+    torso: dict[str, list[str]] = {}
+    for state, count in _BOSS_TORSO_COUNTS.items():
+        indices = _existing_layer_indices(base_dir, "torso", state)
+        torso[state] = [f"torso_{state}_{i}.png" for i in (indices or range(count))]
+
+    death_indices = _existing_layer_indices(base_dir, "death", "")
+    death = [f"death_{i}.png" for i in (death_indices or range(9))]
+
+    return {"legs": legs, "torso": torso, "death": death}
 
 
 # ---------------------------------------------------------------------------
@@ -507,6 +542,17 @@ def _existing_state_indices(base_dir: Path, state: str) -> list[int]:
     indices: list[int] = []
     for path in sorted(base_dir.glob(f"{state}_*.png")):
         suffix = path.stem[len(state) + 1 :]
+        if suffix.isdigit():
+            indices.append(int(suffix))
+    return sorted(indices)
+
+
+def _existing_layer_indices(base_dir: Path, layer: str, state: str) -> list[int]:
+    prefix = f"{layer}_{state}_" if state else f"{layer}_"
+    pattern = f"{prefix}*.png"
+    indices: list[int] = []
+    for path in sorted(base_dir.glob(pattern)):
+        suffix = path.stem[len(prefix) :]
         if suffix.isdigit():
             indices.append(int(suffix))
     return sorted(indices)
