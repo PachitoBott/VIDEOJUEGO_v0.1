@@ -684,33 +684,41 @@ class Game:
     def _roll_enemy_loot_category(self) -> str | None:
         rates = self._enemy_drop_rates
         weapon_rate = max(0.0, float(rates.get("enemy_weapon_rare_chance", 0.0)))
-        utility_rate = max(0.0, float(rates.get("enemy_consumable_chance", 0.0)))
-        heal_rate = max(0.0, float(rates.get("enemy_heal_chance", 0.0)))
+        bundle_rate = max(0.0, float(rates.get("enemy_bundle_chance", 0.0)))
+        upgrade_rate = max(0.0, float(rates.get("enemy_upgrade_chance", 0.0)))
+        heal_big_rate = max(0.0, float(rates.get("enemy_heal_big_chance", rates.get("enemy_heal_chance", 0.0))))
+        heal_small_rate = max(0.0, float(rates.get("enemy_heal_small_chance", rates.get("enemy_consumable_chance", 0.0))))
         roll = random.random()
         if roll < weapon_rate:
             return "weapon"
-        if roll < weapon_rate + utility_rate:
-            return "utility"
-        if roll < weapon_rate + utility_rate + heal_rate:
-            return "heal"
+        if roll < weapon_rate + bundle_rate:
+            return "bundle"
+        if roll < weapon_rate + bundle_rate + upgrade_rate:
+            return "upgrade"
+        if roll < weapon_rate + bundle_rate + upgrade_rate + heal_big_rate:
+            return "heal_big"
+        if roll < weapon_rate + bundle_rate + upgrade_rate + heal_big_rate + heal_small_rate:
+            return "heal_small"
         return None
 
     def _entries_for_category(self, tier_data: dict, category: str | None) -> list[dict]:
         if category == "weapon":
             return list(tier_data.get("weapons", ()))
-        if category == "heal":
-            consumables = tier_data.get("consumables", ())
-            return [entry for entry in consumables if str(entry.get("id", "")).startswith("heal")]
-        if category == "utility":
-            consumables = tier_data.get("consumables", ())
-            utility_items = [
+        if category == "bundle":
+            return list(tier_data.get("bundles", ()))
+        if category == "upgrade":
+            return list(tier_data.get("upgrades", ()))
+        consumables = tier_data.get("consumables", ())
+        if category == "heal_big":
+            return [entry for entry in consumables if str(entry.get("id", "")).startswith("heal_battery")]
+        if category == "heal_small":
+            return [
                 entry
                 for entry in consumables
-                if not str(entry.get("id", "")).startswith("heal")
+                if str(entry.get("id", "")).startswith("heal")
+                and not str(entry.get("id", "")).startswith("heal_battery")
             ]
-            utility_items.extend(tier_data.get("upgrades", ()))
-            return utility_items
-        return list(tier_data.get("bundles", ()))
+        return []
 
     def _update_pickups(self, dt: float, room) -> None:
         pickups = getattr(room, "pickups", None)
@@ -1145,19 +1153,23 @@ class Game:
         return icon_source, pickup_sprite
 
     def _create_heal_pickup_sprite(self) -> pygame.Surface:
-        width, height = 14, 18
+        width, height = 12, 14
         surface = pygame.Surface((width, height), pygame.SRCALPHA)
         body_rect = pygame.Rect(1, 3, width - 2, height - 4)
-        pygame.draw.rect(surface, pygame.Color(36, 140, 82), body_rect, border_radius=3)
-        pygame.draw.rect(surface, pygame.Color(96, 210, 140), body_rect.inflate(-4, -4), border_radius=2)
-        cross_h = pygame.Rect(0, 0, width - 8, 3)
+        pygame.draw.rect(surface, pygame.Color(170, 48, 48), body_rect, border_radius=3)
+        pygame.draw.rect(surface, pygame.Color(220, 96, 96), body_rect.inflate(-3, -4), border_radius=2)
+        highlight = pygame.Rect(body_rect.left + 2, body_rect.top + 2, 3, body_rect.height - 4)
+        pygame.draw.rect(surface, pygame.Color(255, 184, 184), highlight, border_radius=2)
+        cross_h = pygame.Rect(0, 0, width - 8, 2)
         cross_h.center = (width // 2, height // 2 + 1)
-        cross_v = pygame.Rect(0, 0, 3, height - 10)
+        cross_v = pygame.Rect(0, 0, 2, height - 8)
         cross_v.center = (width // 2, height // 2 + 1)
-        pygame.draw.rect(surface, pygame.Color(255, 255, 255), cross_h, border_radius=1)
-        pygame.draw.rect(surface, pygame.Color(255, 255, 255), cross_v, border_radius=1)
-        cap_rect = pygame.Rect(width // 2 - 3, 0, 6, 4)
-        pygame.draw.rect(surface, pygame.Color(26, 74, 44), cap_rect, border_radius=2)
+        pygame.draw.rect(surface, pygame.Color(255, 240, 220), cross_h, border_radius=1)
+        pygame.draw.rect(surface, pygame.Color(255, 240, 220), cross_v, border_radius=1)
+        cap_rect = pygame.Rect(width // 2 - 3, 0, 6, 3)
+        pygame.draw.rect(surface, pygame.Color(110, 24, 32), cap_rect, border_radius=2)
+        rim = pygame.Rect(cap_rect.left, cap_rect.bottom - 1, cap_rect.width, 2)
+        pygame.draw.rect(surface, pygame.Color(255, 214, 140), rim, border_radius=2)
         return surface
 
     def _create_consumable_pickup_sprite(self) -> pygame.Surface:
@@ -1203,13 +1215,23 @@ class Game:
     def _create_bundle_pickup_sprite(self) -> pygame.Surface:
         width, height = 16, 16
         surface = pygame.Surface((width, height), pygame.SRCALPHA)
-        crate_rect = pygame.Rect(1, 3, width - 2, height - 4)
-        pygame.draw.rect(surface, pygame.Color(150, 105, 60), crate_rect)
-        pygame.draw.rect(surface, pygame.Color(90, 60, 36), crate_rect, width=2)
-        band_rect = pygame.Rect(2, height // 2 - 2, width - 4, 4)
-        pygame.draw.rect(surface, pygame.Color(230, 210, 120), band_rect)
-        knot_rect = pygame.Rect(width // 2 - 2, band_rect.top - 2, 4, 4)
-        pygame.draw.rect(surface, pygame.Color(200, 80, 80), knot_rect, border_radius=2)
+        crate_rect = pygame.Rect(1, 2, width - 2, height - 3)
+        pygame.draw.rect(surface, pygame.Color(168, 118, 72), crate_rect, border_radius=2)
+        grain_lines = [
+            pygame.Rect(crate_rect.left + 2, crate_rect.top + 2, crate_rect.width - 4, 2),
+            pygame.Rect(crate_rect.left + 3, crate_rect.centery - 1, crate_rect.width - 6, 2),
+        ]
+        for line in grain_lines:
+            pygame.draw.rect(surface, pygame.Color(136, 90, 52), line, border_radius=2)
+        pygame.draw.rect(surface, pygame.Color(96, 60, 32), crate_rect, width=2, border_radius=2)
+        band_h = pygame.Rect(2, height // 2 - 2, width - 4, 4)
+        band_v = pygame.Rect(width // 2 - 2, 3, 4, height - 6)
+        pygame.draw.rect(surface, pygame.Color(238, 206, 104), band_h, border_radius=2)
+        pygame.draw.rect(surface, pygame.Color(244, 214, 128), band_v, border_radius=2)
+        knot_rect = pygame.Rect(width // 2 - 3, band_h.top - 3, 6, 6)
+        pygame.draw.rect(surface, pygame.Color(196, 68, 68), knot_rect, border_radius=3)
+        knot_highlight = knot_rect.inflate(-2, -2)
+        pygame.draw.rect(surface, pygame.Color(236, 112, 112), knot_highlight, border_radius=2)
         return surface
 
     def _load_surface(self, path: Path) -> pygame.Surface | None:
