@@ -75,6 +75,7 @@ class Player(Entity):
         self._cooldown_modifiers: dict[str, float] = {}
         self._upgrade_flags: set[str] = set()
         self.key_items: set[str] = set()
+        self.shop_purchases: set[str] = set()
         self.sprint_control_bonus = 0.0
         self._sprint_control_timer = 0.0
         self._is_sprinting = False
@@ -580,6 +581,16 @@ class Player(Entity):
 
     def has_key_item(self, item_id: str) -> bool:
         return item_id in self.key_items
+
+    def register_shop_purchase(self, shop_id: str) -> None:
+        if not shop_id:
+            return
+        self.shop_purchases.add(shop_id)
+
+    def has_shop_purchase(self, shop_id: str) -> bool:
+        if not shop_id:
+            return False
+        return shop_id in self.shop_purchases
 
     def set_cooldown_modifier(self, upgrade_id: str, multiplier: float) -> None:
         self._cooldown_modifiers[upgrade_id] = float(multiplier)

@@ -21,6 +21,7 @@ class ShopItem:
     payload: dict
     sprite: pygame.Surface
     sprite_name: str = ""
+    shop_id: str = ""
 
 
 class Shop:
@@ -71,6 +72,7 @@ class Shop:
         self._seed: int | None = None
         self._rng = random.Random()
         self._inventory_generated = False
+        self._purchased_fallback: set[str] = set()
         self._restock_random()
 
     def _scaled(self, value: float) -> int:
@@ -81,6 +83,34 @@ class Shop:
 
     def _hover_fill(self, color, amount: int = 16):
         return tuple(min(255, max(0, c + amount)) for c in color)
+
+    def _get_purchase_registry(self) -> set[str]:
+        if self._player_ref is not None and hasattr(self._player_ref, "shop_purchases"):
+            registry = getattr(self._player_ref, "shop_purchases")
+            if registry is None:
+                registry = set()
+                setattr(self._player_ref, "shop_purchases", registry)
+            registry.update(self._purchased_fallback)
+            self._purchased_fallback = set(registry)
+            return registry
+        return self._purchased_fallback
+
+    def _register_purchase(self, shop_id: str) -> None:
+        if not shop_id:
+            return
+        registry = self._get_purchase_registry()
+        registry.add(shop_id)
+        self._purchased_fallback.add(shop_id)
+        if self._player_ref is not None and hasattr(self._player_ref, "register_shop_purchase"):
+            try:
+                self._player_ref.register_shop_purchase(shop_id)
+            except Exception:
+                pass
+
+    def _is_item_purchased(self, shop_id: str) -> bool:
+        if not shop_id:
+            return False
+        return shop_id in self._get_purchase_registry()
 
     def _resolve_font_path(self) -> Path | None:
         candidates = [
@@ -290,7 +320,10 @@ class Shop:
             self._restock_random()
 
     def _select_items(self, rng: random.Random) -> list[ShopItem]:
-        available = list(self.catalog)
+        purchased = self._get_purchase_registry()
+        available = [entry for entry in self.catalog if self._entry_key(entry) not in purchased]
+        if not available:
+            return []
         weights = [float(entry.get("weight", 1.0)) for entry in available]
         chosen: list[dict] = []
         while available and len(chosen) < self.MAX_ITEMS:
@@ -299,12 +332,30 @@ class Shop:
             chosen.append(choice)
             available.pop(idx)
             weights.pop(idx)
-        if not chosen:
-            chosen = list(self.catalog)
         return [self._build_shop_item(entry) for entry in chosen]
+
+    def _filter_purchased_items(self) -> None:
+        if not self.items:
+            return
+        purchased = self._get_purchase_registry()
+        filtered = [item for item in self.items if item.shop_id not in purchased]
+        if len(filtered) == len(self.items):
+            return
+        self.items = filtered
+        if self.items:
+            self.selected %= len(self.items)
+            self.hover_index = self.selected
+        else:
+            self.selected = 0
+            self.hover_index = None
+
+    def _entry_key(self, entry: dict) -> str:
+        return str(entry.get("id") or entry.get("name") or entry.get("type") or "")
 
     def _build_shop_item(self, entry: dict) -> ShopItem:
         payload = {k: v for k, v in entry.items() if k not in {"description", "effect", "weight", "sprite"}}
+        shop_id = self._entry_key(entry)
+        payload["shop_id"] = shop_id
         price = max(0, int(entry.get("price", 0)))
         description = entry.get("description", "")
         effect = entry.get("effect", "")
@@ -317,17 +368,20 @@ class Shop:
             payload=payload,
             sprite=sprite_surface,
             sprite_name=sprite_name,
+            shop_id=shop_id,
         )
 
     # ------------------------------------------------------------------
     # Control de visibilidad y selección
     # ------------------------------------------------------------------
     def open(self, cx: int, cy: int, player=None) -> None:
+        self._player_ref = player
+        self._sync_purchase_registry()
         self.ensure_inventory()
+        self._filter_purchased_items()
         self.active = True
         self.rect.center = (cx, cy + self._scaled(22))
         self.hover_index = None
-        self._player_ref = player
         self._message_timer = 0.0
         self._message_text = ""
         if hasattr(player, "set_controls_enabled"):
@@ -335,6 +389,17 @@ class Shop:
                 player.set_controls_enabled(False)
             except Exception:
                 pass
+
+    def _sync_purchase_registry(self) -> None:
+        if self._player_ref is None:
+            return
+        if hasattr(self._player_ref, "shop_purchases"):
+            registry = getattr(self._player_ref, "shop_purchases")
+            if registry is None:
+                registry = set()
+                setattr(self._player_ref, "shop_purchases", registry)
+            registry.update(self._purchased_fallback)
+            self._purchased_fallback = set(registry)
 
     def close(self) -> None:
         self.active = False
@@ -406,6 +471,9 @@ class Shop:
         if not self.active or not self.items:
             return False, ""
         item = self.items[self.selected]
+        if self._is_item_purchased(item.shop_id):
+            self._set_message("Ya compraste este artículo.", self.ERROR_COLOR)
+            return False, "Artículo ya adquirido."
         price = max(0, int(item.price))
         gold = getattr(player, "gold", 0)
         if gold < price:
@@ -416,6 +484,12 @@ class Shop:
             if player.has_weapon(item.payload.get("id", "")):
                 self._set_message("Ya posees esta arma.", self.ERROR_COLOR)
                 return False, "Ya tienes esta arma."
+        if item.payload.get("type") == "upgrade" and hasattr(player, "has_upgrade"):
+            if player.has_upgrade(item.payload.get("id", "")):
+                self._set_message("Ya posees esta mejora.", self.ERROR_COLOR)
+                self._register_purchase(item.shop_id)
+                self._filter_purchased_items()
+                return False, "Ya tienes esta mejora."
 
         setattr(player, "gold", gold - price)
         if price > 0 and callable(self._on_gold_spent):
@@ -427,12 +501,14 @@ class Shop:
         applied = apply_reward_entry(player, item.payload)
         name = item.name
         self.items.pop(self.selected)
+        self._register_purchase(item.shop_id)
         if self.items:
             self.selected %= len(self.items)
             self.hover_index = self.selected
         else:
             self.selected = 0
             self.hover_index = None
+        self._filter_purchased_items()
         if applied:
             self._set_message(f"Compraste: {name}", self.ACCENT_COLOR)
         else:
