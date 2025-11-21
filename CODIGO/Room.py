@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Callable, Dict, List, Optional, Tuple, Type
 
 import pygame
 
@@ -479,6 +479,7 @@ class Room:
         self._rune_chest_tiles: set[tuple[int, int]] = set()
         self._rune_wave_triggered: bool = False
         self._rune_wave_cleared: bool = False
+        self._notification_callback: Callable[[str, pygame.Surface | None], None] | None = None
 
         self.obstacles: list[dict] = []
         self._obstacle_tiles: set[tuple[int, int]] = set()
@@ -494,6 +495,14 @@ class Room:
     # ------------------------------------------------------------------ #
     # API estática para sprites de obstáculos
     # ------------------------------------------------------------------ #
+
+    def set_notification_callback(
+        self, callback: Callable[[str, pygame.Surface | None], None] | None
+    ) -> None:
+        """Define un callback para mostrar mensajes en el HUD en lugar de sobre el cofre."""
+
+        self._notification_callback = callback
+
     @staticmethod
     def set_obstacle_sprite_scale(
         variant: str | None, scale: float | tuple[float, float] | list[float] | None
@@ -1383,6 +1392,12 @@ class Room:
         return random.choices(population, weights=weights, k=1)[0]
 
     def _show_rune_message(self, message: str, *, duration: int = 3200) -> None:
+        if self._notification_callback:
+            self._notification_callback(message)
+            self.rune_message = ""
+            self.rune_message_until = 0
+            return
+
         self.rune_message = message
         self.rune_message_until = pygame.time.get_ticks() + max(500, duration)
 
@@ -1572,8 +1587,13 @@ class Room:
             message = f"Obtuviste: {name}" if applied else f"Encontraste: {name}"
 
         self.treasure["opened"] = True
-        self.treasure_message = message
-        self.treasure_message_until = pygame.time.get_ticks() + 4200
+        if self._notification_callback:
+            self._notification_callback(message)
+            self.treasure_message = ""
+            self.treasure_message_until = 0
+        else:
+            self.treasure_message = message
+            self.treasure_message_until = pygame.time.get_ticks() + 4200
 
     def _pick_treasure_reward(self, player) -> dict | None:
         if not self.treasure:

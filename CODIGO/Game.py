@@ -165,6 +165,13 @@ class Game:
         self._run_gold_spent: int = 0
         self._run_kills: int = 0
 
+    def _bind_room_notifications(self) -> None:
+        if not hasattr(self, "dungeon") or not getattr(self, "dungeon", None):
+            return
+        for room in getattr(self.dungeon, "rooms", {}).values():
+            if hasattr(room, "set_notification_callback"):
+                room.set_notification_callback(self._push_notification)
+
     # ------------------------------------------------------------------ #
     # Nueva partida / regenerar dungeon (misma o nueva seed)
     # ------------------------------------------------------------------ #
@@ -184,6 +191,7 @@ class Game:
         self.dungeon = Dungeon(**params, seed=seed)
         self.current_seed = self.dungeon.seed
         pygame.display.set_caption(f"Roguelike — Seed {self.current_seed}")
+        self._bind_room_notifications()
 
         self.loot_notifications.clear()
 
@@ -857,6 +865,11 @@ class Game:
         if amount <= 0:
             return
         self.loot_notifications.push(f"+{amount} microchips", self._microchip_icon_source)
+
+    def _push_notification(self, message: str, icon: pygame.Surface | None = None) -> None:
+        if not message:
+            return
+        self.loot_notifications.push(message, icon)
 
     def _notify_reward(self, reward: dict | None, icon: pygame.Surface | None = None) -> None:
         if not isinstance(reward, dict):
