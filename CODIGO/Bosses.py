@@ -67,9 +67,9 @@ class BossEnemy(Enemy):
         y_offset = 0.0
 
         if self.sprite_variant == "boss_core":
-            side_trim = max(4, int(width * 0.08))
-            top_trim = max(10, int(height * 0.22))
-            bottom_trim = max(4, int(height * 0.10))
+            side_trim = max(6, int(width * 0.1))
+            top_trim = max(14, int(height * 0.28))
+            bottom_trim = max(5, int(height * 0.12))
             width = max(12, width - side_trim * 2)
             height = max(12, height - (top_trim + bottom_trim))
             y_offset = (top_trim - bottom_trim) / 2

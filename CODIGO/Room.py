@@ -661,7 +661,12 @@ class Room:
             (rx + rw - 2, ry + rh - 2),
         ]
 
-        variant_choices = _OBSTACLE_VARIANTS.get((1, 1), ["default"])
+        candidate_sizes = [
+            size
+            for size in [(1, 1), (1, 2), (2, 1), (2, 2)]
+            if rx + rw - size[0] - 1 >= rx + 1 and ry + rh - size[1] - 1 >= ry + 1
+        ]
+        candidate_sizes = candidate_sizes or [(1, 1)]
 
         for base_tx, base_ty in corners:
             spots = [
@@ -675,10 +680,15 @@ class Room:
             for tx, ty in spots:
                 if placed >= desired:
                     break
-                if self._can_place_obstacle(tx, ty, 1, 1):
-                    variant = rng.choice(variant_choices)
-                    self._register_obstacle(tx, ty, 1, 1, variant=variant)
-                    placed += 1
+                for w_tiles, h_tiles in rng.sample(candidate_sizes, k=len(candidate_sizes)):
+                    if placed >= desired:
+                        break
+                    if self._can_place_obstacle(tx, ty, w_tiles, h_tiles):
+                        variant_pool = _OBSTACLE_VARIANTS.get((w_tiles, h_tiles), ["default"])
+                        variant = rng.choice(variant_pool)
+                        self._register_obstacle(tx, ty, w_tiles, h_tiles, variant=variant)
+                        placed += 1
+                        break
 
         self._boss_corner_obstacles_placed = True
 

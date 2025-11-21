@@ -465,6 +465,8 @@ class Dungeon:
             room.boss_blueprint = rng.choice(BOSS_BLUEPRINTS)
         if hasattr(room, "build_centered"):
             room.build_centered(CFG.BOSS_ROOM_W, CFG.BOSS_ROOM_H)
+        if hasattr(room, "carve_corridors"):
+            room.carve_corridors(width_tiles=2, length_tiles=3)
         self.boss_pos = farthest
         setattr(room, "type", "boss")
         room.no_spawn = True
