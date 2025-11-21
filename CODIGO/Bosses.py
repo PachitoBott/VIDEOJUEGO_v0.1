@@ -7,8 +7,9 @@ from typing import Callable
 import pygame
 
 from Config import CFG
-from Enemy import Enemy, FastChaserEnemy
+from Enemy import CHASE, WANDER, Enemy, FastChaserEnemy
 from Projectile import Projectile
+from enemy_sprites import LayeredBossAnimator, load_boss_animation_layers
 
 
 class BossEnemy(Enemy):
@@ -32,6 +33,20 @@ class BossEnemy(Enemy):
         self._player_rect_cache: pygame.Rect | None = None
         self._phase_thresholds = (0.6, 0.3)
         self._tracked_room = None
+        # Animación en capas (piernas/torso + muerte completa)
+        self.animations = load_boss_animation_layers(self.sprite_variant)
+        self.animator = LayeredBossAnimator(
+            self.animations,
+            leg_fps={"idle": 5.0, "run": 10.0},
+            torso_fps={
+                "idle": 5.0,
+                "shoot1": 10.0,
+                "shoot2": 12.0,
+                "shoot3": 10.0,
+            },
+            default_fps=8.0,
+            death_fps=12.0,
+        )
 
     def on_spawn(self, room) -> None:
         self._tracked_room = room
@@ -64,6 +79,21 @@ class BossEnemy(Enemy):
             overlay.fill((*color[:3], color[3] if len(color) > 3 else 150))
             surface.blit(overlay, rect.topleft)
             pygame.draw.rect(surface, (255, 180, 120), rect, 1)
+
+    def draw(self, surf: pygame.Surface) -> None:
+        legs, torso = self.animator.current_surfaces()
+        if not self._facing_right:
+            legs = pygame.transform.flip(legs, True, False)
+            if torso:
+                torso = pygame.transform.flip(torso, True, False)
+
+        center = self.rect().center
+        leg_dest = legs.get_rect(center=center)
+        surf.blit(legs, leg_dest)
+
+        if torso is not None:
+            torso_dest = torso.get_rect(center=center)
+            surf.blit(torso, torso_dest)
 
     def add_telegraph(
         self,
@@ -163,6 +193,19 @@ class BossEnemy(Enemy):
         if callable(taker):
             taker(amount)
 
+    def _update_animation(self, dt: float) -> None:
+        base_state = "idle"
+        if not self._movement_locked and self.state in (WANDER, CHASE):
+            base_state = "run"
+        self.animator.set_leg_state(base_state)
+        self.animator.set_torso_base_state("idle")
+        self.animator.update(dt)
+
+    def trigger_shoot_animation(self, variant: str = "shoot1") -> None:
+        if self._is_dying:
+            return
+        self.animator.trigger_shoot(variant)
+
 
 class CorruptedServerBoss(BossEnemy):
     SPRITE_VARIANT = "boss_core"
@@ -199,32 +242,39 @@ class CorruptedServerBoss(BossEnemy):
             if self._radial_timer <= 0.0:
                 self._fire_radial(out_bullets, speed=140.0, bullets=18)
                 self._radial_timer = self.radial_cooldown
+                self.trigger_shoot_animation("shoot1")
                 fired = True
             if self._line_timer <= 0.0:
                 self._fire_line(player, out_bullets, speed=200.0, bullets=7)
                 self._line_timer = self.line_cooldown
+                self.trigger_shoot_animation("shoot2")
                 fired = True
         elif self.phase == 2:
             if self._radial_timer <= 0.0:
                 self._fire_radial(out_bullets, speed=200.0, bullets=12)
                 self._radial_timer = max(0.9, self.radial_cooldown * 0.75)
+                self.trigger_shoot_animation("shoot1")
                 fired = True
             if self._line_timer <= 0.0:
                 self._fire_line(player, out_bullets, speed=260.0, bullets=5)
                 self._line_timer = max(1.2, self.line_cooldown * 0.7)
+                self.trigger_shoot_animation("shoot2")
                 fired = True
             if self._minion_timer <= 0.0:
                 self._spawn_minions(room)
                 self._minion_timer = self.minion_cooldown
+                self.trigger_shoot_animation("shoot1")
                 fired = True
         else:
             if self._telegraph_timer <= 0.0:
                 self._spawn_telegraphs(player)
                 self._telegraph_timer = max(2.5, self.telegraph_cooldown * 0.6)
+                self.trigger_shoot_animation("shoot3")
                 fired = True
             if self._laser_timer <= 0.0:
                 self._fire_laser(player, out_bullets)
                 self._laser_timer = max(2.8, self.laser_cooldown * 0.75)
+                self.trigger_shoot_animation("shoot2")
                 fired = True
         return fired
 
