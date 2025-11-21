@@ -82,8 +82,8 @@ class Config:
 
     # --- Tesoro ---
     # Tamaño base del cofre y escala adicional para sprites personalizados.
-    TREASURE_SIZE: Tuple[int, int] = (32, 24)
-    TREASURE_SPRITE_SCALE: float = 1.0
+    TREASURE_SIZE: Tuple[int, int] = (48, 48)
+    TREASURE_SPRITE_SCALE: float =10
 
     START_MENU: StartMenuConfig = StartMenuConfig()
 

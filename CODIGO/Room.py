@@ -95,7 +95,7 @@ def _load_treasure_sprite(size: tuple[int, int], opened: bool) -> pygame.Surface
             sprite = None
 
     if sprite is not None and sprite.get_size() != size:
-        sprite = pygame.transform.smoothscale(sprite, size*2)
+        sprite = pygame.transform.smoothscale(sprite, size)
 
     _TREASURE_SPRITE_CACHE[size] = sprite
     if sprite is not None:
@@ -1121,7 +1121,9 @@ class Room:
         ts = CFG.TILE_SIZE
         cx = (rx + rw // 2) * ts
         cy = (ry + rh // 2) * ts
-        width, height = self._treasure_dimensions((28, 20))
+
+        width = 28
+        height = 20
         self.treasure = {
             "rect": pygame.Rect(cx - width // 2, cy - height // 2, width, height),
             "opened": False,
@@ -1139,7 +1141,8 @@ class Room:
         ts = CFG.TILE_SIZE
         cx = (rx + rw // 2) * ts
         cy = (ry + rh // 2) * ts
-        width, height = self._treasure_dimensions((32, 24))
+        width = 32
+        height = 24
         self.treasure = {
             "rect": pygame.Rect(cx - width // 2, cy - height // 2, width, height),
             "opened": False,
@@ -1147,20 +1150,6 @@ class Room:
         }
         self.treasure_message = ""
         self.treasure_message_until = 0
-
-    def _treasure_dimensions(self, base_size: tuple[int, int]) -> tuple[int, int]:
-        """Calcula el tamaño del cofre aplicando la escala configurada."""
-
-        scale = max(0.1, float(getattr(CFG, "TREASURE_SPRITE_SCALE", 1.0)))
-        cfg_size = getattr(CFG, "TREASURE_SIZE", base_size)
-        try:
-            bw, bh = int(cfg_size[0]), int(cfg_size[1])
-        except (TypeError, ValueError, IndexError):
-            bw, bh = base_size
-
-        width = max(4, int(round(bw * scale)))
-        height = max(4, int(round(bh * scale)))
-        return width, height
 
     def _handle_treasure_events(self, events, player) -> None:
         if not self.treasure:
