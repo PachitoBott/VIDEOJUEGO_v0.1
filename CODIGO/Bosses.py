@@ -72,7 +72,7 @@ class BossEnemy(Enemy):
             bottom_trim = max(5, int(height * 0.12))
             width = max(12, width - side_trim * 2)
             height = max(12, height - (top_trim + bottom_trim))
-            downward_bias = max(4.0, height * 0.08)
+            downward_bias = max(6.0, height * 0.12)
             y_offset = (top_trim - bottom_trim) / 2 + downward_bias
 
         self.w = width
