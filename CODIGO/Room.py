@@ -656,8 +656,8 @@ class Room:
             return
         rx, ry, rw, rh = self.bounds
         ts = cfg.TILE_SIZE
-        cx = (rx + rw // 2) * ts
-        cy = (ry + rh // 2) * ts
+        cx = (rx + rw // 2) * ts + ts // 2
+        cy = (ry + rh // 2) * ts + ts // 2
         self.shopkeeper = ShopkeeperCls((cx, cy))
 
     def on_enter(self, player, cfg, ShopkeeperCls=None):
@@ -1100,8 +1100,8 @@ class Room:
         assert self.bounds is not None
         rx, ry, rw, rh = self.bounds
         ts = CFG.TILE_SIZE
-        cx = (rx + rw // 2) * ts
-        cy = (ry + rh // 2) * ts
+        cx = (rx + rw // 2) * ts + ts // 2
+        cy = (ry + rh // 2) * ts + ts // 2
         return cx, cy
 
     # ------------------------------------------------------------------ #
@@ -1177,8 +1177,8 @@ class Room:
         assert self.bounds is not None
         rx, ry, rw, rh = self.bounds
         ts = CFG.TILE_SIZE
-        cx = (rx + rw // 2) * ts
-        cy = (ry + rh // 2) * ts
+        cx = (rx + rw // 2) * ts + ts // 2
+        cy = (ry + rh // 2) * ts + ts // 2
 
         width, height = self._treasure_dimensions((28, 20))
         sprite_rect = pygame.Rect(cx - width // 2, cy - height // 2, width, height)
@@ -1200,8 +1200,8 @@ class Room:
         assert self.bounds is not None
         rx, ry, rw, rh = self.bounds
         ts = CFG.TILE_SIZE
-        cx = (rx + rw // 2) * ts
-        cy = (ry + rh // 2) * ts
+        cx = (rx + rw // 2) * ts + ts // 2
+        cy = (ry + rh // 2) * ts + ts // 2
         width, height = self._treasure_dimensions((32, 24))
         sprite_rect = pygame.Rect(cx - width // 2, cy - height // 2, width, height)
         self.treasure = {
