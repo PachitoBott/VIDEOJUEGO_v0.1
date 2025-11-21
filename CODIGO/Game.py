@@ -89,6 +89,14 @@ class Game:
 
         self.loot_notifications = LootNotificationManager(self.loot_font)
         self.loot_notifications.set_surface_size(self.screen.get_size())
+
+        # --- Barra de vida del boss ---
+        self.boss_bar_size = pygame.Vector2(420, 18)
+        self.boss_bar_margin = pygame.Vector2(0, 16)
+        self.boss_bar_bg_color = pygame.Color(24, 16, 26, 210)
+        self.boss_bar_fill_color = pygame.Color(235, 76, 91)
+        self.boss_bar_border_color = pygame.Color(255, 200, 140)
+        self.boss_bar_text_color = pygame.Color(240, 240, 240)
         
         # Usa los métodos set_microchip_icon_scale/offset/value_offset para ajustar
         # manualmente la presentación del icono dentro del HUD.
@@ -137,6 +145,7 @@ class Game:
         self.door_cooldown = 0.0
         self.running = True
         self.debug_draw_doors = cfg.DEBUG_DRAW_DOOR_TRIGGERS
+        self.debug_start_in_boss_room = getattr(cfg, "DEBUG_START_IN_BOSS_ROOM", False)
         self._skip_frame = False
         self.vfx = VFXManager()
 
@@ -213,6 +222,9 @@ class Game:
             self.dungeon.enter_initial_room(self.player, self.cfg, ShopkeeperCls=Shopkeeper)
 
         self._run_start_time = perf_counter()
+
+        if self.debug_start_in_boss_room:
+            self._warp_to_boss_room()
 
     def _reset_runtime_state(self) -> None:
         self.projectiles.clear()
@@ -305,6 +317,8 @@ class Game:
                 elif e.key == pygame.K_n:
                     self._stats_pending_reason = "manual_new_seed"
                     self.start_new_run(seed=None)
+                elif e.key == pygame.K_b and (pygame.key.get_mods() & pygame.KMOD_CTRL):
+                    self._warp_to_boss_room()
         return events
 
     def _open_start_menu(self) -> bool:
@@ -321,6 +335,44 @@ class Game:
         pygame.mouse.set_visible(False)
         self.start_new_run(seed=menu_result.seed)
         self._skip_frame = True
+        return True
+
+    def _warp_to_boss_room(self) -> bool:
+        dungeon = getattr(self, "dungeon", None)
+        player = getattr(self, "player", None)
+        if dungeon is None or player is None:
+            return False
+
+        boss_pos = getattr(dungeon, "boss_pos", None)
+        if boss_pos is None or boss_pos not in getattr(dungeon, "rooms", {}):
+            print("[DEBUG] No hay sala de boss disponible para teletransporte.")
+            return False
+
+        current_room = dungeon.current_room
+        if hasattr(current_room, "on_exit"):
+            current_room.on_exit()
+
+        dungeon.i, dungeon.j = boss_pos
+        dungeon.explored.add(boss_pos)
+        target_room = dungeon.current_room
+
+        if hasattr(target_room, "locked"):
+            target_room.locked = False
+
+        cx, cy = target_room.center_px()
+        player.x = cx - player.w / 2
+        player.y = cy - player.h / 2
+        player.xprec = player.x
+        player.yprec = player.y
+
+        self.projectiles.clear()
+        self.enemy_projectiles.clear()
+        self.door_cooldown = 0.25
+
+        if hasattr(target_room, "on_enter"):
+            target_room.on_enter(player, self.cfg, ShopkeeperCls=Shopkeeper)
+
+        print("[DEBUG] Teletransportado a la sala del boss para pruebas.")
         return True
 
     def add_pause_menu_button(
@@ -1128,13 +1180,74 @@ class Game:
         if boss and hasattr(boss, "draw_floor_effects"):
             boss.draw_floor_effects(self.world)
 
+    def _find_active_boss(self, room):
+        if room is None:
+            return None
+        if getattr(room, "boss_defeated", False):
+            return None
+        boss = getattr(room, "boss_instance", None)
+        if boss is None:
+            for enemy in getattr(room, "enemies", []):
+                if getattr(enemy, "is_boss", False):
+                    boss = enemy
+                    break
+        if boss is None:
+            return None
+        if getattr(boss, "hp", 0) <= 0:
+            return None
+        return boss
+
+    def _draw_boss_health_bar(self, surface: pygame.Surface, room) -> pygame.Rect:
+        boss = self._find_active_boss(room)
+        if boss is None:
+            return pygame.Rect(0, 0, 0, 0)
+
+        max_hp = max(1, int(getattr(boss, "max_hp", getattr(boss, "hp", 1))))
+        hp_value = max(0, min(max_hp, int(getattr(boss, "hp", 0))))
+        ratio = hp_value / max_hp if max_hp > 0 else 0.0
+
+        width = int(min(self.boss_bar_size.x, surface.get_width() - 60))
+        width = max(width, 160)
+        height = int(self.boss_bar_size.y)
+        x = (surface.get_width() - width) // 2 + int(self.boss_bar_margin.x)
+        y = int(self.boss_bar_margin.y)
+        bar_rect = pygame.Rect(x, y, width, height)
+
+        overlay = pygame.Surface(bar_rect.size, pygame.SRCALPHA)
+        overlay.fill(self.boss_bar_bg_color)
+        surface.blit(overlay, bar_rect.topleft)
+
+        inner_padding = 2
+        inner_width = width - inner_padding * 2
+        fill_width = int(inner_width * ratio)
+        fill_rect = pygame.Rect(
+            bar_rect.left + inner_padding,
+            bar_rect.top + inner_padding,
+            fill_width,
+            height - inner_padding * 2,
+        )
+        if fill_rect.width > 0:
+            pygame.draw.rect(surface, self.boss_bar_fill_color, fill_rect, border_radius=4)
+        pygame.draw.rect(surface, self.boss_bar_border_color, bar_rect, 2, border_radius=6)
+
+        name = getattr(boss, "name", None) or getattr(boss, "sprite_variant", "Boss")
+        label = f"{name} — {hp_value}/{max_hp}"
+        text_surface = self.loot_font.render(label, True, self.boss_bar_text_color)
+        text_rect = text_surface.get_rect(center=bar_rect.center)
+        surface.blit(text_surface, text_rect)
+
+        return bar_rect
+
     def _render_ui(self) -> None:
+        room = self.dungeon.current_room
         scaled = pygame.transform.scale(
             self.world,
             (self.cfg.SCREEN_W * self.cfg.SCREEN_SCALE,
              self.cfg.SCREEN_H * self.cfg.SCREEN_SCALE)
         )
         self.screen.blit(scaled, (0, 0))
+
+        self._draw_boss_health_bar(self.screen, room)
 
         inventory_rect = self.hud_panels.blit_inventory_panel(self.screen)
         weapon_rect = self._draw_weapon_hud(inventory_rect)
