@@ -94,16 +94,6 @@ def apply_upgrade_reward(player: Any, upgrade_id: Any) -> bool:
     set_modifier = getattr(player, "set_cooldown_modifier", None)
     uid = str(upgrade_id)
 
-    if uid == "hp_up":
-        max_lives = getattr(player, "max_lives", getattr(player, "lives", 1))
-        lives = getattr(player, "lives", max_lives)
-        max_lives += 1
-        lives = min(lives + 1, max_lives)
-        setattr(player, "max_lives", max_lives)
-        setattr(player, "lives", lives)
-        if callable(register):
-            register(uid)
-        return True
     if uid == "spd_up":
         speed = getattr(player, "speed", 1.0)
         setattr(player, "speed", speed * 1.05)
@@ -194,36 +184,13 @@ def apply_upgrade_reward(player: Any, upgrade_id: Any) -> bool:
 
 def apply_consumable_reward(player: Any, consumable_id: Any, data: dict | None = None) -> bool:
     cid = str(consumable_id) if consumable_id else ""
-    if cid == "heal_full":
-        return _restore_current_life(
-            player, getattr(player, "max_hp", getattr(player, "hp", 1)), allow_overflow=False
-        )
-    if cid == "heal_medium":
-        amount = random.randint(2, 3)
-        return apply_heal_reward(player, amount)
-    if cid == "heal_small":
-        # Cápsula amarilla: recupera solo un golpe de la batería actual.
+    if cid in {"heal_small", "heal_medium"}:
+        # Única cápsula amarilla: recupera solo un golpe de la batería actual.
         return _restore_current_life(player, 1, allow_overflow=False)
     if cid == "heal_battery_full":
         # Batería verde: recarga por completo la vida en uso.
         max_hp = getattr(player, "max_hp", getattr(player, "hp", 1))
         return _restore_current_life(player, max_hp, allow_overflow=False)
-    if cid == "life_refill":
-        max_lives = max(0, int(getattr(player, "max_lives", getattr(player, "lives", 1))))
-        if max_lives <= 0:
-            return False
-        lives = max(0, int(getattr(player, "lives", 0)))
-        if lives >= max_lives:
-            return False
-        new_lives = min(max_lives, lives + 1)
-        setattr(player, "lives", new_lives)
-        max_hp = max(1, int(getattr(player, "max_hp", getattr(player, "hp", 1))))
-        buffer_capacity = max_hp * max(0, max_lives - new_lives)
-        if hasattr(player, "life_charge_buffer"):
-            buffer = max(0, int(getattr(player, "life_charge_buffer", 0)))
-            buffer = min(buffer, buffer_capacity)
-            setattr(player, "life_charge_buffer", buffer)
-        return True
     return False
 
 

@@ -13,19 +13,25 @@ from Statistics import StatisticsManager
 @dataclass(frozen=True)
 class StartMenuResult:
     """Resultado devuelto por el menú de inicio."""
-
     start_game: bool
     seed: Optional[int]
 
 
 class StartMenu:
-    """Pantalla de inicio configurable antes de arrancar la partida."""
+    """Pantalla de inicio configurable (CyberQuest Edition)."""
 
     BUTTON_PADDING_X = 32
     BUTTON_PADDING_Y = 14
-    BUTTON_GAP = 12
+    BUTTON_GAP = 16
     INPUT_WIDTH = 320
     INPUT_HEIGHT = 48
+
+    # Colores Cyberpunk
+    COLOR_NEON_BLUE = (0, 255, 255)
+    COLOR_NEON_PINK = (255, 0, 128)
+    COLOR_DARK_BG = (10, 10, 20)
+    COLOR_GRID = (30, 30, 60)
+    COLOR_TEXT_WHITE = (240, 240, 255)
 
     def __init__(
         self,
@@ -37,13 +43,27 @@ class StartMenu:
         self.screen = screen
         self.cfg = cfg
         self.menu_cfg = cfg.START_MENU
-        pygame.display.set_caption(self.menu_cfg.title)
+        
+        pygame.display.set_caption("CyberQuest")
         self.clock = pygame.time.Clock()
 
-        self.title_font = pygame.font.SysFont(None, 72)
-        self.subtitle_font = pygame.font.SysFont(None, 32)
-        self.button_font = pygame.font.SysFont(None, 36)
-        self.small_font = pygame.font.SysFont(None, 24)
+        # --- GESTIÓN DE RUTAS (FIX BASADO EN TU IMAGEN) ---
+        # Calculamos la carpeta donde está ESTE archivo script (carpeta "CODIGO")
+        self.base_dir = Path(__file__).parent.resolve()
+        # Apuntamos directamente a CODIGO/assets/ui
+        self.ui_assets_dir = self.base_dir / "assets" / "ui"
+
+        # Debug para verificar en consola si falla
+        print(f"--- DEBUG START MENU ---")
+        print(f"Script location: {self.base_dir}")
+        print(f"Assets UI location: {self.ui_assets_dir}")
+
+        # --- Carga de Fuentes ---
+        # Busca VT323-Regular.ttf en CODIGO/assets/ui/
+        self.title_font = self._get_font("VT323-Regular.ttf", 96)
+        self.subtitle_font = self._get_font("VT323-Regular.ttf", 42)
+        self.button_font = self._get_font("VT323-Regular.ttf", 48)
+        self.small_font = self._get_font("VT323-Regular.ttf", 32)
 
         self.seed_text: str = ""
         self.input_active = False
@@ -55,32 +75,70 @@ class StartMenu:
         self.button_rects: list[tuple[str, pygame.Rect]] = []
         self.seed_rect = pygame.Rect(0, 0, self.INPUT_WIDTH, self.INPUT_HEIGHT)
 
-        self.background = self._load_image(self.menu_cfg.background_image)
+        # --- Carga de Fondo ---
+        # Busca fondoMenu.png en CODIGO/assets/ui/
+        self.background = self._load_image("fondoMenu.png")
+        
+        # Si no encuentra el fondo local, intenta el de config (fallback)
+        if not self.background and self.menu_cfg.background_image:
+             # Intentamos cargar usando ruta completa si viene en config
+             path_cfg = Path(self.menu_cfg.background_image)
+             if path_cfg.exists():
+                 try:
+                    self.background = pygame.image.load(str(path_cfg)).convert_alpha()
+                 except:
+                     pass
+
         self.logo = self._load_image(self.menu_cfg.logo_image)
 
         self._compute_layout()
         self._start_requested = False
 
     # ------------------------------------------------------------------
-    # Helpers
+    # Helpers & Path Finding
     # ------------------------------------------------------------------
-    def _load_image(self, path: Optional[str]) -> Optional[pygame.Surface]:
-        if not path:
+    def _get_path(self, filename: str) -> Path:
+        """Construye la ruta completa al archivo dentro de assets/ui"""
+        return self.ui_assets_dir / filename
+
+    def _get_font(self, font_name: str, size: int) -> pygame.font.Font:
+        """Carga fuente desde assets/ui, o usa sistema si falla."""
+        font_path = self._get_path(font_name)
+        
+        if font_path.exists():
+            try:
+                return pygame.font.Font(str(font_path), size)
+            except Exception as e:
+                print(f"Error cargando fuente {font_name}: {e}")
+        else:
+            print(f"Fuente no encontrada en: {font_path}")
+        
+        # Fallback
+        return pygame.font.SysFont("consolas", int(size * 0.7))
+
+    def _load_image(self, filename: Optional[str]) -> Optional[pygame.Surface]:
+        if not filename:
             return None
-        image_path = Path(path)
+            
+        # Si el nombre viene con rutas extrañas, nos quedamos solo con el nombre final
+        clean_name = Path(filename).name
+        image_path = self._get_path(clean_name)
+        
         if not image_path.exists():
+            print(f"Imagen no encontrada en: {image_path}")
             return None
+
         try:
             image = pygame.image.load(str(image_path)).convert_alpha()
-        except pygame.error:
+            return image
+        except Exception as e:
+            print(f"Error cargando imagen {clean_name}: {e}")
             return None
-        return image
 
     def _compute_layout(self) -> None:
         width, height = self.screen.get_size()
         center_x = width // 2
 
-        # Seed input position beneath buttons; will adjust later
         self.button_rects.clear()
 
         if not self.menu_cfg.buttons:
@@ -91,15 +149,14 @@ class StartMenu:
             self.button_font.size(button.label)[0]
             for button in self.menu_cfg.buttons
         )
-        button_width = max(max_label_width + self.BUTTON_PADDING_X * 2, 240)
+        button_width = max(max_label_width + self.BUTTON_PADDING_X * 2, 280)
         button_height = self.button_font.get_height() + self.BUTTON_PADDING_Y * 2
 
         total_height = len(self.menu_cfg.buttons) * button_height + (
             (len(self.menu_cfg.buttons) - 1) * self.BUTTON_GAP
         )
-        start_y = height // 2 - total_height // 2
-        if self.menu_cfg.subtitle:
-            start_y += 40
+        
+        start_y = height // 2 - total_height // 2 + 40 
 
         for button in self.menu_cfg.buttons:
             rect = pygame.Rect(0, 0, button_width, button_height)
@@ -110,7 +167,7 @@ class StartMenu:
 
         self.seed_rect.size = (self.INPUT_WIDTH, self.INPUT_HEIGHT)
         self.seed_rect.centerx = center_x
-        self.seed_rect.y = start_y + 16
+        self.seed_rect.y = start_y + 24
 
     # ------------------------------------------------------------------
     # Main loop
@@ -135,6 +192,7 @@ class StartMenu:
 
             if not running:
                 break
+            
             if self.overlay_key:
                 self._draw_menu(dim_background=True)
                 self._draw_overlay()
@@ -211,11 +269,10 @@ class StartMenu:
         if action == "quit":
             return False
 
-        # Acción desconocida: mostrar mensaje temporal
         self.overlay_key = action
         self.overlay_lines = (
-            f"Acción '{action}' sin comportamiento asignado.",
-            "Edita Config.START_MENU para personalizarla.",
+            f"Acción '{action}' sin comportamiento.",
+            "Edita Config.START_MENU.",
         )
         return True
 
@@ -235,101 +292,133 @@ class StartMenu:
     # ------------------------------------------------------------------
     # Drawing
     # ------------------------------------------------------------------
+    def _draw_cyber_grid(self) -> None:
+        """Dibuja una cuadrícula estilo synthwave si no hay imagen de fondo."""
+        self.screen.fill(self.COLOR_DARK_BG)
+        width, height = self.screen.get_size()
+        
+        for x in range(0, width, 40):
+            pygame.draw.line(self.screen, self.COLOR_GRID, (x, 0), (x, height), 1)
+        for y in range(0, height, 40):
+            pygame.draw.line(self.screen, self.COLOR_GRID, (0, y), (width, y), 1)
+
     def _draw_menu(self, *, dim_background: bool = False) -> None:
         width, height = self.screen.get_size()
 
+        # 1. Fondo
         if self.background:
             background = pygame.transform.smoothscale(self.background, (width, height))
             self.screen.blit(background, (0, 0))
         else:
-            self.screen.fill(self.cfg.COLOR_BG)
+            self._draw_cyber_grid()
 
         if dim_background:
             overlay = pygame.Surface((width, height), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 120))
+            overlay.fill((0, 0, 0, 160))
             self.screen.blit(overlay, (0, 0))
 
-        title_surf = self.title_font.render(self.menu_cfg.title, True, (255, 255, 255))
-        title_rect = title_surf.get_rect(center=(width // 2, height // 4))
+        # 2. Título CYBERQUEST
+        title_text = "CYBERQUEST"
+        
+        # Sombra del título
+        shadow_surf = self.title_font.render(title_text, True, self.COLOR_NEON_PINK)
+        shadow_rect = shadow_surf.get_rect(center=(width // 2 + 4, height // 5 + 4))
+        self.screen.blit(shadow_surf, shadow_rect)
+
+        # Título principal
+        title_surf = self.title_font.render(title_text, True, self.COLOR_NEON_BLUE)
+        title_rect = title_surf.get_rect(center=(width // 2, height // 5))
         self.screen.blit(title_surf, title_rect)
 
+        # Subtítulo
         if self.menu_cfg.subtitle:
             subtitle_surf = self.subtitle_font.render(
                 self.menu_cfg.subtitle, True, (200, 200, 200)
             )
             subtitle_rect = subtitle_surf.get_rect(
-                center=(width // 2, title_rect.bottom + 28)
+                center=(width // 2, title_rect.bottom + 10)
             )
             self.screen.blit(subtitle_surf, subtitle_rect)
 
+        # Logo opcional
         if self.logo:
             logo_rect = self.logo.get_rect()
             logo_rect.center = (width // 2, title_rect.bottom + 80)
             self.screen.blit(self.logo, logo_rect)
 
+        # 3. Botones
         mouse_pos = pygame.mouse.get_pos()
 
         for button, rect in self.button_rects:
             hovered = rect.collidepoint(mouse_pos)
-            color = (90, 110, 220) if hovered else (50, 70, 180)
-            border_color = (255, 255, 255) if hovered else (220, 220, 220)
-            pygame.draw.rect(self.screen, color, rect, border_radius=8)
-            pygame.draw.rect(self.screen, border_color, rect, 2, border_radius=8)
+            
+            bg_color = (0, 0, 0, 180) if not hovered else (40, 40, 60, 200)
+            border_color = self.COLOR_NEON_BLUE if not hovered else self.COLOR_NEON_PINK
+            
+            btn_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+            pygame.draw.rect(btn_surf, bg_color, btn_surf.get_rect(), border_radius=4)
+            pygame.draw.rect(btn_surf, border_color, btn_surf.get_rect(), 2, border_radius=4)
+            self.screen.blit(btn_surf, rect)
 
             label = next(
                 (b.label for b in self.menu_cfg.buttons if b.action == button),
                 button,
-            )
-            label_surf = self.button_font.render(label, True, (255, 255, 255))
+            ).upper()
+
+            text_color = self.COLOR_TEXT_WHITE if not hovered else self.COLOR_NEON_BLUE
+            label_surf = self.button_font.render(label, True, text_color)
             label_rect = label_surf.get_rect(center=rect.center)
             self.screen.blit(label_surf, label_rect)
 
         self._draw_seed_input()
 
     def _draw_seed_input(self) -> None:
-        color = (255, 255, 255) if self.input_active else (220, 220, 220)
-        pygame.draw.rect(self.screen, (20, 30, 60), self.seed_rect, border_radius=6)
-        pygame.draw.rect(self.screen, color, self.seed_rect, 2, border_radius=6)
+        border_color = self.COLOR_NEON_PINK if self.input_active else (80, 80, 80)
+        
+        pygame.draw.rect(self.screen, (10, 10, 15), self.seed_rect, border_radius=2)
+        pygame.draw.rect(self.screen, border_color, self.seed_rect, 2, border_radius=2)
 
-        seed_display = self.seed_text or self.menu_cfg.seed_placeholder
-        text_color = (255, 255, 255) if self.seed_text else (180, 180, 180)
+        seed_display = self.seed_text or "SEED (VACIO = RANDOM)"
+        text_color = self.COLOR_NEON_BLUE if self.seed_text else (100, 100, 100)
+        
         text_surf = self.small_font.render(seed_display, True, text_color)
         text_rect = text_surf.get_rect(midleft=(self.seed_rect.left + 12, self.seed_rect.centery))
         self.screen.blit(text_surf, text_rect)
 
         hint_lines = [
-            "Escribe números para usar una seed personalizada.",
-            "Deja el campo vacío para una seed aleatoria.",
-            "Pulsa Enter o haz clic en Jugar para comenzar.",
+            "ENTER para Jugar",
         ]
         for i, line in enumerate(hint_lines):
-            hint_surf = self.small_font.render(line, True, (200, 200, 200))
+            hint_surf = self.small_font.render(line, True, (150, 150, 150))
             hint_rect = hint_surf.get_rect(
-                center=(self.screen.get_width() // 2, self.seed_rect.bottom + 24 + i * 20)
+                center=(self.screen.get_width() // 2, self.seed_rect.bottom + 20 + i * 20)
             )
             self.screen.blit(hint_surf, hint_rect)
 
     def _statistics_lines(self) -> tuple[str, ...]:
         if self.stats_manager is None:
-            return ("Estadísticas", "", "No disponibles en este momento.")
+            return ("ESTADISTICAS", "", "No disponibles :: ERROR 404")
         return self.stats_manager.summary_lines()
 
     def _draw_overlay(self) -> None:
         width, height = self.screen.get_size()
-        overlay = pygame.Surface((width, height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 180))
-        self.screen.blit(overlay, (0, 0))
+        
+        overlay_rect = pygame.Rect(0, 0, width * 0.8, height * 0.8)
+        overlay_rect.center = (width // 2, height // 2)
+        
+        pygame.draw.rect(self.screen, (10, 10, 20), overlay_rect)
+        pygame.draw.rect(self.screen, self.COLOR_NEON_BLUE, overlay_rect, 2)
 
         lines = self.overlay_lines or ("",)
-        start_y = height // 4
+        start_y = overlay_rect.top + 60
+        
         for i, line in enumerate(lines):
-            surf = self.button_font.render(line, True, (255, 255, 255))
-            rect = surf.get_rect(center=(width // 2, start_y + i * 36))
+            surf = self.button_font.render(line, True, self.COLOR_TEXT_WHITE)
+            rect = surf.get_rect(center=(width // 2, start_y + i * 40))
             self.screen.blit(surf, rect)
 
         exit_hint = self.small_font.render(
-            "Haz clic o pulsa ESC para volver.", True, (200, 200, 200)
+            "[ CLICK / ESC ] PARA VOLVER", True, self.COLOR_NEON_PINK
         )
-        hint_rect = exit_hint.get_rect(center=(width // 2, start_y + len(lines) * 36 + 30))
+        hint_rect = exit_hint.get_rect(center=(width // 2, overlay_rect.bottom - 40))
         self.screen.blit(exit_hint, hint_rect)
-
