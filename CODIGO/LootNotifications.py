@@ -83,9 +83,9 @@ class LootNotificationManager:
         self,
         font: pygame.font.Font,
         *,
-        anchor_margin: tuple[float, float] = (48.0, 150.0),
+        anchor_margin: tuple[float, float] = (110.0, 210.0),
         line_spacing: float = 6.0,
-        scale: float = 1.5,
+        scale: float = 1.3,
     ) -> None:
         self.font = font
         self.anchor_margin = pygame.Vector2(anchor_margin)
