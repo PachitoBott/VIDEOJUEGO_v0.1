@@ -708,7 +708,11 @@ class Room:
                         rotater = getattr(shop_ui, "rotate_inventory", None)
                         if callable(rotater):
                             rotater()
-                        shop_ui.open(world_surface.get_width()//2, world_surface.get_height()//2)
+                        shop_ui.open(
+                            world_surface.get_width() // 2,
+                            world_surface.get_height() // 2,
+                            player=player,
+                        )
                     else:
                         shop_ui.close()
                     continue
@@ -716,11 +720,16 @@ class Room:
                 if not shop_ui.active:
                     continue
 
-                if ev.key == pygame.K_UP:
+                if ev.key in (pygame.K_LEFT, pygame.K_a):
                     shop_ui.move_selection(-1)
                     continue
-                if ev.key == pygame.K_DOWN:
+                if ev.key in (pygame.K_RIGHT, pygame.K_d):
                     shop_ui.move_selection(+1)
+                    continue
+                if ev.key in (pygame.K_UP, pygame.K_DOWN):
+                    # Compatibilidad con la navegación previa
+                    delta = -1 if ev.key == pygame.K_UP else 1
+                    shop_ui.move_selection(delta)
                     continue
                 if ev.key in (pygame.K_RETURN, pygame.K_SPACE):
                     bought, msg = shop_ui.try_buy(player)
