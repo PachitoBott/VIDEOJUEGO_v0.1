@@ -1136,8 +1136,7 @@ class Room:
         cx = (rx + rw // 2) * ts
         cy = (ry + rh // 2) * ts
 
-        width = 28
-        height = 20
+        width, height = self._treasure_dimensions((28, 20))
         self.treasure = {
             "rect": pygame.Rect(cx - width // 2, cy - height // 2, width, height),
             "opened": False,
@@ -1155,8 +1154,7 @@ class Room:
         ts = CFG.TILE_SIZE
         cx = (rx + rw // 2) * ts
         cy = (ry + rh // 2) * ts
-        width = 32
-        height = 24
+        width, height = self._treasure_dimensions((28, 20))
         self.treasure = {
             "rect": pygame.Rect(cx - width // 2, cy - height // 2, width, height),
             "opened": False,
