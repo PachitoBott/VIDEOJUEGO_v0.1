@@ -152,10 +152,15 @@ def _treasure_hitbox_from_sprite_rect(sprite_rect: pygame.Rect) -> pygame.Rect:
     return _treasure_box_from_sprite_rect(sprite_rect, size)
 
 
-def _treasure_collision_from_sprite_rect(sprite_rect: pygame.Rect) -> pygame.Rect:
+def _treasure_collision_from_sprite_rect(
+    sprite_rect: pygame.Rect,
+) -> pygame.Rect | None:
     """Área sólida que bloquea al jugador (más pequeña que el sprite)."""
 
     size = getattr(CFG, "TREASURE_COLLISION_SIZE", None)
+    if size is None:
+        return None
+
     return _treasure_box_from_sprite_rect(sprite_rect, size)
 
 
@@ -651,8 +656,8 @@ class Room:
             return
         rx, ry, rw, rh = self.bounds
         ts = cfg.TILE_SIZE
-        cx = (rx + rw // 2) * ts
-        cy = (ry + rh // 2) * ts
+        cx = (rx + rw // 2) * ts + ts // 2
+        cy = (ry + rh // 2) * ts + ts // 2
         self.shopkeeper = ShopkeeperCls((cx, cy))
 
     def on_enter(self, player, cfg, ShopkeeperCls=None):
@@ -1095,8 +1100,8 @@ class Room:
         assert self.bounds is not None
         rx, ry, rw, rh = self.bounds
         ts = CFG.TILE_SIZE
-        cx = (rx + rw // 2) * ts
-        cy = (ry + rh // 2) * ts
+        cx = (rx + rw // 2) * ts + ts // 2
+        cy = (ry + rh // 2) * ts + ts // 2
         return cx, cy
 
     # ------------------------------------------------------------------ #
@@ -1172,8 +1177,8 @@ class Room:
         assert self.bounds is not None
         rx, ry, rw, rh = self.bounds
         ts = CFG.TILE_SIZE
-        cx = (rx + rw // 2) * ts
-        cy = (ry + rh // 2) * ts
+        cx = (rx + rw // 2) * ts + ts // 2
+        cy = (ry + rh // 2) * ts + ts // 2
 
         width, height = self._treasure_dimensions((28, 20))
         sprite_rect = pygame.Rect(cx - width // 2, cy - height // 2, width, height)
@@ -1195,8 +1200,8 @@ class Room:
         assert self.bounds is not None
         rx, ry, rw, rh = self.bounds
         ts = CFG.TILE_SIZE
-        cx = (rx + rw // 2) * ts
-        cy = (ry + rh // 2) * ts
+        cx = (rx + rw // 2) * ts + ts // 2
+        cy = (ry + rh // 2) * ts + ts // 2
         width, height = self._treasure_dimensions((32, 24))
         sprite_rect = pygame.Rect(cx - width // 2, cy - height // 2, width, height)
         self.treasure = {
@@ -1246,9 +1251,9 @@ class Room:
         if not self.treasure:
             return
 
-        rect: pygame.Rect = self.treasure.get(
-            "collision", self.treasure.get("hitbox", self.treasure.get("rect"))
-        )
+        rect: pygame.Rect | None = self.treasure.get("collision")
+        if rect is None:
+            return
         ts = CFG.TILE_SIZE
         x0 = rect.left // ts
         y0 = rect.top // ts
