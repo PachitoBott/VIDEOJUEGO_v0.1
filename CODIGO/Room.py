@@ -130,10 +130,10 @@ def _treasure_hitbox_from_sprite_rect(sprite_rect: pygame.Rect) -> pygame.Rect:
         hitbox_w, hitbox_h = CFG.TREASURE_HITBOX_SIZE  # type: ignore[attr-defined]
         hitbox_w, hitbox_h = int(hitbox_w), int(hitbox_h)
     except Exception:
-        hitbox_w = hitbox_h = 40
+        hitbox_w = hitbox_h = 32
 
-    hitbox_w = hitbox_w if hitbox_w > 0 else 40
-    hitbox_h = hitbox_h if hitbox_h > 0 else 40
+    hitbox_w = hitbox_w if hitbox_w > 0 else 32
+    hitbox_h = hitbox_h if hitbox_h > 0 else 32
 
     return pygame.Rect(
         sprite_rect.centerx - hitbox_w // 2,
