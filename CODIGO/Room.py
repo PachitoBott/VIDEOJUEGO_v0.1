@@ -490,6 +490,7 @@ class Room:
         self.boss_instance = None
         self.boss_defeated = False
         self._boss_spawned = False
+        self._boss_corner_obstacles_placed = False
 
 
     # ------------------------------------------------------------------ #
@@ -552,6 +553,7 @@ class Room:
     def clear_obstacles(self) -> None:
         self.obstacles.clear()
         self._obstacle_tiles.clear()
+        self._boss_corner_obstacles_placed = False
 
     def _can_place_obstacle(self, tx: int, ty: int, w_tiles: int, h_tiles: int) -> bool:
         if self.bounds is None:
@@ -641,6 +643,54 @@ class Room:
             variant = rng.choice(variant_choices)
             self._register_obstacle(tx, ty, w_tiles, h_tiles, variant=variant)
             placed += 1
+
+    def _spawn_boss_corner_obstacles(self, rng: random.Random | None = None) -> None:
+        """Coloca 0-2 obstáculos pequeños en cada esquina de la sala del boss."""
+
+        if self.bounds is None or self._boss_corner_obstacles_placed:
+            return
+        if self.type != "boss":
+            return
+
+        rng = rng or random
+        rx, ry, rw, rh = self.bounds
+        corners = [
+            (rx + 1, ry + 1),
+            (rx + rw - 2, ry + 1),
+            (rx + 1, ry + rh - 2),
+            (rx + rw - 2, ry + rh - 2),
+        ]
+
+        candidate_sizes = [
+            size
+            for size in [(1, 1), (1, 2), (2, 1), (2, 2)]
+            if rx + rw - size[0] - 1 >= rx + 1 and ry + rh - size[1] - 1 >= ry + 1
+        ]
+        candidate_sizes = candidate_sizes or [(1, 1)]
+
+        for base_tx, base_ty in corners:
+            spots = [
+                (base_tx, base_ty),
+                (min(base_tx + 1, rx + rw - 2), base_ty),
+                (base_tx, min(base_ty + 1, ry + rh - 2)),
+            ]
+            rng.shuffle(spots)
+            desired = rng.randint(0, 2)
+            placed = 0
+            for tx, ty in spots:
+                if placed >= desired:
+                    break
+                for w_tiles, h_tiles in rng.sample(candidate_sizes, k=len(candidate_sizes)):
+                    if placed >= desired:
+                        break
+                    if self._can_place_obstacle(tx, ty, w_tiles, h_tiles):
+                        variant_pool = _OBSTACLE_VARIANTS.get((w_tiles, h_tiles), ["default"])
+                        variant = rng.choice(variant_pool)
+                        self._register_obstacle(tx, ty, w_tiles, h_tiles, variant=variant)
+                        placed += 1
+                        break
+
+        self._boss_corner_obstacles_placed = True
 
     # ------------------------------------------------------------------ #
     # Corredores cortos (visuales) hacia las puertas
@@ -750,6 +800,7 @@ class Room:
             self.locked = True
             if not self._boss_spawned:
                 self._spawn_boss()
+            self._spawn_boss_corner_obstacles()
             self._populated_once = True
             self._spawn_done = True
         elif self.type == "treasure":
@@ -777,7 +828,7 @@ class Room:
         try:
             cx, cy = self.center_px()
         except AssertionError:
-            self.build_centered(9, 9)
+            self.build_centered(CFG.BOSS_ROOM_W, CFG.BOSS_ROOM_H)
             cx, cy = self.center_px()
         boss = blueprint(cx - 24, cy - 24)
         boss.x = cx - boss.w / 2
