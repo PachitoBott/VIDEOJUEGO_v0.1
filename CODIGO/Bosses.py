@@ -47,6 +47,15 @@ class BossEnemy(Enemy):
             default_fps=8.0,
             death_fps=12.0,
         )
+        # Ajustar el collider al tamaño real del sprite y mantenerlo centrado
+        fallback_w, fallback_h = self.animations.fallback.get_size()
+        if fallback_w > 0 and fallback_h > 0:
+            cx = self.x + self.w / 2
+            cy = self.y + self.h / 2
+            self.w = fallback_w
+            self.h = fallback_h
+            self.x = cx - self.w / 2
+            self.y = cy - self.h / 2
 
     def on_spawn(self, room) -> None:
         self._tracked_room = room

@@ -460,6 +460,11 @@ class Dungeon:
         room = self.rooms.get(farthest)
         if room is None:
             return
+        rng = random.Random(self.seed ^ 0xB055B055)
+        if BOSS_BLUEPRINTS:
+            room.boss_blueprint = rng.choice(BOSS_BLUEPRINTS)
+        if hasattr(room, "build_centered"):
+            room.build_centered(CFG.BOSS_ROOM_W, CFG.BOSS_ROOM_H)
         self.boss_pos = farthest
         setattr(room, "type", "boss")
         room.no_spawn = True
