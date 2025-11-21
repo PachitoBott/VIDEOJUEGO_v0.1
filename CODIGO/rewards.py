@@ -22,6 +22,8 @@ def apply_reward_entry(player: Any, reward: dict) -> bool:
         return apply_consumable_reward(player, reward.get("id"), reward)
     if rtype == "bundle":
         return apply_bundle_reward(player, reward.get("contents"))
+    if rtype == "key_item":
+        return apply_key_item_reward(player, reward.get("id"))
     return False
 
 
@@ -191,6 +193,20 @@ def apply_consumable_reward(player: Any, consumable_id: Any, data: dict | None =
         # Batería verde: recarga por completo la vida en uso.
         max_hp = getattr(player, "max_hp", getattr(player, "hp", 1))
         return _restore_current_life(player, max_hp, allow_overflow=False)
+    return False
+
+
+def apply_key_item_reward(player: Any, item_id: Any) -> bool:
+    pid = str(item_id) if item_id else ""
+    if not pid:
+        return False
+    adder = getattr(player, "add_key_item", None)
+    if callable(adder):
+        return bool(adder(pid))
+    if hasattr(player, "key_items") and isinstance(player.key_items, set):
+        before = set(player.key_items)
+        player.key_items.add(pid)
+        return before != set(player.key_items)
     return False
 
 

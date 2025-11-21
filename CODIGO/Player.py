@@ -74,6 +74,7 @@ class Player(Entity):
         self.cooldown_scale_base = 1.0
         self._cooldown_modifiers: dict[str, float] = {}
         self._upgrade_flags: set[str] = set()
+        self.key_items: set[str] = set()
         self.sprint_control_bonus = 0.0
         self._sprint_control_timer = 0.0
         self._is_sprinting = False
@@ -569,6 +570,16 @@ class Player(Entity):
 
     def has_upgrade(self, upgrade_id: str) -> bool:
         return upgrade_id in self._upgrade_flags
+
+    def add_key_item(self, item_id: str) -> bool:
+        if not item_id:
+            return False
+        is_new = item_id not in self.key_items
+        self.key_items.add(item_id)
+        return is_new
+
+    def has_key_item(self, item_id: str) -> bool:
+        return item_id in self.key_items
 
     def set_cooldown_modifier(self, upgrade_id: str, multiplier: float) -> None:
         self._cooldown_modifiers[upgrade_id] = float(multiplier)

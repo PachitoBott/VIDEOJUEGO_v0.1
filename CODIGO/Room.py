@@ -419,6 +419,12 @@ class Room:
         self.treasure_message: str = ""
         self.treasure_message_until: int = 0
         self._treasure_tiles: set[tuple[int, int]] = set()
+        self.rune_chest: dict | None = None
+        self.rune_message: str = ""
+        self.rune_message_until: int = 0
+        self._rune_chest_tiles: set[tuple[int, int]] = set()
+        self._rune_wave_triggered: bool = False
+        self._rune_wave_cleared: bool = False
 
         self.obstacles: list[dict] = []
         self._obstacle_tiles: set[tuple[int, int]] = set()
@@ -744,6 +750,9 @@ class Room:
         Maneja interacción con la tienda dentro de la sala (si es shop).
         No lee pygame.event.get() aquí; recibe la lista de events desde Game.
         """
+        if self.rune_chest:
+            self._handle_rune_chest_events(events, player)
+
         if self.treasure:
             self._handle_treasure_events(events, player)
 
@@ -814,6 +823,9 @@ class Room:
         """
         Dibuja elementos propios de la sala por encima del piso (p.ej. el mercader y tooltip).
         """
+        if self.rune_chest:
+            self._draw_rune_chest_overlay(surface, ui_font, player)
+
         if self.treasure:
             self._draw_treasure_overlay(surface, ui_font, player)
 
@@ -903,7 +915,7 @@ class Room:
             return True
         if self.tiles[ty][tx] == CFG.WALL:
             return True
-        return (tx, ty) in self._obstacle_tiles or (tx, ty) in self._treasure_tiles
+        return (tx, ty) in self._obstacle_tiles or (tx, ty) in self._treasure_tiles or (tx, ty) in self._rune_chest_tiles
     
     def has_line_of_sight(self, x0_px: float, y0_px: float, x1_px: float, y1_px: float) -> bool:
         """
@@ -1077,6 +1089,12 @@ class Room:
     
     def refresh_lock_state(self) -> None:
         """Si no hay enemigos, se marca cleared y se desbloquea."""
+        if self._rune_wave_triggered and not self._rune_wave_cleared:
+            if len(self.enemies) == 0:
+                self._rune_wave_cleared = True
+            else:
+                self.locked = True
+                return
         if self.type == "boss":
             if self.boss_defeated:
                 self.locked = False
@@ -1149,6 +1167,8 @@ class Room:
                     ),
                 )
 
+        if self.rune_chest:
+            self._draw_rune_chest(surf)
         if self.treasure:
             self._draw_treasure(surf)
         # Puertas bloqueadas: dibuja “rejas” rojas en las aberturas
@@ -1157,6 +1177,207 @@ class Room:
             for d, r in bars.items():
                 pygame.draw.rect(surf, (180, 40, 40), r)         # relleno rojo
                 pygame.draw.rect(surf, (255, 90, 90), r, 1)      # borde claro
+
+    # ------------------------------------------------------------------ #
+    # Cofre rúnico especial
+    # ------------------------------------------------------------------ #
+    def setup_rune_chest(self, loot_table: list[dict], prefer_bottom: bool = True) -> None:
+        self.rune_chest = None
+        self._rune_chest_tiles.clear()
+        self._rune_wave_triggered = False
+        self._rune_wave_cleared = False
+        self.rune_message = ""
+        self.rune_message_until = 0
+
+        if not self.bounds:
+            self.build_centered(9, 9)
+        assert self.bounds is not None
+        rx, ry, rw, rh = self.bounds
+        ts = CFG.TILE_SIZE
+        cx = (rx + rw // 2) * ts + ts // 2
+        if prefer_bottom:
+            cy = (ry + rh - 2) * ts + ts // 2
+        else:
+            cy = (ry + rh // 2) * ts + ts // 2
+
+        width, height = self._treasure_dimensions((30, 22))
+        sprite_rect = pygame.Rect(cx - width // 2, cy - height // 2, width, height)
+        self.rune_chest = {
+            "rect": sprite_rect,
+            "hitbox": _treasure_hitbox_from_sprite_rect(sprite_rect),
+            "collision": _treasure_collision_from_sprite_rect(sprite_rect),
+            "opened": False,
+            "loot_table": loot_table,
+        }
+        self._refresh_rune_chest_tiles()
+
+    def _refresh_rune_chest_tiles(self) -> None:
+        self._rune_chest_tiles.clear()
+        if not self.rune_chest:
+            return
+        rect: pygame.Rect | None = self.rune_chest.get("collision")
+        if rect is None:
+            return
+        ts = CFG.TILE_SIZE
+        x0 = rect.left // ts
+        y0 = rect.top // ts
+        x1 = (rect.right - 1) // ts
+        y1 = (rect.bottom - 1) // ts
+        for ty in range(y0, y1 + 1):
+            for tx in range(x0, x1 + 1):
+                if 0 <= tx < CFG.MAP_W and 0 <= ty < CFG.MAP_H:
+                    self._rune_chest_tiles.add((tx, ty))
+
+    def _handle_rune_chest_events(self, events, player) -> None:
+        if not self.rune_chest:
+            return
+
+        hitbox: pygame.Rect = self.rune_chest.get("hitbox", self.rune_chest["rect"])
+        player_rect = self._player_rect(player)
+        interact_rect = hitbox.inflate(30, 30)
+        can_interact = interact_rect.colliderect(player_rect)
+
+        if self.rune_chest.get("opened", False):
+            return
+
+        for ev in events:
+            if ev.type == pygame.KEYDOWN and ev.key in (pygame.K_e, pygame.K_RETURN, pygame.K_SPACE):
+                if not can_interact:
+                    continue
+                if not self._rune_wave_triggered:
+                    self._trigger_rune_wave()
+                    break
+                if self._can_open_rune_chest():
+                    self._open_rune_chest(player)
+                else:
+                    self._show_rune_message("Derrota a los guardianes", duration=2200)
+                break
+
+    def _trigger_rune_wave(self) -> None:
+        if self._rune_wave_triggered:
+            return
+        self._rune_wave_triggered = True
+        self._rune_wave_cleared = False
+        self.locked = True
+        self._spawn_rune_guardian_wave()
+        self._show_rune_message("¡Los guardianes rúnicos atacan!", duration=2400)
+
+    def _spawn_rune_guardian_wave(self) -> None:
+        if self.bounds is None:
+            self.build_centered(9, 9)
+        assert self.bounds is not None
+        rx, ry, rw, rh = self.bounds
+        ts = CFG.TILE_SIZE
+        used_tiles: set[tuple[int, int]] = set(self._obstacle_tiles)
+        used_tiles.update(self._treasure_tiles)
+        used_tiles.update(self._rune_chest_tiles)
+
+        guardian_pool: list[Type[Enemy]] = [TankEnemy, ShooterEnemy, FastChaserEnemy, TankEnemy, ShooterEnemy]
+        wave_size = max(4, min(8, (rw + rh) // 2))
+
+        for _ in range(wave_size):
+            random.shuffle(guardian_pool)
+            factory = guardian_pool[0]
+            for _ in range(14):
+                tx = random.randint(rx + 1, rx + rw - 2)
+                ty = random.randint(ry + 1, ry + rh - 2)
+                if (tx, ty) in used_tiles:
+                    continue
+                used_tiles.add((tx, ty))
+                px = tx * ts + ts // 2 - 6
+                py = ty * ts + ts // 2 - 6
+                enemy = factory(px, py)
+                if random.random() < 0.35 and hasattr(enemy, "_pick_wander"):
+                    enemy._pick_wander()
+                    enemy.state = getattr(enemy_mod, "WANDER", enemy.state)
+                self.enemies.append(enemy)
+                break
+
+    def _can_open_rune_chest(self) -> bool:
+        if not self._rune_wave_triggered:
+            return False
+        if not self._rune_wave_cleared:
+            if len(self.enemies) == 0:
+                self._rune_wave_cleared = True
+            else:
+                return False
+        return len(self.enemies) == 0
+
+    def _open_rune_chest(self, player) -> None:
+        if not self.rune_chest or self.rune_chest.get("opened", False):
+            return
+        reward = self._pick_rune_reward(player)
+        message = "El cofre está vacío..."
+        if reward:
+            applied = self._apply_treasure_reward(player, reward)
+            name = reward.get("name", "Recompensa misteriosa")
+            message = f"Obtuviste: {name}" if applied else f"Encontraste: {name}"
+        self.rune_chest["opened"] = True
+        self._show_rune_message(message, duration=4400)
+
+    def _pick_rune_reward(self, player) -> dict | None:
+        if not self.rune_chest:
+            return None
+        loot_table: list[dict] = self.rune_chest.get("loot_table", [])
+        weighted: list[tuple[dict, float]] = []
+        for entry in loot_table:
+            weight = float(entry.get("weight", 1.0))
+            if weight <= 0:
+                continue
+            weighted.append((entry, weight))
+        if not weighted:
+            return None
+        population = [entry for entry, _ in weighted]
+        weights = [weight for _, weight in weighted]
+        return random.choices(population, weights=weights, k=1)[0]
+
+    def _show_rune_message(self, message: str, *, duration: int = 3200) -> None:
+        self.rune_message = message
+        self.rune_message_until = pygame.time.get_ticks() + max(500, duration)
+
+    def _draw_rune_chest(self, surface: pygame.Surface) -> None:
+        if not self.rune_chest:
+            return
+        rect: pygame.Rect = self.rune_chest["rect"]
+        hitbox: pygame.Rect = self.rune_chest.get("hitbox", rect)
+        opened = self.rune_chest.get("opened", False)
+
+        body_color = (90, 62, 140) if not opened else (58, 48, 92)
+        lid_color = (130, 92, 186) if not opened else (92, 74, 134)
+        band_color = (196, 176, 240) if not opened else (150, 138, 196)
+
+        pygame.draw.rect(surface, body_color, rect)
+        lid_height = max(6, rect.height // 3)
+        lid_rect = pygame.Rect(rect.x, rect.y, rect.width, lid_height)
+        pygame.draw.rect(surface, lid_color, lid_rect)
+        pygame.draw.rect(surface, band_color, pygame.Rect(rect.centerx - 3, rect.y, 6, rect.height))
+        pygame.draw.rect(surface, (22, 14, 44), rect, 2)
+
+        if getattr(CFG, "DEBUG_DRAW_DOOR_TRIGGERS", False):
+            pygame.draw.rect(surface, (255, 0, 255), hitbox, 1)
+
+    def _draw_rune_chest_overlay(self, surface, ui_font, player) -> None:
+        rect = self.rune_chest["rect"]
+        hitbox = self.rune_chest.get("hitbox", rect)
+        player_rect = self._player_rect(player)
+        near = hitbox.inflate(36, 36).colliderect(player_rect)
+
+        if not self.rune_chest.get("opened", False) and near:
+            if not self._rune_wave_triggered:
+                tip_text = "E - Examinar cofre rúnico"
+            elif self._can_open_rune_chest():
+                tip_text = "E - Abrir cofre rúnico"
+            else:
+                tip_text = "Guardianes activos"
+            tip = ui_font.render(tip_text, True, (235, 220, 255))
+            surface.blit(tip, (rect.centerx - tip.get_width() // 2, rect.y - 24))
+
+        now = pygame.time.get_ticks()
+        if self.rune_message and now <= self.rune_message_until:
+            msg = ui_font.render(self.rune_message, True, (210, 190, 255))
+            surface.blit(msg, (rect.centerx - msg.get_width() // 2, rect.bottom + 8))
+        elif now > self.rune_message_until:
+            self.rune_message = ""
 
     # ------------------------------------------------------------------ #
     # Tesoro
