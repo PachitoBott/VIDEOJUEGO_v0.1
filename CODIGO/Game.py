@@ -145,6 +145,7 @@ class Game:
         self.door_cooldown = 0.0
         self.running = True
         self.debug_draw_doors = cfg.DEBUG_DRAW_DOOR_TRIGGERS
+        self.debug_start_in_boss_room = getattr(cfg, "DEBUG_START_IN_BOSS_ROOM", False)
         self._skip_frame = False
         self.vfx = VFXManager()
 
@@ -221,6 +222,9 @@ class Game:
             self.dungeon.enter_initial_room(self.player, self.cfg, ShopkeeperCls=Shopkeeper)
 
         self._run_start_time = perf_counter()
+
+        if self.debug_start_in_boss_room:
+            self._warp_to_boss_room()
 
     def _reset_runtime_state(self) -> None:
         self.projectiles.clear()
@@ -313,6 +317,8 @@ class Game:
                 elif e.key == pygame.K_n:
                     self._stats_pending_reason = "manual_new_seed"
                     self.start_new_run(seed=None)
+                elif e.key == pygame.K_b and (pygame.key.get_mods() & pygame.KMOD_CTRL):
+                    self._warp_to_boss_room()
         return events
 
     def _open_start_menu(self) -> bool:
@@ -329,6 +335,44 @@ class Game:
         pygame.mouse.set_visible(False)
         self.start_new_run(seed=menu_result.seed)
         self._skip_frame = True
+        return True
+
+    def _warp_to_boss_room(self) -> bool:
+        dungeon = getattr(self, "dungeon", None)
+        player = getattr(self, "player", None)
+        if dungeon is None or player is None:
+            return False
+
+        boss_pos = getattr(dungeon, "boss_pos", None)
+        if boss_pos is None or boss_pos not in getattr(dungeon, "rooms", {}):
+            print("[DEBUG] No hay sala de boss disponible para teletransporte.")
+            return False
+
+        current_room = dungeon.current_room
+        if hasattr(current_room, "on_exit"):
+            current_room.on_exit()
+
+        dungeon.i, dungeon.j = boss_pos
+        dungeon.explored.add(boss_pos)
+        target_room = dungeon.current_room
+
+        if hasattr(target_room, "locked"):
+            target_room.locked = False
+
+        cx, cy = target_room.center_px()
+        player.x = cx - player.w / 2
+        player.y = cy - player.h / 2
+        player.xprec = player.x
+        player.yprec = player.y
+
+        self.projectiles.clear()
+        self.enemy_projectiles.clear()
+        self.door_cooldown = 0.25
+
+        if hasattr(target_room, "on_enter"):
+            target_room.on_enter(player, self.cfg, ShopkeeperCls=Shopkeeper)
+
+        print("[DEBUG] Teletransportado a la sala del boss para pruebas.")
         return True
 
     def add_pause_menu_button(
