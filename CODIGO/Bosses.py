@@ -50,12 +50,34 @@ class BossEnemy(Enemy):
         # Ajustar el collider al tamaño real del sprite y mantenerlo centrado
         fallback_w, fallback_h = self.animations.fallback.get_size()
         if fallback_w > 0 and fallback_h > 0:
-            cx = self.x + self.w / 2
-            cy = self.y + self.h / 2
-            self.w = fallback_w
-            self.h = fallback_h
-            self.x = cx - self.w / 2
-            self.y = cy - self.h / 2
+            self._fit_collider_to_sprite(fallback_w, fallback_h)
+
+    def _fit_collider_to_sprite(self, sprite_w: int, sprite_h: int) -> None:
+        """Redimensiona el hitbox según el sprite actual.
+
+        El boss de las moscas tiene mucha decoración en la parte superior; se
+        recorta más por arriba y ligeramente por los lados para que el collider
+        se sienta justo.
+        """
+
+        cx = self.x + self.w / 2
+        cy = self.y + self.h / 2
+        width = sprite_w
+        height = sprite_h
+        y_offset = 0.0
+
+        if self.sprite_variant == "boss_core":
+            side_trim = max(4, int(width * 0.08))
+            top_trim = max(10, int(height * 0.22))
+            bottom_trim = max(4, int(height * 0.10))
+            width = max(12, width - side_trim * 2)
+            height = max(12, height - (top_trim + bottom_trim))
+            y_offset = (top_trim - bottom_trim) / 2
+
+        self.w = width
+        self.h = height
+        self.x = cx - self.w / 2
+        self.y = cy - self.h / 2 + y_offset
 
     def on_spawn(self, room) -> None:
         self._tracked_room = room

@@ -64,8 +64,8 @@ class Config:
     ROOM_H_MAX: int = 13
 
     # Tamaño fijo para la sala del boss (centrada en el mapa)
-    BOSS_ROOM_W: int = 20
-    BOSS_ROOM_H: int = 14
+    BOSS_ROOM_W: int = 19
+    BOSS_ROOM_H: int = 13
 
     TILESET_PATH: Optional[str] = "assets/tileset.png"
     PLAYER_SPRITES_PATH: Optional[str] = "assets/player"

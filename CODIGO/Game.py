@@ -91,11 +91,11 @@ class Game:
         self.loot_notifications.set_surface_size(self.screen.get_size())
 
         # --- Barra de vida del boss ---
-        self.boss_bar_size = pygame.Vector2(420, 18)
-        self.boss_bar_margin = pygame.Vector2(0, 16)
-        self.boss_bar_bg_color = pygame.Color(24, 16, 26, 210)
-        self.boss_bar_fill_color = pygame.Color(235, 76, 91)
-        self.boss_bar_border_color = pygame.Color(255, 200, 140)
+        self.boss_bar_size = pygame.Vector2(520, 24)
+        self.boss_bar_margin = pygame.Vector2(0, 12)
+        self.boss_bar_bg_color = pygame.Color(10, 8, 18, 235)
+        self.boss_bar_fill_color = pygame.Color(255, 102, 140)
+        self.boss_bar_border_color = pygame.Color(90, 220, 255)
         self.boss_bar_text_color = pygame.Color(240, 240, 240)
         
         # Usa los métodos set_microchip_icon_scale/offset/value_offset para ajustar
@@ -1212,6 +1212,10 @@ class Game:
 
     def _draw_boss_health_bar(self, surface: pygame.Surface, room) -> pygame.Rect:
         boss = self._find_active_boss(room)
+        if boss is None and getattr(room, "type", "") == "boss":
+            candidate = getattr(room, "boss_instance", None)
+            if candidate is not None and getattr(candidate, "hp", 0) > 0:
+                boss = candidate
         if boss is None:
             return pygame.Rect(0, 0, 0, 0)
 
