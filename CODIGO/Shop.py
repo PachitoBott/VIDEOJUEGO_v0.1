@@ -314,7 +314,9 @@ class Shop:
     def ensure_inventory(self) -> None:
         if self.items:
             return
-        if self._inventory_generated and self._seed is not None:
+        if self._inventory_generated:
+            return
+        if self._seed is not None:
             self.configure_for_seed(self._seed)
         else:
             self._restock_random()
