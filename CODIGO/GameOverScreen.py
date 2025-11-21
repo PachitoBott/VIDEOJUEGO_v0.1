@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Sequence
+from pathlib import Path
+from typing import Sequence, Optional
 
 import pygame
 
@@ -15,12 +16,18 @@ class GameOverButton:
 
 
 class GameOverScreen:
-    """Pantalla mostrada al agotar todas las vidas del jugador."""
+    """Pantalla mostrada al agotar todas las vidas (Estilo CyberQuest)."""
 
     BUTTON_PADDING_X = 40
     BUTTON_PADDING_Y = 18
     BUTTON_GAP = 16
-    STATS_GAP = 8
+    STATS_GAP = 12
+
+    # Colores Cyberpunk
+    COLOR_NEON_BLUE = (0, 255, 255)
+    COLOR_NEON_PINK = (255, 0, 128)
+    COLOR_NEON_GREEN = (50, 255, 50) # Para estadísticas positivas
+    COLOR_TEXT_WHITE = (240, 240, 255)
 
     def __init__(
         self,
@@ -34,15 +41,16 @@ class GameOverScreen:
             list(buttons)
             if buttons is not None
             else [
-                GameOverButton("Reintentar (nueva seed)", "new_seed"),
-                GameOverButton("Menú principal", "main_menu"),
+                GameOverButton("Reintentar (Nueva Seed)", "new_seed"),
+                GameOverButton("Menú Principal", "main_menu"),
             ]
         )
 
-        self.title_font = pygame.font.SysFont(None, 80)
-        self.stats_font = pygame.font.SysFont(None, 32)
-        self.button_font = pygame.font.SysFont(None, 40)
-        self.hint_font = pygame.font.SysFont(None, 24)
+        # --- Carga de Fuentes (Estilo Retro) ---
+        self.title_font = self._get_font("VT323-Regular.ttf", 110) # Título masivo
+        self.stats_font = self._get_font("VT323-Regular.ttf", 38)
+        self.button_font = self._get_font("VT323-Regular.ttf", 48)
+        self.hint_font = self._get_font("VT323-Regular.ttf", 28)
 
         self._title_surface: pygame.Surface | None = None
         self._title_rect: pygame.Rect | None = None
@@ -52,19 +60,57 @@ class GameOverScreen:
         self._hint_rect: pygame.Rect | None = None
 
     # ------------------------------------------------------------------
+    # Helpers & Path Finding
+    # ------------------------------------------------------------------
+    def _resolve_path(self, filename: str) -> Path | None:
+        """Busca el archivo en assets/ui basándose en la ubicación del script."""
+        script_dir = Path(__file__).parent.resolve()
+        candidates = [
+            script_dir / "assets" / "ui" / filename,
+            script_dir / ".." / "assets" / "ui" / filename,
+            Path.cwd() / "assets" / "ui" / filename,
+            script_dir / filename 
+        ]
+        for path in candidates:
+            if path.exists():
+                return path
+        return None
+
+    def _get_font(self, font_name: str, size: int) -> pygame.font.Font:
+        """Carga la fuente personalizada o usa sistema si falla."""
+        font_path = self._resolve_path(font_name)
+        if font_path:
+            try:
+                return pygame.font.Font(str(font_path), size)
+            except pygame.error:
+                pass
+        return pygame.font.SysFont("consolas", int(size * 0.7))
+
+    # ------------------------------------------------------------------
     # Layout helpers
     # ------------------------------------------------------------------
     def _prepare_layout(self, stats_lines: Sequence[str]) -> None:
         width, height = self.screen.get_size()
-        self._title_surface = self.title_font.render("Game Over", True, (255, 255, 255))
-        self._title_rect = self._title_surface.get_rect(
-            center=(width // 2, int(height * 0.25))
+        
+        # Título principal (Solo guardamos el rect base, el dibujo lo hacemos dinámico en _draw)
+        # Usamos el título para calcular posición
+        temp_surf = self.title_font.render("GAME OVER", True, (255,255,255))
+        self._title_rect = temp_surf.get_rect(
+            center=(width // 2, int(height * 0.20))
         )
 
+        # Estadísticas (Estilo terminal)
         self._stats_surfaces.clear()
-        y = (self._title_rect.bottom if self._title_rect else int(height * 0.35)) + 24
+        y = (self._title_rect.bottom if self._title_rect else int(height * 0.30)) + 30
+        
+        # Cabecera de estadisticas
+        header_surf = self.stats_font.render("- REPORTE DE MISION -", True, self.COLOR_NEON_PINK)
+        header_rect = header_surf.get_rect(center=(width // 2, y))
+        self._stats_surfaces.append((header_surf, header_rect))
+        y += 40
+
         for line in stats_lines:
-            surface = self.stats_font.render(line, True, (230, 230, 230))
+            surface = self.stats_font.render(line.upper(), True, self.COLOR_NEON_GREEN)
             rect = surface.get_rect(center=(width // 2, y))
             self._stats_surfaces.append((surface, rect))
             y += surface.get_height() + self.STATS_GAP
@@ -72,7 +118,7 @@ class GameOverScreen:
         button_width = self._compute_button_width()
         button_height = self.button_font.get_height() + self.BUTTON_PADDING_Y * 2
 
-        start_y = y + 36
+        start_y = y + 50 # Separación antes de los botones
         self._button_rects.clear()
         for button in self.buttons:
             rect = pygame.Rect(0, 0, button_width, button_height)
@@ -81,15 +127,15 @@ class GameOverScreen:
             self._button_rects.append((button, rect))
             start_y += button_height + self.BUTTON_GAP
 
-        hint_text = "ESC: Menú  |  ENTER: Reintentar"
-        self._hint_surface = self.hint_font.render(hint_text, True, (210, 210, 210))
-        self._hint_rect = self._hint_surface.get_rect(center=(width // 2, start_y + 20))
+        hint_text = "[ ESC: MENU  |  ENTER: REINTENTAR ]"
+        self._hint_surface = self.hint_font.render(hint_text, True, (150, 150, 150))
+        self._hint_rect = self._hint_surface.get_rect(center=(width // 2, height - 40))
 
     def _compute_button_width(self) -> int:
         if not self.buttons:
             return 260
-        max_label_width = max(self.button_font.size(button.label)[0] for button in self.buttons)
-        return max(max_label_width + self.BUTTON_PADDING_X * 2, 280)
+        max_label_width = max(self.button_font.size(button.label.upper())[0] for button in self.buttons)
+        return max(max_label_width + self.BUTTON_PADDING_X * 2, 300)
 
     # ------------------------------------------------------------------
     # Main loop
@@ -126,32 +172,54 @@ class GameOverScreen:
     # ------------------------------------------------------------------
     def _draw(self, background: pygame.Surface | None) -> None:
         width, height = self.screen.get_size()
+        
+        # 1. Fondo (Juego oscurecido)
         if background is not None:
             scaled_background = pygame.transform.smoothscale(background, (width, height))
             self.screen.blit(scaled_background, (0, 0))
+            
+            # Overlay rojo/oscuro para indicar muerte
+            overlay = pygame.Surface((width, height), pygame.SRCALPHA)
+            overlay.fill((20, 0, 10, 210)) # Tintado rojizo oscuro
+            self.screen.blit(overlay, (0, 0))
         else:
-            self.screen.fill((0, 0, 0))
+            self.screen.fill((10, 0, 10))
 
-        overlay = pygame.Surface((width, height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 200))
-        self.screen.blit(overlay, (0, 0))
+        # 2. Título GAME OVER con efecto Glitch
+        title_text = "GAME OVER"
+        if self._title_rect:
+            # Sombra roja/pink desplazada
+            shadow_surf = self.title_font.render(title_text, True, self.COLOR_NEON_PINK)
+            shadow_rect = shadow_surf.get_rect(center=(self._title_rect.centerx + 5, self._title_rect.centery + 5))
+            self.screen.blit(shadow_surf, shadow_rect)
+            
+            # Texto principal Cyan
+            title_surf = self.title_font.render(title_text, True, self.COLOR_NEON_BLUE)
+            self.screen.blit(title_surf, self._title_rect)
 
-        if self._title_surface and self._title_rect:
-            self.screen.blit(self._title_surface, self._title_rect)
-
-        mouse_pos = pygame.mouse.get_pos()
-
+        # 3. Stats
         for surface, rect in self._stats_surfaces:
             self.screen.blit(surface, rect)
 
+        # 4. Botones Interactivos
+        mouse_pos = pygame.mouse.get_pos()
+
         for button, rect in self._button_rects:
             hovered = rect.collidepoint(mouse_pos)
-            fill_color = (180, 70, 70) if hovered else (140, 40, 40)
-            border_color = (255, 210, 210)
-            pygame.draw.rect(self.screen, fill_color, rect, border_radius=10)
-            pygame.draw.rect(self.screen, border_color, rect, 2, border_radius=10)
+            
+            # Colores dinámicos
+            bg_color = (0, 0, 0, 180) if not hovered else (60, 20, 40, 200)
+            border_color = self.COLOR_NEON_BLUE if not hovered else self.COLOR_NEON_PINK
+            
+            # Fondo botón
+            btn_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+            pygame.draw.rect(btn_surf, bg_color, btn_surf.get_rect(), border_radius=4)
+            pygame.draw.rect(btn_surf, border_color, btn_surf.get_rect(), 2, border_radius=4)
+            self.screen.blit(btn_surf, rect)
 
-            label_surface = self.button_font.render(button.label, True, (255, 255, 255))
+            # Etiqueta
+            text_color = self.COLOR_TEXT_WHITE if not hovered else self.COLOR_NEON_BLUE
+            label_surface = self.button_font.render(button.label.upper(), True, text_color)
             label_rect = label_surface.get_rect(center=rect.center)
             self.screen.blit(label_surface, label_rect)
 
@@ -166,7 +234,7 @@ class GameOverScreen:
         kills = max(0, int(stats.get("kills", 0)))
         rooms = max(0, int(stats.get("rooms", 0)))
         return (
-            f"Monedas conseguidas: {coins}",
-            f"Enemigos derrotados: {kills}",
-            f"Salas visitadas: {rooms}",
+            f"Monedas:  {coins}",
+            f"Enemigos: {kills}",
+            f"Salas:    {rooms}",
         )
