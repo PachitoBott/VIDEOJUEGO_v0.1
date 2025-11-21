@@ -67,6 +67,59 @@ ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
 
 
 _OBSTACLE_ASSET_DIR = assets_dir("obstacles")
+
+# Sprite opcional para cofres personalizados (``assets/cofre.png`` o
+# ``assets/obstacles/cofre.png``). Se escala al tamaño del rectángulo del cofre
+# y se oscurece ligeramente cuando el cofre está abierto.
+_TREASURE_SPRITE_CACHE: dict[tuple[int, int], pygame.Surface | None] = {}
+_TREASURE_SPRITE_OPEN_CACHE: dict[tuple[int, int], pygame.Surface | None] = {}
+_TREASURE_RAW_SPRITE: pygame.Surface | None = None
+_TREASURE_SPRITE_TRIED: bool = False
+
+
+def _load_raw_treasure_sprite() -> pygame.Surface | None:
+    global _TREASURE_SPRITE_TRIED
+    global _TREASURE_RAW_SPRITE
+
+    if _TREASURE_SPRITE_TRIED:
+        return _TREASURE_RAW_SPRITE
+
+    _TREASURE_SPRITE_TRIED = True
+    candidates = [assets_dir("cofre.png"), assets_dir("obstacles", "cofre.png")]
+
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            _TREASURE_RAW_SPRITE = pygame.image.load(path.as_posix()).convert_alpha()
+            break
+        except pygame.error:
+            _TREASURE_RAW_SPRITE = None
+    return _TREASURE_RAW_SPRITE
+
+
+def _load_treasure_sprite(size: tuple[int, int], opened: bool) -> pygame.Surface | None:
+    cached = (
+        _TREASURE_SPRITE_OPEN_CACHE if opened else _TREASURE_SPRITE_CACHE
+    ).get(size)
+    if cached is not None or size in _TREASURE_SPRITE_CACHE:
+        return cached
+
+    raw = _load_raw_treasure_sprite()
+    sprite = raw.copy() if raw is not None else None
+
+    if sprite is not None and sprite.get_size() != size:
+        sprite = pygame.transform.smoothscale(sprite, size)
+
+    _TREASURE_SPRITE_CACHE[size] = sprite
+    if sprite is not None:
+        opened_variant = sprite.copy()
+        opened_variant.fill((180, 180, 180, 255), special_flags=pygame.BLEND_RGBA_MULT)
+        _TREASURE_SPRITE_OPEN_CACHE[size] = opened_variant
+    else:
+        _TREASURE_SPRITE_OPEN_CACHE[size] = None
+
+    return _TREASURE_SPRITE_OPEN_CACHE[size] if opened else sprite
 _OBSTACLE_ASSET_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -1073,9 +1126,7 @@ class Room:
         ts = CFG.TILE_SIZE
         cx = (rx + rw // 2) * ts
         cy = (ry + rh // 2) * ts
-
-        width = 28
-        height = 20
+        width, height = self._treasure_dimensions((28, 20))
         self.treasure = {
             "rect": pygame.Rect(cx - width // 2, cy - height // 2, width, height),
             "opened": False,
@@ -1093,8 +1144,7 @@ class Room:
         ts = CFG.TILE_SIZE
         cx = (rx + rw // 2) * ts
         cy = (ry + rh // 2) * ts
-        width = 32
-        height = 24
+        width, height = self._treasure_dimensions((32, 24))
         self.treasure = {
             "rect": pygame.Rect(cx - width // 2, cy - height // 2, width, height),
             "opened": False,
@@ -1102,6 +1152,35 @@ class Room:
         }
         self.treasure_message = ""
         self.treasure_message_until = 0
+
+    def _treasure_dimensions(self, base_size: tuple[int, int]) -> tuple[int, int]:
+        """Calcula el tamaño del cofre aplicando la escala configurada."""
+
+        scale = max(0.1, float(getattr(CFG, "TREASURE_SPRITE_SCALE", 1.0)))
+
+        cfg_size = getattr(CFG, "TREASURE_SIZE", base_size)
+        sprite_size: tuple[int, int] | None = None
+        raw_sprite = _load_raw_treasure_sprite()
+        if raw_sprite is not None:
+            sprite_size = raw_sprite.get_size()
+
+        try:
+            bw, bh = int(cfg_size[0]), int(cfg_size[1])
+        except (TypeError, ValueError, IndexError):
+            if sprite_size:
+                bw, bh = sprite_size
+            else:
+                bw, bh = base_size
+
+        if bw <= 0 or bh <= 0:
+            if sprite_size:
+                bw, bh = sprite_size
+            else:
+                bw, bh = base_size
+
+        width = max(4, int(round(bw * scale)))
+        height = max(4, int(round(bh * scale)))
+        return width, height
 
     def _handle_treasure_events(self, events, player) -> None:
         if not self.treasure:
@@ -1174,6 +1253,12 @@ class Room:
             return
         rect: pygame.Rect = self.treasure["rect"]
         opened = self.treasure.get("opened", False)
+
+        sprite = _load_treasure_sprite(rect.size, opened)
+        if sprite is not None:
+            surface.blit(sprite, rect.topleft)
+            return
+
         body_color = (176, 124, 56) if not opened else (110, 96, 96)
         lid_color = (214, 168, 96) if not opened else (140, 128, 128)
         band_color = (235, 208, 128) if not opened else (180, 172, 172)

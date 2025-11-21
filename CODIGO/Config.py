@@ -80,6 +80,11 @@ class Config:
     HUD_WEAPON_AMMO_ALIGN_CENTER: bool = True
     HUD_WEAPON_TEXT_MARGIN: float = 12.0
 
+    # --- Tesoro ---
+    # Tamaño base del cofre y escala adicional para sprites personalizados.
+    TREASURE_SIZE: Tuple[int, int] = (32, 24)
+    TREASURE_SPRITE_SCALE: float = 1.0
+
     START_MENU: StartMenuConfig = StartMenuConfig()
 
     FLOOR: int = 0
