@@ -79,9 +79,11 @@ class Config:
     HUD_WEAPON_AMMO_OFFSET: Tuple[float, float] = (0.0, 10.0)
     HUD_WEAPON_AMMO_ALIGN_CENTER: bool = True
     HUD_WEAPON_TEXT_MARGIN: float = 12.0
-
-    # Activa el spawn directo en la sala del boss para depuración/arte.
-    DEBUG_START_IN_BOSS_ROOM: bool = False
+    
+    
+    #################### APARECER EN BOSS ROOM AL INICIAR EL JUEGO ####################
+    DEBUG_START_IN_BOSS_ROOM: bool = True
+    ###################################################################################
 
     # --- Tesoro ---
     # Tamaño base del cofre y escala adicional para sprites personalizados.
@@ -89,6 +91,7 @@ class Config:
     TREASURE_HITBOX_SIZE: Tuple[int, int] = (40, 40)
     TREASURE_COLLISION_SIZE: Optional[Tuple[int, int]] = (12, 12)
     TREASURE_SPRITE_SCALE: float = 1.0
+
 
     START_MENU: StartMenuConfig = StartMenuConfig()
 
