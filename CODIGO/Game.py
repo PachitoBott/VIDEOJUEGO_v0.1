@@ -18,6 +18,7 @@ from Projectile import ProjectileGroup
 from Shop import Shop
 from Shopkeeper import Shopkeeper
 from HudPanels import HudPanels
+from LootNotifications import LootNotificationManager
 from PauseMenu import PauseMenu, PauseMenuButton
 from GameOverScreen import GameOverScreen
 from Statistics import StatisticsManager
@@ -59,6 +60,9 @@ class Game:
         self._weapon_pickup_sprite = self._create_weapon_pickup_sprite()
         self._bundle_pickup_sprite = self._create_bundle_pickup_sprite()
         self.microchip_icon_scale = self.MICROCHIP_ICON_DEFAULT_SCALE * 0.4
+
+        self.loot_notifications = LootNotificationManager(self.ui_font)
+        self.loot_notifications.set_surface_size(self.screen.get_size())
         
         # Usa los métodos set_microchip_icon_scale/offset/value_offset para ajustar
         # manualmente la presentación del icono dentro del HUD.
@@ -145,6 +149,8 @@ class Game:
         self.dungeon = Dungeon(**params, seed=seed)
         self.current_seed = self.dungeon.seed
         pygame.display.set_caption(f"Roguelike — Seed {self.current_seed}")
+
+        self.loot_notifications.clear()
 
         # preparar inventario de la tienda para esta seed
         if hasattr(self, "shop"):
@@ -352,6 +358,7 @@ class Game:
         self._update_pickups(dt, room)
         self._handle_room_transition(room)
         self._update_shop(events)
+        self.loot_notifications.update(dt, self.screen)
 
     def _update_player(self, dt: float, room) -> None:
         self.player.update(dt, room)
@@ -746,11 +753,14 @@ class Game:
         room.pickups = survivors
         if collected_total:
             self._add_player_gold(collected_total)
+            self._notify_microchips(collected_total)
         for reward_pickup in reward_pickups:
             try:
-                reward_pickup.apply(self.player)
+                applied = reward_pickup.apply(self.player)
             except Exception:
                 continue
+            if applied:
+                self._notify_reward(reward_pickup.reward_data)
 
     def _add_player_gold(self, amount: int) -> None:
         amount = int(amount)
@@ -758,6 +768,79 @@ class Game:
             return
         current_gold = getattr(self.player, "gold", 0)
         setattr(self.player, "gold", current_gold + amount)
+
+    def _notify_microchips(self, amount: int) -> None:
+        if amount <= 0:
+            return
+        self.loot_notifications.push(f"+{amount} microchips")
+
+    def _notify_reward(self, reward: dict | None) -> None:
+        if not isinstance(reward, dict):
+            return
+        rtype = str(reward.get("type", "")).lower()
+        if rtype == "bundle":
+            contents = reward.get("contents", ())
+            for entry in contents:
+                self._notify_reward(entry)
+            return
+        message = self._format_reward_message(reward)
+        if message:
+            self.loot_notifications.push(message)
+
+    def _format_reward_message(self, reward: dict) -> str | None:
+        rtype = str(reward.get("type", "")).lower()
+        if rtype == "gold":
+            amount = int(reward.get("amount", 0))
+            if amount <= 0:
+                return None
+            return f"+{amount} microchips"
+        if rtype == "heal":
+            amount = int(reward.get("amount", 0))
+            if amount <= 0:
+                return None
+            return f"+{amount} vida"
+        if rtype == "weapon":
+            weapon_id = reward.get("id", "arma")
+            return f"Arma nueva: {self._prettify_id(weapon_id)}"
+        if rtype == "upgrade":
+            upgrade_id = reward.get("id", "mejora")
+            label = self._describe_upgrade(upgrade_id)
+            return f"Mejora obtenida: {label}"
+        if rtype == "consumable":
+            consumable_id = reward.get("id", "objeto")
+            amount = int(reward.get("amount", 1) or 1)
+            label = self._describe_consumable(consumable_id)
+            prefix = f"x{amount} " if amount > 1 else ""
+            return f"{prefix}{label}"
+        return None
+
+    def _describe_upgrade(self, upgrade_id: str | None) -> str:
+        uid = str(upgrade_id) if upgrade_id else ""
+        names = {
+            "spd_up": "Mejora de velocidad",
+            "cdr_charm": "Amuleto de recarga rápida",
+            "cdr_core": "Núcleo de recarga avanzada",
+            "sprint_core": "Núcleo de sprint",
+            "dash_core": "Núcleo de dash ágil",
+            "dash_drive": "Drive de dash prolongado",
+        }
+        return names.get(uid, self._prettify_id(uid))
+
+    def _describe_consumable(self, consumable_id: str | None) -> str:
+        cid = str(consumable_id) if consumable_id else ""
+        names = {
+            "heal_small": "Cápsula de vida (+1)",
+            "heal_medium": "Cápsula de vida media",
+            "heal_battery_full": "Batería completa",
+        }
+        return names.get(cid, self._prettify_id(cid))
+
+    def _prettify_id(self, raw_id: str | None) -> str:
+        text = str(raw_id or "objeto")
+        clean = text.replace("_", " ").strip()
+        if not clean:
+            return "objeto"
+        return clean.capitalize()
 
     def _apply_projectile_effects(self, projectile, enemy) -> None:
         effects = getattr(projectile, "effects", ())
@@ -1071,6 +1154,8 @@ class Game:
         self.hud_panels.blit_minimap_panel(self.screen, minimap_surface, minimap_position)
 
         self.hud_panels.blit_corner_panel(self.screen)
+
+        self.loot_notifications.draw(self.screen)
 
         self.vfx.draw_screen(self.screen)
 
