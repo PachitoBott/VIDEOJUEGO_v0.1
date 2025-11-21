@@ -25,6 +25,10 @@ Los sprites incluidos por defecto son:
 - `pantallas_2x2.png`
 - `pantallas_azules_4x2.png`
 
+Si quieres un sprite dedicado para el Cofre Rúnico, colócalo manualmente como
+`cofre_runico.png` en esta carpeta. Si el archivo no existe, el juego usará el
+cofre genérico por defecto.
+
 ## Escalado rápido
 
 El tamaño de la caja de colisión depende exclusivamente del número de tiles del
