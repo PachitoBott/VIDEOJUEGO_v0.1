@@ -24,7 +24,9 @@ class ShopItem:
 
 
 class Shop:
-    WIDTH, HEIGHT = 720, 420
+    UI_SCALE = 0.9
+    BASE_WIDTH, BASE_HEIGHT = 720, 420
+    WIDTH, HEIGHT = int(BASE_WIDTH * UI_SCALE), int(BASE_HEIGHT * UI_SCALE)
     MAX_ITEMS = 6
 
     TITLE_COLOR = (255, 240, 180)
@@ -42,8 +44,9 @@ class Shop:
         self.active = False
         self.selected = 0
         self.hover_index: int | None = None
-        self.font = font or pygame.font.SysFont(None, 18)
-        self.title_font = pygame.font.SysFont(None, 28)
+        self._font_path = self._resolve_font_path()
+        self.font = self._load_font(18)
+        self.title_font = self._load_font(28)
         self._on_gold_spent = on_gold_spent
 
         self.rect = pygame.Rect(0, 0, self.WIDTH, self.HEIGHT)
@@ -67,6 +70,27 @@ class Shop:
         self._rng = random.Random()
         self._inventory_generated = False
         self._restock_random()
+
+    def _scaled(self, value: float) -> int:
+        return int(value * self.UI_SCALE)
+
+    def _resolve_font_path(self) -> Path | None:
+        candidates = [
+            Path(__file__).resolve().parent / "assets" / "ui" / "VT323-Regular.ttf",
+            assets_dir("ui", "VT323-Regular.ttf"),
+        ]
+        for path in candidates:
+            if path.exists():
+                return path
+        return None
+
+    def _load_font(self, size: int) -> pygame.font.Font:
+        if self._font_path:
+            try:
+                return pygame.font.Font(self._font_path, size)
+            except Exception:
+                pass
+        return pygame.font.SysFont("VT323", size) or pygame.font.SysFont(None, size)
 
     # ------------------------------------------------------------------
     # Inventario y datos de catálogo
@@ -298,10 +322,20 @@ class Shop:
         self._player_ref = player
         self._message_timer = 0.0
         self._message_text = ""
+        if hasattr(player, "set_controls_enabled"):
+            try:
+                player.set_controls_enabled(False)
+            except Exception:
+                pass
 
     def close(self) -> None:
         self.active = False
         self.hover_index = None
+        if hasattr(self._player_ref, "set_controls_enabled"):
+            try:
+                self._player_ref.set_controls_enabled(True)
+            except Exception:
+                pass
         self._player_ref = None
 
     def move_selection(self, delta: int) -> None:
@@ -422,7 +456,7 @@ class Shop:
         pygame.draw.rect(surface, self.BORDER_COLOR, self.rect, 2, border_radius=12)
 
         title = self.title_font.render("TIENDA", True, self.TITLE_COLOR)
-        surface.blit(title, (self.rect.x + 20, self.rect.y + 16))
+        surface.blit(title, (self.rect.x + self._scaled(20), self.rect.y + self._scaled(16)))
 
         self._draw_player_wallet(surface)
         if not self.items:
@@ -443,7 +477,7 @@ class Shop:
 
     def _draw_center_panel(self, surface, item: ShopItem) -> None:
         panel_rect = self._center_sprite_rect.copy()
-        panel_rect.inflate_ip(32, 32)
+        panel_rect.inflate_ip(self._scaled(32), self._scaled(32))
         pygame.draw.rect(surface, self.PANEL_COLOR, panel_rect, border_radius=8)
         pygame.draw.rect(surface, self.BORDER_COLOR, panel_rect, 1, border_radius=8)
 
@@ -452,24 +486,24 @@ class Shop:
         sprite_pos = sprite.get_rect(center=self._center_sprite_rect.center)
         surface.blit(sprite, sprite_pos)
 
-        text_y = panel_rect.bottom + 10
+        text_y = panel_rect.bottom + self._scaled(10)
         name = self.title_font.render(item.name, True, self.TEXT_COLOR)
-        surface.blit(name, (self.rect.x + 24, text_y))
+        surface.blit(name, (self.rect.x + self._scaled(24), text_y))
 
         price_text = self._price_surface(item.price)
-        surface.blit(price_text, (self.rect.right - price_text.get_width() - 24, text_y))
+        surface.blit(price_text, (self.rect.right - price_text.get_width() - self._scaled(24), text_y))
 
-        desc_lines = self._wrap_text(item.description, self.rect.width - 48)
-        effect_lines = self._wrap_text(f"Efecto: {item.effect}", self.rect.width - 48)
+        desc_lines = self._wrap_text(item.description, self.rect.width - self._scaled(48))
+        effect_lines = self._wrap_text(f"Efecto: {item.effect}", self.rect.width - self._scaled(48))
 
         y = text_y + name.get_height() + 6
         for line in desc_lines:
             txt = self.font.render(line, True, self.TEXT_COLOR)
-            surface.blit(txt, (self.rect.x + 24, y))
+            surface.blit(txt, (self.rect.x + self._scaled(24), y))
             y += txt.get_height() + 2
         for line in effect_lines:
             txt = self.font.render(line, True, self.ACCENT_COLOR)
-            surface.blit(txt, (self.rect.x + 24, y))
+            surface.blit(txt, (self.rect.x + self._scaled(24), y))
             y += txt.get_height() + 2
 
     def _draw_side_item(self, surface, item: ShopItem, rect: pygame.Rect, faded: bool = False) -> None:
@@ -513,7 +547,7 @@ class Shop:
         txt = self.font.render(self._message_text, True, self._message_color)
         pos = txt.get_rect()
         pos.centerx = self.rect.centerx
-        pos.y = self.rect.bottom - pos.height - 12
+        pos.y = self.rect.bottom - pos.height - self._scaled(12)
         surface.blit(txt, pos)
 
     def _draw_player_wallet(self, surface) -> None:
@@ -522,8 +556,8 @@ class Shop:
         microchips = getattr(self._player_ref, "gold", 0)
         icon = self._microchip_icon
         label = self.font.render(str(microchips), True, self.TITLE_COLOR)
-        x = self.rect.right - icon.get_width() - label.get_width() - 16
-        y = self.rect.y + 18
+        x = self.rect.right - icon.get_width() - label.get_width() - self._scaled(16)
+        y = self.rect.y + self._scaled(18)
         surface.blit(icon, (x, y))
         surface.blit(label, (x + icon.get_width() + 6, y + (icon.get_height() - label.get_height()) // 2))
 
@@ -583,11 +617,11 @@ class Shop:
 
     def _ensure_hitboxes(self) -> None:
         cx, cy = self.rect.center
-        cy -= 12
+        cy -= self._scaled(12)
         offset = self._slide_offset
-        side_gap = 190
-        side_size = 140
-        center_size = 180
+        side_gap = self._scaled(190)
+        side_size = self._scaled(140)
+        center_size = self._scaled(180)
 
         left_rect = pygame.Rect(0, 0, side_size, side_size)
         left_rect.center = (cx - side_gap + offset, cy)
@@ -602,20 +636,27 @@ class Shop:
             ((self.selected + 1) % len(self.items) if self.items else 0, right_rect),
         ]
 
-        arrow_w, arrow_h = 44, 64
+        arrow_w, arrow_h = self._scaled(44), self._scaled(64)
         self._arrow_left_rect = pygame.Rect(0, 0, arrow_w, arrow_h)
-        self._arrow_left_rect.center = (self.rect.x + 60, cy)
+        self._arrow_left_rect.center = (self.rect.x + self._scaled(60), cy)
         self._arrow_right_rect = pygame.Rect(0, 0, arrow_w, arrow_h)
-        self._arrow_right_rect.center = (self.rect.right - 60, cy)
+        self._arrow_right_rect.center = (self.rect.right - self._scaled(60), cy)
 
-        buy_w, buy_h = 200, 52
+        buy_w, buy_h = self._scaled(200), self._scaled(52)
         self._buy_button_rect = pygame.Rect(0, 0, buy_w, buy_h)
-        self._buy_button_rect.center = (self.rect.centerx, self.rect.bottom - buy_h)
+        padding_x = self._scaled(28)
+        padding_y = self._scaled(20)
+        self._buy_button_rect.bottom = self.rect.bottom - padding_y
+        self._buy_button_rect.right = self.rect.right - padding_x
 
     def _load_microchip_icon(self) -> pygame.Surface:
         try:
             sprite = pygame.image.load(assets_dir("ui", "chip_moneda.png")).convert_alpha()
-            return pygame.transform.smoothscale(sprite, (int(sprite.get_width() * 0.6), int(sprite.get_height() * 0.6)))
+            scale = 0.45
+            return pygame.transform.smoothscale(
+                sprite,
+                (int(sprite.get_width() * scale), int(sprite.get_height() * scale)),
+            )
         except Exception:
             return pygame.Surface((0, 0), pygame.SRCALPHA)
 

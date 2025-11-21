@@ -122,6 +122,8 @@ class Player(Entity):
         self._dash_trail_timer = 0.0
         self._dash_trail: list[DashTrailSegment] = []
 
+        self.controls_enabled = True
+
         self._animations = self._build_animations()
         self._current_animation = "idle"
         self._animation_override: str | None = None
@@ -132,33 +134,36 @@ class Player(Entity):
         self.reset_loadout()
 
     def update(self, dt: float, room) -> None:
-        keys = pygame.key.get_pressed()
+        keys = pygame.key.get_pressed() if self.controls_enabled else None
         self.invulnerable_timer = max(0.0, self.invulnerable_timer - dt)
         self._dash_timer = max(0.0, self._dash_timer - dt)
         self._dash_cooldown_timer = max(0.0, self._dash_cooldown_timer - dt)
         self._recent_enemy_shot_timer = max(0.0, self._recent_enemy_shot_timer - dt)
         self._sprint_control_timer = max(0.0, self._sprint_control_timer - dt)
 
-        dx = (keys[pygame.K_d] or keys[pygame.K_RIGHT]) - (keys[pygame.K_a] or keys[pygame.K_LEFT])
-        dy = (keys[pygame.K_s] or keys[pygame.K_DOWN]) - (keys[pygame.K_w] or keys[pygame.K_UP])
+        if self.controls_enabled and keys:
+            dx = (keys[pygame.K_d] or keys[pygame.K_RIGHT]) - (keys[pygame.K_a] or keys[pygame.K_LEFT])
+            dy = (keys[pygame.K_s] or keys[pygame.K_DOWN]) - (keys[pygame.K_w] or keys[pygame.K_UP])
+        else:
+            dx = dy = 0
         input_mag = math.hypot(dx, dy)
         if input_mag > 0:
             dx, dy = dx / input_mag, dy / input_mag
             self._last_move_dir = (dx, dy)
 
-        reload_pressed = keys[pygame.K_r]
+        reload_pressed = keys[pygame.K_r] if self.controls_enabled and keys else False
         if reload_pressed and not self._reload_key_down:
             self._try_manual_reload()
         self._reload_key_down = reload_pressed
 
-        dash_pressed = keys[pygame.K_SPACE]
+        dash_pressed = keys[pygame.K_SPACE] if self.controls_enabled and keys else False
         dash_just_pressed = dash_pressed and not self._dash_key_down
         self._dash_key_down = dash_pressed
 
         move_dx, move_dy = dx, dy
         speed_scale = 1.0
 
-        dash_active = self._dash_timer > 0.0
+        dash_active = self.controls_enabled and self._dash_timer > 0.0
         sprinting_now = False
         if dash_active:
             move_dx, move_dy = self._dash_dir
@@ -177,7 +182,7 @@ class Player(Entity):
                     self.invulnerable_timer = max(self.invulnerable_timer, self.dash_iframe_duration)
                     dash_active = True
             if not dash_active and input_mag > 0:
-                if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
+                if self.controls_enabled and keys and (keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]):
                     speed_scale = self.sprint_multiplier
                     sprinting_now = True
 
@@ -209,6 +214,12 @@ class Player(Entity):
                 self.invulnerable_timer = max(0.0, self.invulnerable_timer) + self.dash_core_bonus_iframe
         self._was_dashing = dash_active
         self._is_sprinting = sprinting_now
+
+    def set_controls_enabled(self, enabled: bool) -> None:
+        self.controls_enabled = bool(enabled)
+        if not enabled:
+            self._dash_key_down = False
+            self._reload_key_down = False
 
     # ------------------------------------------------------------------
     # Estado defensivo
