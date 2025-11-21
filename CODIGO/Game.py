@@ -89,6 +89,14 @@ class Game:
 
         self.loot_notifications = LootNotificationManager(self.loot_font)
         self.loot_notifications.set_surface_size(self.screen.get_size())
+
+        # --- Barra de vida del boss ---
+        self.boss_bar_size = pygame.Vector2(420, 18)
+        self.boss_bar_margin = pygame.Vector2(0, 16)
+        self.boss_bar_bg_color = pygame.Color(24, 16, 26, 210)
+        self.boss_bar_fill_color = pygame.Color(235, 76, 91)
+        self.boss_bar_border_color = pygame.Color(255, 200, 140)
+        self.boss_bar_text_color = pygame.Color(240, 240, 240)
         
         # Usa los métodos set_microchip_icon_scale/offset/value_offset para ajustar
         # manualmente la presentación del icono dentro del HUD.
@@ -1128,13 +1136,74 @@ class Game:
         if boss and hasattr(boss, "draw_floor_effects"):
             boss.draw_floor_effects(self.world)
 
+    def _find_active_boss(self, room):
+        if room is None:
+            return None
+        if getattr(room, "boss_defeated", False):
+            return None
+        boss = getattr(room, "boss_instance", None)
+        if boss is None:
+            for enemy in getattr(room, "enemies", []):
+                if getattr(enemy, "is_boss", False):
+                    boss = enemy
+                    break
+        if boss is None:
+            return None
+        if getattr(boss, "hp", 0) <= 0:
+            return None
+        return boss
+
+    def _draw_boss_health_bar(self, surface: pygame.Surface, room) -> pygame.Rect:
+        boss = self._find_active_boss(room)
+        if boss is None:
+            return pygame.Rect(0, 0, 0, 0)
+
+        max_hp = max(1, int(getattr(boss, "max_hp", getattr(boss, "hp", 1))))
+        hp_value = max(0, min(max_hp, int(getattr(boss, "hp", 0))))
+        ratio = hp_value / max_hp if max_hp > 0 else 0.0
+
+        width = int(min(self.boss_bar_size.x, surface.get_width() - 60))
+        width = max(width, 160)
+        height = int(self.boss_bar_size.y)
+        x = (surface.get_width() - width) // 2 + int(self.boss_bar_margin.x)
+        y = int(self.boss_bar_margin.y)
+        bar_rect = pygame.Rect(x, y, width, height)
+
+        overlay = pygame.Surface(bar_rect.size, pygame.SRCALPHA)
+        overlay.fill(self.boss_bar_bg_color)
+        surface.blit(overlay, bar_rect.topleft)
+
+        inner_padding = 2
+        inner_width = width - inner_padding * 2
+        fill_width = int(inner_width * ratio)
+        fill_rect = pygame.Rect(
+            bar_rect.left + inner_padding,
+            bar_rect.top + inner_padding,
+            fill_width,
+            height - inner_padding * 2,
+        )
+        if fill_rect.width > 0:
+            pygame.draw.rect(surface, self.boss_bar_fill_color, fill_rect, border_radius=4)
+        pygame.draw.rect(surface, self.boss_bar_border_color, bar_rect, 2, border_radius=6)
+
+        name = getattr(boss, "name", None) or getattr(boss, "sprite_variant", "Boss")
+        label = f"{name} — {hp_value}/{max_hp}"
+        text_surface = self.loot_font.render(label, True, self.boss_bar_text_color)
+        text_rect = text_surface.get_rect(center=bar_rect.center)
+        surface.blit(text_surface, text_rect)
+
+        return bar_rect
+
     def _render_ui(self) -> None:
+        room = self.dungeon.current_room
         scaled = pygame.transform.scale(
             self.world,
             (self.cfg.SCREEN_W * self.cfg.SCREEN_SCALE,
              self.cfg.SCREEN_H * self.cfg.SCREEN_SCALE)
         )
         self.screen.blit(scaled, (0, 0))
+
+        self._draw_boss_health_bar(self.screen, room)
 
         inventory_rect = self.hud_panels.blit_inventory_panel(self.screen)
         weapon_rect = self._draw_weapon_hud(inventory_rect)
