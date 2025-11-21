@@ -123,24 +123,40 @@ def _load_treasure_sprite(size: tuple[int, int], opened: bool) -> pygame.Surface
 _OBSTACLE_ASSET_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _treasure_hitbox_from_sprite_rect(sprite_rect: pygame.Rect) -> pygame.Rect:
-    """Crea un ``pygame.Rect`` de hitbox centrado en el sprite del cofre."""
+def _treasure_box_from_sprite_rect(
+    sprite_rect: pygame.Rect, size: tuple[int, int] | None
+) -> pygame.Rect:
+    """Crea un rectángulo centrado en el sprite usando el tamaño dado."""
 
     try:
-        hitbox_w, hitbox_h = CFG.TREASURE_HITBOX_SIZE  # type: ignore[attr-defined]
-        hitbox_w, hitbox_h = int(hitbox_w), int(hitbox_h)
+        box_w, box_h = size if size is not None else CFG.TREASURE_SIZE  # type: ignore[attr-defined]
+        box_w, box_h = int(box_w), int(box_h)
     except Exception:
-        hitbox_w = hitbox_h = 32
+        box_w = box_h = 32
 
-    hitbox_w = hitbox_w if hitbox_w > 0 else 32
-    hitbox_h = hitbox_h if hitbox_h > 0 else 32
+    box_w = box_w if box_w > 0 else 32
+    box_h = box_h if box_h > 0 else 32
 
     return pygame.Rect(
-        sprite_rect.centerx - hitbox_w // 2,
-        sprite_rect.centery - hitbox_h // 2,
-        hitbox_w,
-        hitbox_h,
+        sprite_rect.centerx - box_w // 2,
+        sprite_rect.centery - box_h // 2,
+        box_w,
+        box_h,
     )
+
+
+def _treasure_hitbox_from_sprite_rect(sprite_rect: pygame.Rect) -> pygame.Rect:
+    """Área de interacción del cofre (para detectar cercanía/interacción)."""
+
+    size = getattr(CFG, "TREASURE_HITBOX_SIZE", None)
+    return _treasure_box_from_sprite_rect(sprite_rect, size)
+
+
+def _treasure_collision_from_sprite_rect(sprite_rect: pygame.Rect) -> pygame.Rect:
+    """Área sólida que bloquea al jugador (más pequeña que el sprite)."""
+
+    size = getattr(CFG, "TREASURE_COLLISION_SIZE", None)
+    return _treasure_box_from_sprite_rect(sprite_rect, size)
 
 
 @dataclass(frozen=True)
@@ -1164,6 +1180,7 @@ class Room:
         self.treasure = {
             "rect": sprite_rect,
             "hitbox": _treasure_hitbox_from_sprite_rect(sprite_rect),
+            "collision": _treasure_collision_from_sprite_rect(sprite_rect),
             "opened": False,
             "loot_table": loot_table,
         }
@@ -1185,6 +1202,7 @@ class Room:
         self.treasure = {
             "rect": sprite_rect,
             "hitbox": _treasure_hitbox_from_sprite_rect(sprite_rect),
+            "collision": _treasure_collision_from_sprite_rect(sprite_rect),
             "opened": False,
             "loot_table": loot_table,
         }
@@ -1228,7 +1246,9 @@ class Room:
         if not self.treasure:
             return
 
-        rect: pygame.Rect = self.treasure.get("hitbox", self.treasure.get("rect"))
+        rect: pygame.Rect = self.treasure.get(
+            "collision", self.treasure.get("hitbox", self.treasure.get("rect"))
+        )
         ts = CFG.TILE_SIZE
         x0 = rect.left // ts
         y0 = rect.top // ts
