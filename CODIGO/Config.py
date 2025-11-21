@@ -76,6 +76,7 @@ class Config:
     COLOR_PLAYER: Tuple[int,int,int] = (240, 220, 120)
 
     DEBUG_DRAW_DOOR_TRIGGERS: bool = False
+    DEBUG_DRAW_BOSS_HITBOX_LAYOUT: bool = False
 
     # --- HUD ---
     HUD_WEAPON_ICON_SCALE: float = 0.9

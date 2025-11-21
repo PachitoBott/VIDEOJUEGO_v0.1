@@ -16,6 +16,7 @@ class BossEnemy(Enemy):
     """Base genérica para bosses con fases y efectos de suelo."""
 
     SPRITE_VARIANT = "boss_core"
+    _CANONICAL_COLLIDER: tuple[float, float, float] | None = None
 
     def __init__(self, x: float, y: float, *, max_hp: int = 50, gold_reward: int = 60) -> None:
         super().__init__(x, y, hp=max_hp, gold_reward=gold_reward)
@@ -66,7 +67,8 @@ class BossEnemy(Enemy):
         height = sprite_h
         y_offset = 0.0
 
-        if self.sprite_variant == "boss_core":
+        shared_hitbox_variants = {"boss_core", "boss_security"}
+        if self.sprite_variant in shared_hitbox_variants:
             side_trim = max(6, int(width * 0.1))
             top_trim = max(18, int(height * 0.36))
             bottom_trim = max(5, int(height * 0.12))
@@ -74,6 +76,10 @@ class BossEnemy(Enemy):
             height = max(12, height - (top_trim + bottom_trim))
             downward_bias = max(6.0, height * 0.12)
             y_offset = (top_trim - bottom_trim) / 2 + downward_bias
+            if BossEnemy._CANONICAL_COLLIDER is None:
+                BossEnemy._CANONICAL_COLLIDER = (width, height, y_offset)
+            else:
+                width, height, y_offset = BossEnemy._CANONICAL_COLLIDER
 
         self.w = width
         self.h = height
@@ -126,6 +132,72 @@ class BossEnemy(Enemy):
         if torso is not None:
             torso_dest = torso.get_rect(center=center)
             surf.blit(torso, torso_dest)
+
+        if CFG.DEBUG_DRAW_BOSS_HITBOX_LAYOUT:
+            self._draw_hitbox_layout(surf, leg_dest, torso_dest)
+
+    def _draw_hitbox_layout(
+        self,
+        surf: pygame.Surface,
+        leg_dest: pygame.Rect,
+        torso_dest: pygame.Rect | None,
+    ) -> None:
+        collider_rect = self.rect()
+        sprite_rect = leg_dest.union(torso_dest) if torso_dest is not None else leg_dest
+
+        # Overlay directo en la escena
+        pygame.draw.rect(surf, (0, 200, 255), sprite_rect, 1)
+        pygame.draw.rect(surf, (255, 90, 90), collider_rect, 2)
+        cx, cy = collider_rect.center
+        pygame.draw.line(surf, (255, 90, 90), (cx - 6, cy), (cx + 6, cy))
+        pygame.draw.line(surf, (255, 90, 90), (cx, cy - 6), (cx, cy + 6))
+
+        # Diagrama miniatura para ver proporciones de hitbox vs sprite
+        diagram_size = 104
+        padding = 8
+        base_max = max(1, max(sprite_rect.w, sprite_rect.h))
+        scale = (diagram_size - padding * 2) / base_max
+
+        def _scaled_rect(rect: pygame.Rect) -> pygame.Rect:
+            return pygame.Rect(
+                int(padding + (rect.x - sprite_rect.x) * scale),
+                int(padding + (rect.y - sprite_rect.y) * scale),
+                max(1, int(rect.w * scale)),
+                max(1, int(rect.h * scale)),
+            )
+
+        diagram = pygame.Surface((diagram_size, diagram_size), pygame.SRCALPHA)
+        diagram.fill((10, 10, 10, 180))
+        mini_sprite = _scaled_rect(sprite_rect)
+        mini_collider = _scaled_rect(collider_rect)
+        pygame.draw.rect(diagram, (0, 200, 255, 180), mini_sprite, 1)
+        pygame.draw.rect(diagram, (255, 90, 90, 220), mini_collider, 2)
+
+        font = pygame.font.Font(None, 16)
+        label_texts = [
+            "Layout hitbox",
+            f"Sprite: {sprite_rect.w}x{sprite_rect.h}",
+            f"Collider: {self.w}x{self.h}",
+        ]
+        text_y = diagram_size - padding - len(label_texts) * 14
+        for text in label_texts:
+            rendered = font.render(text, True, (240, 240, 240))
+            diagram.blit(rendered, (padding, text_y))
+            text_y += 14
+
+        diagram_dest = diagram.get_rect()
+        diagram_dest.topleft = (sprite_rect.right + 10, sprite_rect.top - 6)
+
+        # Evitar que salga completamente de pantalla
+        surf_w, surf_h = surf.get_size()
+        if diagram_dest.right > surf_w:
+            diagram_dest.right = surf_w - 4
+        if diagram_dest.top < 0:
+            diagram_dest.top = 4
+        if diagram_dest.bottom > surf_h:
+            diagram_dest.bottom = surf_h - 4
+
+        surf.blit(diagram, diagram_dest.topleft)
 
     def add_telegraph(
         self,
