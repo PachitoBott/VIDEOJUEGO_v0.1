@@ -44,8 +44,17 @@ class PauseMenu:
             PauseMenuButton("Salir del Juego", "quit"),
         ]
 
+        # --- Inicializar Audio ---
+        if not pygame.mixer.get_init():
+            try:
+                pygame.mixer.init()
+            except pygame.error:
+                pass
+        
+        # Cargar sonido (busca en assets/audio)
+        self.click_sound = self._load_sound("boton.mp3")
+
         # --- Carga de Fuentes (Estilo Retro) ---
-        # Intenta cargar VT323, si no, usa la pasada por argumento o fallback
         self.title_font = self._get_font("VT323-Regular.ttf", 96)
         self.button_font = font or self._get_font("VT323-Regular.ttf", 48)
         self.small_font = self._get_font("VT323-Regular.ttf", 32)
@@ -61,13 +70,34 @@ class PauseMenu:
         script_dir = Path(__file__).parent.resolve()
         candidates = [
             script_dir / "assets" / "ui" / filename,
-            script_dir / ".." / "assets" / "ui" / filename, # Por si assets está arriba
+            script_dir / ".." / "assets" / "ui" / filename,
             Path.cwd() / "assets" / "ui" / filename,
             script_dir / filename 
         ]
         for path in candidates:
             if path.exists():
                 return path
+        return None
+
+    def _load_sound(self, filename: str) -> pygame.mixer.Sound | None:
+        """Busca y carga sonidos en assets/audio."""
+        script_dir = Path(__file__).parent.resolve()
+        # Rutas posibles para el audio
+        candidates = [
+            script_dir / "assets" / "audio" / filename,
+            script_dir / ".." / "assets" / "audio" / filename,
+            Path.cwd() / "assets" / "audio" / filename,
+        ]
+        
+        for path in candidates:
+            if path.exists():
+                try:
+                    return pygame.mixer.Sound(str(path))
+                except pygame.error:
+                    print(f"Error al cargar sonido: {filename}")
+                    return None
+        
+        # print(f"Advertencia: Sonido '{filename}' no encontrado en assets/audio")
         return None
 
     def _get_font(self, font_name: str, size: int) -> pygame.font.Font:
@@ -124,11 +154,19 @@ class PauseMenu:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return "quit"
+                
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    # Reproducir sonido al reanudar con ESC
+                    if self.click_sound:
+                        self.click_sound.play()
                     return "resume"
+                
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     for button, rect in self._button_layout:
                         if rect.collidepoint(event.pos):
+                            # Reproducir sonido al hacer clic
+                            if self.click_sound:
+                                self.click_sound.play()
                             return button.action
 
             self._draw(background)
