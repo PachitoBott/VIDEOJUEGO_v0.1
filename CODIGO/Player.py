@@ -96,8 +96,10 @@ class Player(Entity):
         self.life_charge_buffer = 0
         self.invulnerable_timer = 0.0
         self.post_hit_invulnerability = 0.45
+        self.respawn_invulnerability = 2.0
         # Conteo de golpes por vida (cada golpe equivale a 1 punto de vida perdido)
         self._hits_taken_current_life = 0
+        self._respawn_animating = False
 
         self.sprint_multiplier = 1.35
         self.base_sprint_multiplier = self.sprint_multiplier
@@ -265,7 +267,7 @@ class Player(Entity):
         """Restaura la salud y otorga invulnerabilidad breve tras revivir."""
         self.hp = self.max_hp
         self._hits_taken_current_life = 0
-        self.invulnerable_timer = max(self.invulnerable_timer, self.post_hit_invulnerability)
+        self.invulnerable_timer = max(self.invulnerable_timer, self.respawn_invulnerability)
         self._dash_timer = 0.0
         self._dash_cooldown_timer = 0.0
         self._dash_key_down = False
@@ -274,6 +276,12 @@ class Player(Entity):
         self._reload_key_down = False
         self._dash_trail.clear()
         self._dash_trail_timer = 0.0
+        self._start_respawn_animation()
+
+    def _start_respawn_animation(self) -> None:
+        self._respawn_animating = True
+        self._animation_override = "respawn"
+        self._set_current_animation("respawn", force_reset=True)
 
     def try_shoot(self, mouse_world_pos, out_projectiles) -> None:
         """Dispara hacia mouse si se pulsa y cooldown listo."""
@@ -409,12 +417,14 @@ class Player(Entity):
         run_frames = load_animation("run", 4)
         reload_frames = load_animation("reload", 5)
         shoot_frames = load_animation("shoot", 4)
+        respawn_frames = load_animation("respawn", 7)
 
         animations = {
             "idle": FrameAnimation(idle_frames, frame_time=0.2, loop=False),
             "run": FrameAnimation(run_frames, frame_time=0.09, loop=True),
             "reload": FrameAnimation(reload_frames, frame_time=0.12, loop=False),
             "shoot": FrameAnimation(shoot_frames, frame_time=0.06, loop=False),
+            "respawn": FrameAnimation(respawn_frames, frame_time=0.1, loop=False),
         }
         return animations
 
@@ -426,12 +436,16 @@ class Player(Entity):
             self._animations[name].reset()
 
     def _start_shoot_animation(self) -> None:
+        if self._respawn_animating:
+            return
         if self.weapon and self.weapon.is_reloading():
             return
         self._animation_override = "shoot"
         self._set_current_animation("shoot", force_reset=True)
 
     def _start_reload_animation(self) -> None:
+        if self._respawn_animating:
+            return
         if not self.weapon:
             return
         anim = self._animations["reload"]
@@ -458,6 +472,9 @@ class Player(Entity):
         elif self._animation_override == "reload":
             if not reloading and animation.finished:
                 self._animation_override = None
+        elif self._animation_override == "respawn" and animation.finished:
+            self._animation_override = None
+            self._respawn_animating = False
 
     def _update_dash_trail(self, dt: float, dash_active: bool) -> None:
         # Reducir vida de los rastros existentes
@@ -516,6 +533,8 @@ class Player(Entity):
         self._last_move_dir = (0.0, -1.0)
         self._dash_trail.clear()
         self._dash_trail_timer = 0.0
+        self._respawn_animating = False
+        self._animation_override = None
         self.sprint_control_bonus = 0.0
         self._sprint_control_timer = 0.0
         self._is_sprinting = False
