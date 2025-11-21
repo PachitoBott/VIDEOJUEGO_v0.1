@@ -24,7 +24,7 @@ class ShopItem:
 
 
 class Shop:
-    UI_SCALE = 0.84
+    UI_SCALE = 0.8
     BASE_WIDTH, BASE_HEIGHT = 720, 420
     WIDTH, HEIGHT = int(BASE_WIDTH * UI_SCALE), int(BASE_HEIGHT * UI_SCALE)
     MAX_ITEMS = 6
@@ -323,7 +323,7 @@ class Shop:
     def open(self, cx: int, cy: int, player=None) -> None:
         self.ensure_inventory()
         self.active = True
-        self.rect.center = (cx, cy + self._scaled(20))
+        self.rect.center = (cx, cy + self._scaled(28))
         self.hover_index = None
         self._player_ref = player
         self._message_timer = 0.0
@@ -534,7 +534,7 @@ class Shop:
             pygame.draw.rect(surface, self._hover_tint(self.ACCENT_COLOR), glow_rect, 2, border_radius=10)
 
     def _draw_arrows(self, surface, mouse_pos) -> None:
-        arrow_color = self.BORDER_COLOR
+        arrow_color = self.ACCENT_COLOR
         for rect, direction in ((self._arrow_left_rect, -1), (self._arrow_right_rect, 1)):
             hovered = rect.collidepoint(mouse_pos)
             color = self._hover_tint(arrow_color) if hovered else arrow_color
@@ -681,8 +681,8 @@ class Shop:
         except Exception:
             pass
 
-        main_icon = self._scale_icon(source_icon, 0.72)
-        small_icon = self._scale_icon(source_icon, 0.48)
+        main_icon = self._scale_icon(source_icon, 0.5)
+        small_icon = self._scale_icon(source_icon, 0.28)
         return main_icon, small_icon
 
     def _scale_icon(self, icon: pygame.Surface, scale: float) -> pygame.Surface:
