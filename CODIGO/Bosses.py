@@ -16,6 +16,7 @@ class BossEnemy(Enemy):
     """Base genérica para bosses con fases y efectos de suelo."""
 
     SPRITE_VARIANT = "boss_core"
+    _CANONICAL_COLLIDER: tuple[float, float, float] | None = None
 
     def __init__(self, x: float, y: float, *, max_hp: int = 50, gold_reward: int = 60) -> None:
         super().__init__(x, y, hp=max_hp, gold_reward=gold_reward)
@@ -66,7 +67,8 @@ class BossEnemy(Enemy):
         height = sprite_h
         y_offset = 0.0
 
-        if self.sprite_variant == "boss_core":
+        shared_hitbox_variants = {"boss_core", "boss_security"}
+        if self.sprite_variant in shared_hitbox_variants:
             side_trim = max(6, int(width * 0.1))
             top_trim = max(18, int(height * 0.36))
             bottom_trim = max(5, int(height * 0.12))
@@ -74,6 +76,10 @@ class BossEnemy(Enemy):
             height = max(12, height - (top_trim + bottom_trim))
             downward_bias = max(6.0, height * 0.12)
             y_offset = (top_trim - bottom_trim) / 2 + downward_bias
+            if BossEnemy._CANONICAL_COLLIDER is None:
+                BossEnemy._CANONICAL_COLLIDER = (width, height, y_offset)
+            else:
+                width, height, y_offset = BossEnemy._CANONICAL_COLLIDER
 
         self.w = width
         self.h = height
