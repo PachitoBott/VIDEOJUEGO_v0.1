@@ -68,7 +68,7 @@ class BossEnemy(Enemy):
 
         if self.sprite_variant == "boss_core":
             side_trim = max(6, int(width * 0.1))
-            top_trim = max(14, int(height * 0.28))
+            top_trim = max(18, int(height * 0.36))
             bottom_trim = max(5, int(height * 0.12))
             width = max(12, width - side_trim * 2)
             height = max(12, height - (top_trim + bottom_trim))
