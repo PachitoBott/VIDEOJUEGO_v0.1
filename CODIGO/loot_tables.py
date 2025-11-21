@@ -96,9 +96,11 @@ ENEMY_LOOT_TABLE = {
         },
     },
     "global_drop_rates": {
-        "enemy_gold_chance": 0.45,
-        "enemy_heal_chance": 0.22,
-        "enemy_consumable_chance": 0.06,
+        "enemy_gold_chance": 0.70,
+        "enemy_heal_small_chance": 0.20,
+        "enemy_heal_big_chance": 0.10,
+        "enemy_upgrade_chance": 0.10,
+        "enemy_bundle_chance": 0.05,
         "enemy_weapon_rare_chance": 0.01,
     },
 }
