@@ -1,2 +1,4 @@
 __pycache__/
 *.pyc
+# Estadísticas generadas en runtime
+assets/*.csv

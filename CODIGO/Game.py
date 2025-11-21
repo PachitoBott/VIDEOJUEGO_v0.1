@@ -58,7 +58,9 @@ class Game:
         self._upgrade_pickup_sprite = self._create_upgrade_pickup_sprite()
         self._weapon_pickup_sprite = self._create_weapon_pickup_sprite()
         self._bundle_pickup_sprite = self._create_bundle_pickup_sprite()
-        self.microchip_icon_scale = self.MICROCHIP_ICON_DEFAULT_SCALE * 0.4
+        # Reducimos el tamaño del panel de microchips para que ocupe menos espacio
+        # en pantalla y no compita con el resto del HUD.
+        self.microchip_icon_scale = self.MICROCHIP_ICON_DEFAULT_SCALE * 0.22
         
         # Usa los métodos set_microchip_icon_scale/offset/value_offset para ajustar
         # manualmente la presentación del icono dentro del HUD.
@@ -80,8 +82,8 @@ class Game:
         self._weapon_icons = self._load_weapon_icons()
         self._weapon_icon_cache: dict[tuple[str, float], pygame.Surface] = {}
         self.current_seed: int | None = None
-        self.microchip_icon_offset = pygame.Vector2(193, 42)
-        self.microchip_value_offset = pygame.Vector2(0, -100)
+        self.microchip_icon_offset = pygame.Vector2(170, 30)
+        self.microchip_value_offset = pygame.Vector2(0, -52)
         self.microchip_value_color = pygame.Color(255, 240, 180)
 
         # --- Tienda ---

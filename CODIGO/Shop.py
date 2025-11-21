@@ -24,7 +24,7 @@ class ShopItem:
 
 
 class Shop:
-    UI_SCALE = 0.9
+    UI_SCALE = 0.85
     BASE_WIDTH, BASE_HEIGHT = 720, 420
     WIDTH, HEIGHT = int(BASE_WIDTH * UI_SCALE), int(BASE_HEIGHT * UI_SCALE)
     MAX_ITEMS = 6
@@ -36,6 +36,9 @@ class Shop:
     TEXT_COLOR = (235, 235, 235)
     TEXT_MUTED = (185, 185, 200)
     ACCENT_COLOR = (110, 220, 180)
+    ARROW_FILL_COLOR = (22, 26, 40)
+    ARROW_GLOW_COLOR = (136, 236, 238)
+    ARROW_SHADOW_COLOR = (6, 8, 12, 110)
     ERROR_COLOR = (255, 120, 120)
 
     def __init__(self, font=None, on_gold_spent: Callable[[int], None] | None = None):
@@ -323,7 +326,7 @@ class Shop:
     def open(self, cx: int, cy: int, player=None) -> None:
         self.ensure_inventory()
         self.active = True
-        self.rect.center = (cx, cy)
+        self.rect.center = (cx, cy + self._scaled(28))
         self.hover_index = None
         self._player_ref = player
         self._message_timer = 0.0
@@ -364,18 +367,6 @@ class Shop:
             return
         self._ensure_hitboxes()
         self.hover_index = None
-        if self._arrow_left_rect.collidepoint(mouse_pos):
-            self.hover_index = (self.selected - 1) % len(self.items) if self.items else None
-            return
-        if self._arrow_right_rect.collidepoint(mouse_pos):
-            self.hover_index = (self.selected + 1) % len(self.items) if self.items else None
-            return
-        for idx, rect in self._side_hitboxes:
-            if rect.collidepoint(mouse_pos):
-                self.hover_index = idx
-                return
-        if self._center_sprite_rect.collidepoint(mouse_pos):
-            self.hover_index = self.selected
 
     def handle_click(self, mouse_pos, player):
         """Procesa un click izquierdo dentro de la tienda."""
@@ -480,17 +471,16 @@ class Shop:
             self.items[prev_idx],
             self._side_hitboxes[0][1],
             faded=True,
-            hovered=self.hover_index == prev_idx,
+            hovered=False,
         )
         self._draw_side_item(
             surface,
             self.items[next_idx],
             self._side_hitboxes[1][1],
             faded=True,
-            hovered=self.hover_index == next_idx,
+            hovered=False,
         )
-        center_hovered = self.hover_index == self.selected or self._center_sprite_rect.collidepoint(mouse_pos)
-        self._draw_center_panel(surface, self.items[self.selected], hovered=center_hovered)
+        self._draw_center_panel(surface, self.items[self.selected], hovered=False)
 
         self._draw_arrows(surface, mouse_pos)
         self._draw_buy_button(surface, mouse_pos)
@@ -550,10 +540,12 @@ class Shop:
         arrow_color = self.ACCENT_COLOR
         for rect, direction in ((self._arrow_left_rect, -1), (self._arrow_right_rect, 1)):
             hovered = rect.collidepoint(mouse_pos)
-            color = self._hover_tint(arrow_color) if hovered else arrow_color
-            fill = self._hover_fill(self.PANEL_COLOR) if hovered else self.PANEL_COLOR
-            pygame.draw.rect(surface, fill, rect, border_radius=6)
-            pygame.draw.rect(surface, color, rect, 2, border_radius=6)
+            color = self._hover_tint(self.ARROW_GLOW_COLOR if hovered else arrow_color, 20)
+            fill = self._hover_fill(self.ARROW_FILL_COLOR, 28 if hovered else 12)
+            shadow = rect.inflate(self._scaled(10), self._scaled(10))
+            pygame.draw.rect(surface, self.ARROW_SHADOW_COLOR, shadow, border_radius=8)
+            pygame.draw.rect(surface, fill, rect, border_radius=8)
+            pygame.draw.rect(surface, color, rect, 2, border_radius=8)
             cx, cy = rect.center
             size = rect.height // 3
             if direction < 0:
@@ -694,8 +686,8 @@ class Shop:
         except Exception:
             pass
 
-        main_icon = self._scale_icon(source_icon, 1.8)
-        small_icon = self._scale_icon(source_icon, 1.2)
+        main_icon = self._scale_icon(source_icon, 1.25)
+        small_icon = self._scale_icon(source_icon, 0.9)
         return main_icon, small_icon
 
     def _scale_icon(self, icon: pygame.Surface, scale: float) -> pygame.Surface:
