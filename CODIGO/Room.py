@@ -76,6 +76,14 @@ _TREASURE_SPRITE_OPEN_CACHE: dict[tuple[int, int], pygame.Surface | None] = {}
 _TREASURE_RAW_SPRITE: pygame.Surface | None = None
 _TREASURE_SPRITE_TRIED: bool = False
 
+# Sprite opcional para el Cofre Rúnico (``assets/cofre_runico.png`` o
+# ``assets/obstacles/cofre_runico.png``). Se escala al tamaño del rectángulo
+# del cofre y se oscurece ligeramente cuando está abierto.
+_RUNE_SPRITE_CACHE: dict[tuple[int, int], pygame.Surface | None] = {}
+_RUNE_SPRITE_OPEN_CACHE: dict[tuple[int, int], pygame.Surface | None] = {}
+_RUNE_RAW_SPRITE: pygame.Surface | None = None
+_RUNE_SPRITE_TRIED: bool = False
+
 
 def _load_raw_treasure_sprite() -> pygame.Surface | None:
     global _TREASURE_SPRITE_TRIED
@@ -120,6 +128,52 @@ def _load_treasure_sprite(size: tuple[int, int], opened: bool) -> pygame.Surface
         _TREASURE_SPRITE_OPEN_CACHE[size] = None
 
     return _TREASURE_SPRITE_OPEN_CACHE[size] if opened else sprite
+
+
+def _load_raw_rune_chest_sprite() -> pygame.Surface | None:
+    global _RUNE_SPRITE_TRIED
+    global _RUNE_RAW_SPRITE
+
+    if _RUNE_SPRITE_TRIED:
+        return _RUNE_RAW_SPRITE
+
+    _RUNE_SPRITE_TRIED = True
+    candidates = [
+        assets_dir("cofre_runico.png"),
+        assets_dir("obstacles", "cofre_runico.png"),
+    ]
+
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            _RUNE_RAW_SPRITE = pygame.image.load(path.as_posix()).convert_alpha()
+            break
+        except pygame.error:
+            _RUNE_RAW_SPRITE = None
+    return _RUNE_RAW_SPRITE
+
+
+def _load_rune_chest_sprite(size: tuple[int, int], opened: bool) -> pygame.Surface | None:
+    cached = (_RUNE_SPRITE_OPEN_CACHE if opened else _RUNE_SPRITE_CACHE).get(size)
+    if cached is not None or size in _RUNE_SPRITE_CACHE:
+        return cached
+
+    raw = _load_raw_rune_chest_sprite()
+    sprite = raw.copy() if raw is not None else None
+
+    if sprite is not None and sprite.get_size() != size:
+        sprite = pygame.transform.smoothscale(sprite, size)
+
+    _RUNE_SPRITE_CACHE[size] = sprite
+    if sprite is not None:
+        opened_variant = sprite.copy()
+        opened_variant.fill((180, 180, 180, 255), special_flags=pygame.BLEND_RGBA_MULT)
+        _RUNE_SPRITE_OPEN_CACHE[size] = opened_variant
+    else:
+        _RUNE_SPRITE_OPEN_CACHE[size] = None
+
+    return _RUNE_SPRITE_OPEN_CACHE[size] if opened else sprite
 _OBSTACLE_ASSET_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -1342,16 +1396,21 @@ class Room:
         hitbox: pygame.Rect = self.rune_chest.get("hitbox", rect)
         opened = self.rune_chest.get("opened", False)
 
-        body_color = (90, 62, 140) if not opened else (58, 48, 92)
-        lid_color = (130, 92, 186) if not opened else (92, 74, 134)
-        band_color = (196, 176, 240) if not opened else (150, 138, 196)
+        sprite = _load_rune_chest_sprite(rect.size, opened)
 
-        pygame.draw.rect(surface, body_color, rect)
-        lid_height = max(6, rect.height // 3)
-        lid_rect = pygame.Rect(rect.x, rect.y, rect.width, lid_height)
-        pygame.draw.rect(surface, lid_color, lid_rect)
-        pygame.draw.rect(surface, band_color, pygame.Rect(rect.centerx - 3, rect.y, 6, rect.height))
-        pygame.draw.rect(surface, (22, 14, 44), rect, 2)
+        if sprite is not None:
+            surface.blit(sprite, rect)
+        else:
+            body_color = (90, 62, 140) if not opened else (58, 48, 92)
+            lid_color = (130, 92, 186) if not opened else (92, 74, 134)
+            band_color = (196, 176, 240) if not opened else (150, 138, 196)
+
+            pygame.draw.rect(surface, body_color, rect)
+            lid_height = max(6, rect.height // 3)
+            lid_rect = pygame.Rect(rect.x, rect.y, rect.width, lid_height)
+            pygame.draw.rect(surface, lid_color, lid_rect)
+            pygame.draw.rect(surface, band_color, pygame.Rect(rect.centerx - 3, rect.y, 6, rect.height))
+            pygame.draw.rect(surface, (22, 14, 44), rect, 2)
 
         if getattr(CFG, "DEBUG_DRAW_DOOR_TRIGGERS", False):
             pygame.draw.rect(surface, (255, 0, 255), hitbox, 1)
