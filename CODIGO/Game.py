@@ -69,7 +69,7 @@ class Game:
         # Incrementa la componente X para mover las barras hacia la derecha
         # (disminúyela para moverlas a la izquierda) y modifica Y para
         # desplazarlas verticalmente.
-        self._life_battery_offset = pygame.Vector2(-455, 35)
+        self._life_battery_offset = pygame.Vector2(-445, 50)
         # --- Configuración del HUD de armas ---
         self.weapon_icon_offset = pygame.Vector2(60, 50)
         self.weapon_icon_scale = 1.0
@@ -1034,8 +1034,11 @@ class Game:
         seed_text = self.ui_font.render(f"Seed: {self.current_seed}", True, (230, 230, 230))
 
         text_x, text_y = self.hud_panels.inventory_content_anchor()
-        if weapon_rect.width:
-            text_x = max(text_x, weapon_rect.right + int(self.weapon_text_margin))
+        # Usamos una posición fija para el texto, independiente del tamaño del arma
+        fixed_weapon_width = 140  # Ancho estimado del slot de arma
+        text_x = max(text_x, inventory_rect.left + int(self.weapon_icon_offset.x) + fixed_weapon_width + int(self.weapon_text_margin))
+        
+        # Restauramos la dependencia del microchip para que el texto (y las baterías) se desplacen correctamente
         if microchip_rect.width:
             text_x = max(text_x, microchip_rect.right + int(self.weapon_text_margin))
         line_gap = 6
@@ -1112,11 +1115,10 @@ class Game:
         if icon_surface is None:
             return pygame.Rect(0, 0, 0, 0)
 
-        if weapon_rect.width and weapon_rect.height:
-            anchor_x, anchor_y = weapon_rect.topright
-        else:
-            anchor_x = inventory_rect.left + int(self.weapon_icon_offset.x)
-            anchor_y = inventory_rect.top + int(self.weapon_icon_offset.y)
+        # Desacoplamos la posición del microchip del tamaño del arma.
+        # Usamos una posición fija relativa al inicio del slot del arma.
+        anchor_x = inventory_rect.left + int(self.weapon_icon_offset.x) + 130  # +130 de margen fijo
+        anchor_y = inventory_rect.top + int(self.weapon_icon_offset.y)
 
         icon_position = (
             int(anchor_x + self.microchip_icon_offset.x),
@@ -1341,6 +1343,10 @@ class Game:
         if base_surface is None:
             return None
 
+        # Ajuste específico para short_rifle
+        if weapon_id == "short_rifle":
+            scale *= 0.25
+
         scale = max(0.05, float(scale))
         cache_key = (base_id, round(scale, 4))
         cached = self._weapon_icon_cache.get(cache_key)
@@ -1364,8 +1370,14 @@ class Game:
         if icon_surface is None:
             return pygame.Rect(0, 0, 0, 0)
 
-        base_x = inventory_rect.left + int(self.weapon_icon_offset.x)
-        base_y = inventory_rect.top + int(self.weapon_icon_offset.y)
+        # Ajustes de posición específicos
+        extra_x, extra_y = 0, 0
+        if weapon_id == "short_rifle":
+            extra_x = -15  # Modifica esto para mover horizontalmente
+            extra_y = 35  # Modifica esto para mover verticalmente
+
+        base_x = inventory_rect.left + int(self.weapon_icon_offset.x) + extra_x
+        base_y = inventory_rect.top + int(self.weapon_icon_offset.y) + extra_y
         icon_rect = icon_surface.get_rect(topleft=(base_x, base_y))
         self.screen.blit(icon_surface, icon_rect.topleft)
 
