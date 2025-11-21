@@ -64,7 +64,7 @@ class Shop:
         self._last_ticks = pygame.time.get_ticks()
         self._player_ref = None
 
-        self._microchip_icon = self._load_microchip_icon()
+        self._microchip_icon, self._microchip_icon_small = self._load_microchip_icons()
 
         self._seed: int | None = None
         self._rng = random.Random()
@@ -73,6 +73,12 @@ class Shop:
 
     def _scaled(self, value: float) -> int:
         return int(value * self.UI_SCALE)
+
+    def _hover_tint(self, color, amount: int = 50):
+        return tuple(min(255, c + amount) for c in color)
+
+    def _hover_fill(self, color, amount: int = 16):
+        return tuple(min(255, max(0, c + amount)) for c in color)
 
     def _resolve_font_path(self) -> Path | None:
         candidates = [
@@ -458,6 +464,8 @@ class Shop:
         title = self.title_font.render("TIENDA", True, self.TITLE_COLOR)
         surface.blit(title, (self.rect.x + self._scaled(20), self.rect.y + self._scaled(16)))
 
+        mouse_pos = pygame.mouse.get_pos()
+
         self._draw_player_wallet(surface)
         if not self.items:
             empty = self.font.render("Inventario agotado", True, self.TEXT_COLOR)
@@ -467,19 +475,37 @@ class Shop:
         prev_idx = (self.selected - 1) % len(self.items)
         next_idx = (self.selected + 1) % len(self.items)
 
-        self._draw_side_item(surface, self.items[prev_idx], self._side_hitboxes[0][1], faded=True)
-        self._draw_side_item(surface, self.items[next_idx], self._side_hitboxes[1][1], faded=True)
-        self._draw_center_panel(surface, self.items[self.selected])
+        self._draw_side_item(
+            surface,
+            self.items[prev_idx],
+            self._side_hitboxes[0][1],
+            faded=True,
+            hovered=self.hover_index == prev_idx,
+        )
+        self._draw_side_item(
+            surface,
+            self.items[next_idx],
+            self._side_hitboxes[1][1],
+            faded=True,
+            hovered=self.hover_index == next_idx,
+        )
+        center_hovered = self.hover_index == self.selected or self._center_sprite_rect.collidepoint(mouse_pos)
+        self._draw_center_panel(surface, self.items[self.selected], hovered=center_hovered)
 
-        self._draw_arrows(surface)
-        self._draw_buy_button(surface)
+        self._draw_arrows(surface, mouse_pos)
+        self._draw_buy_button(surface, mouse_pos)
         self._draw_message(surface)
 
-    def _draw_center_panel(self, surface, item: ShopItem) -> None:
+    def _draw_center_panel(self, surface, item: ShopItem, *, hovered: bool = False) -> None:
         panel_rect = self._center_sprite_rect.copy()
         panel_rect.inflate_ip(self._scaled(32), self._scaled(32))
-        pygame.draw.rect(surface, self.PANEL_COLOR, panel_rect, border_radius=8)
-        pygame.draw.rect(surface, self.BORDER_COLOR, panel_rect, 1, border_radius=8)
+        panel_color = self.PANEL_COLOR
+        border_color = self.BORDER_COLOR
+        if hovered:
+            panel_color = self._hover_fill(panel_color)
+            border_color = self._hover_tint(border_color)
+        pygame.draw.rect(surface, panel_color, panel_rect, border_radius=8)
+        pygame.draw.rect(surface, border_color, panel_rect, 2, border_radius=8)
 
         max_w, max_h = 200, 200
         sprite = self._scaled_sprite(item.sprite, max_w, max_h)
@@ -506,7 +532,7 @@ class Shop:
             surface.blit(txt, (self.rect.x + self._scaled(24), y))
             y += txt.get_height() + 2
 
-    def _draw_side_item(self, surface, item: ShopItem, rect: pygame.Rect, faded: bool = False) -> None:
+    def _draw_side_item(self, surface, item: ShopItem, rect: pygame.Rect, faded: bool = False, *, hovered: bool = False) -> None:
         scale = 0.6
         max_w, max_h = int(160 * scale), int(160 * scale)
         sprite = self._scaled_sprite(item.sprite, max_w, max_h)
@@ -516,13 +542,17 @@ class Shop:
             shaded.fill((120, 120, 120, 180), None, pygame.BLEND_RGBA_MULT)
         surface.blit(shaded, sprite_pos)
 
-    def _draw_arrows(self, surface) -> None:
+        if hovered:
+            glow_rect = rect.inflate(self._scaled(10), self._scaled(10))
+            pygame.draw.rect(surface, self._hover_tint(self.ACCENT_COLOR), glow_rect, 2, border_radius=10)
+
+    def _draw_arrows(self, surface, mouse_pos) -> None:
+        arrow_color = self.ACCENT_COLOR
         for rect, direction in ((self._arrow_left_rect, -1), (self._arrow_right_rect, 1)):
-            color = self.BORDER_COLOR if direction < 0 else self.ACCENT_COLOR
-            hovered = rect.collidepoint(pygame.mouse.get_pos())
-            if hovered:
-                color = (min(255, color[0] + 30), min(255, color[1] + 30), min(255, color[2] + 30))
-            pygame.draw.rect(surface, self.PANEL_COLOR, rect, border_radius=6)
+            hovered = rect.collidepoint(mouse_pos)
+            color = self._hover_tint(arrow_color) if hovered else arrow_color
+            fill = self._hover_fill(self.PANEL_COLOR) if hovered else self.PANEL_COLOR
+            pygame.draw.rect(surface, fill, rect, border_radius=6)
             pygame.draw.rect(surface, color, rect, 2, border_radius=6)
             cx, cy = rect.center
             size = rect.height // 3
@@ -532,13 +562,18 @@ class Shop:
                 points = [(cx - size // 2, cy - size), (cx - size // 2, cy + size), (cx + size, cy)]
             pygame.draw.polygon(surface, color, points)
 
-    def _draw_buy_button(self, surface) -> None:
+    def _draw_buy_button(self, surface, mouse_pos) -> None:
         player_gold = getattr(self._player_ref, "gold", None)
         affordable = player_gold is None or not self.items or player_gold >= self.items[self.selected].price
         color = self.ACCENT_COLOR if affordable else self.TEXT_MUTED
-        pygame.draw.rect(surface, self.PANEL_COLOR, self._buy_button_rect, border_radius=10)
-        pygame.draw.rect(surface, color, self._buy_button_rect, 2, border_radius=10)
-        label = self.title_font.render("Comprar", True, color)
+        hovered = self._buy_button_rect.collidepoint(mouse_pos)
+        fill = self._hover_fill(self.PANEL_COLOR) if hovered else self.PANEL_COLOR
+        border_color = self._hover_tint(color) if hovered else color
+        shadow_rect = self._buy_button_rect.inflate(self._scaled(6), self._scaled(6))
+        pygame.draw.rect(surface, (0, 0, 0, 60), shadow_rect, border_radius=12)
+        pygame.draw.rect(surface, fill, self._buy_button_rect, border_radius=10)
+        pygame.draw.rect(surface, border_color, self._buy_button_rect, 3, border_radius=10)
+        label = self.title_font.render("Comprar", True, border_color)
         surface.blit(label, label.get_rect(center=self._buy_button_rect.center))
 
     def _draw_message(self, surface) -> None:
@@ -555,21 +590,23 @@ class Shop:
             return
         microchips = getattr(self._player_ref, "gold", 0)
         icon = self._microchip_icon
-        label = self.font.render(str(microchips), True, self.TITLE_COLOR)
-        x = self.rect.right - icon.get_width() - label.get_width() - self._scaled(16)
-        y = self.rect.y + self._scaled(18)
+        label = self.font.render(f"Monedas: {microchips}", True, self.TITLE_COLOR)
+        x = self.rect.right - icon.get_width() - label.get_width() - self._scaled(18)
+        y = self.rect.y + self._scaled(14)
         surface.blit(icon, (x, y))
-        surface.blit(label, (x + icon.get_width() + 6, y + (icon.get_height() - label.get_height()) // 2))
+        surface.blit(label, (x + icon.get_width() + 8, y + (icon.get_height() - label.get_height()) // 2))
 
     # ------------------------------------------------------------------
     # Utilidades de render
     # ------------------------------------------------------------------
     def _price_surface(self, price: int) -> pygame.Surface:
-        label = self.font.render(f"{price} microchips", True, self.TITLE_COLOR)
-        if self._microchip_icon:
-            surf = pygame.Surface((label.get_width() + self._microchip_icon.get_width() + 4, label.get_height()), pygame.SRCALPHA)
-            surf.blit(self._microchip_icon, (0, 0))
-            surf.blit(label, (self._microchip_icon.get_width() + 4, (surf.get_height() - label.get_height()) // 2))
+        label = self.font.render(f"Costo: {price}", True, self.TITLE_COLOR)
+        icon = self._microchip_icon_small
+        if icon.get_width():
+            height = max(label.get_height(), icon.get_height())
+            surf = pygame.Surface((label.get_width() + icon.get_width() + 8, height), pygame.SRCALPHA)
+            surf.blit(icon, (0, (height - icon.get_height()) // 2))
+            surf.blit(label, (icon.get_width() + 8, (height - label.get_height()) // 2))
             return surf
         return label
 
@@ -644,21 +681,85 @@ class Shop:
 
         buy_w, buy_h = self._scaled(200), self._scaled(52)
         self._buy_button_rect = pygame.Rect(0, 0, buy_w, buy_h)
-        padding_x = self._scaled(28)
-        padding_y = self._scaled(20)
-        self._buy_button_rect.bottom = self.rect.bottom - padding_y
-        self._buy_button_rect.right = self.rect.right - padding_x
+        padding_y = self._scaled(32)
+        self._buy_button_rect.midtop = (self.rect.centerx, self.rect.y + padding_y)
 
-    def _load_microchip_icon(self) -> pygame.Surface:
+    def _load_microchip_icons(self) -> tuple[pygame.Surface, pygame.Surface]:
+        base_icon, pickup_icon = self._create_procedural_microchip()
+        source_icon = pickup_icon or base_icon
         try:
             sprite = pygame.image.load(assets_dir("ui", "chip_moneda.png")).convert_alpha()
-            scale = 0.45
-            return pygame.transform.smoothscale(
-                sprite,
-                (int(sprite.get_width() * scale), int(sprite.get_height() * scale)),
-            )
+            if sprite.get_width() and sprite.get_height():
+                source_icon = sprite
         except Exception:
+            pass
+
+        main_icon = self._scale_icon(source_icon, 1.8)
+        small_icon = self._scale_icon(source_icon, 1.2)
+        return main_icon, small_icon
+
+    def _scale_icon(self, icon: pygame.Surface, scale: float) -> pygame.Surface:
+        if icon.get_width() == 0 or icon.get_height() == 0:
             return pygame.Surface((0, 0), pygame.SRCALPHA)
+        width = max(1, int(icon.get_width() * scale))
+        height = max(1, int(icon.get_height() * scale))
+        return pygame.transform.smoothscale(icon, (width, height))
+
+    def _create_procedural_microchip(self) -> tuple[pygame.Surface, pygame.Surface]:
+        base_size = 32
+        chip = pygame.Surface((base_size, base_size), pygame.SRCALPHA)
+        chip.fill((0, 0, 0, 0))
+
+        body_rect = chip.get_rect().inflate(-8, -8)
+        frame_color = pygame.Color(120, 20, 80)
+        frame_shadow = pygame.Color(70, 10, 48)
+        pygame.draw.rect(chip, frame_shadow, body_rect, border_radius=6)
+        pygame.draw.rect(chip, frame_color, body_rect.inflate(-2, -2), border_radius=6)
+
+        core_rect = body_rect.inflate(-8, -8)
+        core_color = pygame.Color(28, 94, 116)
+        core_dark = pygame.Color(12, 48, 64)
+        pygame.draw.rect(chip, core_color, core_rect, border_radius=5)
+        pygame.draw.rect(chip, core_dark, core_rect, width=2, border_radius=5)
+
+        highlight = pygame.Surface(core_rect.size, pygame.SRCALPHA)
+        light_a = pygame.Color(136, 236, 238, 190)
+        light_b = pygame.Color(94, 204, 220, 140)
+        start_y = core_rect.height // 3
+        pygame.draw.line(highlight, light_a, (3, start_y), (core_rect.width - 4, start_y - 3), 3)
+        pygame.draw.line(highlight, light_b, (3, start_y + 4), (core_rect.width - 6, start_y + 1), 2)
+        chip.blit(highlight, core_rect.topleft)
+
+        pin_color = pygame.Color(230, 176, 70)
+        pin_shadow = pygame.Color(156, 116, 46)
+        pin_w, pin_h = 5, 6
+        slots = 4
+        slot_spacing = (body_rect.height - 12) / max(1, slots - 1)
+        for i in range(slots):
+            offset = int(body_rect.top + 6 + i * slot_spacing)
+            left_pin = pygame.Rect(0, 0, pin_w, pin_h)
+            left_pin.midright = (body_rect.left - 1, offset)
+            right_pin = pygame.Rect(0, 0, pin_w, pin_h)
+            right_pin.midleft = (body_rect.right + 1, offset)
+            pygame.draw.rect(chip, pin_color, left_pin)
+            pygame.draw.rect(chip, pin_shadow, left_pin, 1)
+            pygame.draw.rect(chip, pin_color, right_pin)
+            pygame.draw.rect(chip, pin_shadow, right_pin, 1)
+
+        slot_spacing = (body_rect.width - 12) / max(1, slots - 1)
+        for i in range(slots):
+            offset = int(body_rect.left + 6 + i * slot_spacing)
+            top_pin = pygame.Rect(0, 0, pin_h, pin_w)
+            top_pin.midbottom = (offset, body_rect.top - 1)
+            bottom_pin = pygame.Rect(0, 0, pin_h, pin_w)
+            bottom_pin.midtop = (offset, body_rect.bottom + 1)
+            pygame.draw.rect(chip, pin_color, top_pin)
+            pygame.draw.rect(chip, pin_shadow, top_pin, 1)
+            pygame.draw.rect(chip, pin_color, bottom_pin)
+            pygame.draw.rect(chip, pin_shadow, bottom_pin, 1)
+
+        pickup = pygame.transform.smoothscale(chip, (12, 12))
+        return chip, pickup
 
     def _load_item_sprite(self, entry: dict) -> tuple[pygame.Surface, str]:
         sprite_path: Path | None = None
