@@ -45,7 +45,7 @@ class HudPanels:
         self.minimap_scale = 0.6
         self.corner_scale = 0.8
 
-        self.inventory_panel_position = pygame.Vector2(10, 120)
+        self.inventory_panel_position = pygame.Vector2(10, 160)
         self.inventory_content_offset = pygame.Vector2(28, 36)
         self.minimap_panel_offset = pygame.Vector2(-80, 20)
         self.minimap_margin = pygame.Vector2(16, 100)
