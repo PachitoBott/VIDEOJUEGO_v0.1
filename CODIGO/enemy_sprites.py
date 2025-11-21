@@ -411,10 +411,15 @@ def load_enemy_animation_set(variant: str) -> EnemyAnimationSet:
 
 
 def load_boss_animation_layers(variant: str) -> BossAnimationLayers:
-    """Load layered animations (legs, torso, death) for bosses."""
+    """Load layered animations (legs, torso, death) for bosses.
+
+    If no variant folder exists, this loader will fall back to sprites placed
+    directly under ``assets/enemigos/boss`` so you can simply drop your PNGs in
+    that folder without an extra subdirectory.
+    """
 
     variant_slug = (variant or "default").strip().lower() or "default"
-    base_dir = _BOSS_ASSET_DIR / variant_slug
+    base_dir = _resolve_boss_dir(variant_slug)
     color = _VARIANT_COLORS.get(variant_slug, _VARIANT_COLORS["default"])
 
     leg_frames: dict[str, list[pygame.Surface]] = {}
@@ -467,7 +472,7 @@ def expected_boss_filenames(variant: str) -> dict[str, dict[str, list[str]] | li
     """List expected filenames for boss variants under assets/enemigos/boss."""
 
     variant_slug = (variant or "default").strip().lower() or "default"
-    base_dir = _BOSS_ASSET_DIR / variant_slug
+    base_dir = _resolve_boss_dir(variant_slug)
 
     legs: dict[str, list[str]] = {}
     for state, count in _BOSS_LEG_COUNTS.items():
@@ -572,3 +577,21 @@ def _placeholder_surface(color: tuple[int, int, int]) -> pygame.Surface:
     surface.fill((*color, 255))
     pygame.draw.rect(surface, (0, 0, 0, 255), surface.get_rect(), 2, border_radius=6)
     return surface
+
+
+def _resolve_boss_dir(variant_slug: str) -> Path:
+    """Return the directory that actually contains boss sprites.
+
+    Preferred order:
+    1) ``assets/enemigos/boss/<variant_slug>/`` if it has any PNG files.
+    2) ``assets/enemigos/boss/`` (root) if sprites were placed there directly.
+    This avoids silent placeholder usage when the user creates ``boss/`` but
+    skips the extra variant subfolder.
+    """
+
+    variant_dir = _BOSS_ASSET_DIR / variant_slug
+    if any(variant_dir.glob("*.png")):
+        return variant_dir
+    if any(_BOSS_ASSET_DIR.glob("*.png")):
+        return _BOSS_ASSET_DIR
+    return variant_dir

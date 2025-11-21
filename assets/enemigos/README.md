@@ -23,3 +23,14 @@ Dentro de cada carpeta se esperan los siguientes archivos PNG:
 Cada sprite debe incluir canal alfa y estar orientado mirando hacia la
 **derecha**; el motor se encarga de voltear la animación cuando el enemigo
 mira hacia la izquierda.
+
+## Sprites de boss
+
+Coloca los PNG del boss dentro de `assets/enemigos/boss/`.
+
+- **Opción 1 (recomendada):** crea una subcarpeta con el nombre de la variante,
+  por ejemplo `assets/enemigos/boss/boss_core/`, y coloca ahí las capas
+  `legs_*`, `torso_*` y `death_*`.
+- **Opción 2:** si prefieres no usar subcarpeta, puedes dejar los archivos
+  directamente en `assets/enemigos/boss/`; el cargador ahora detecta y usa
+  esos sprites automáticamente.
