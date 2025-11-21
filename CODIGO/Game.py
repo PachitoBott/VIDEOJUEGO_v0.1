@@ -34,6 +34,27 @@ class Game:
     MICROCHIP_ICON_DEFAULT_SCALE = 1.5
     MICROCHIP_PICKUP_SIZE = (12, 12)
     MICROCHIP_VALUE_SCALE = 0.65
+    UPGRADE_NAMES = {
+        "spd_up": "Mejora de velocidad (+5%)",
+        "cdr_charm": "Talismán de recarga (-10% CD)",
+        "cdr_core": "Manual de puntería (-12% CD)",
+        "sprint_core": "Botas relámpago (+10% sprint)",
+        "dash_core": "Condensador de fase (-15% dash)",
+        "dash_drive": "Impulso cinético (+duración dash)",
+    }
+    WEAPON_NAMES = {
+        "short_rifle": "Carabina compacta",
+        "dual_pistols": "Pistolas dobles",
+        "light_rifle": "Rifle ligero",
+        "tesla_gloves": "Guantes tesla",
+        "ember_carbine": "Carabina incandescente",
+        "arcane_salvo": "Escopeta arcana",
+        "pulse_rifle": "Rifle de pulsos",
+    }
+    CONSUMABLE_NAMES = {
+        "heal_small": "Cápsula reparadora (+1 golpe)",
+        "heal_battery_full": "Batería verde (vida completa)",
+    }
 
     def __init__(self, cfg: Config) -> None:
         pygame.init()
@@ -787,6 +808,15 @@ class Game:
         if message:
             self.loot_notifications.push(message)
 
+    def _friendly_reward_name(self, category: str, identifier: str) -> str:
+        category = category.lower()
+        mapping = {
+            "upgrade": self.UPGRADE_NAMES,
+            "weapon": self.WEAPON_NAMES,
+            "consumable": self.CONSUMABLE_NAMES,
+        }
+        return mapping.get(category, {}).get(identifier, identifier)
+
     def _format_reward_message(self, reward: dict) -> str | None:
         rtype = str(reward.get("type", "")).lower()
         if rtype == "gold":
@@ -801,13 +831,16 @@ class Game:
             return f"+{amount} vida"
         if rtype == "weapon":
             weapon_id = reward.get("id", "arma")
-            return f"Nueva arma: {weapon_id}"
+            weapon_name = self._friendly_reward_name(rtype, weapon_id)
+            return f"Nueva arma: {weapon_name}"
         if rtype == "upgrade":
             upgrade_id = reward.get("id", "mejora")
-            return f"Mejora obtenida: {upgrade_id}"
+            upgrade_name = self._friendly_reward_name(rtype, upgrade_id)
+            return f"Mejora obtenida: {upgrade_name}"
         if rtype == "consumable":
             consumable_id = reward.get("id", "objeto")
-            return f"Objeto: {consumable_id}"
+            consumable_name = self._friendly_reward_name(rtype, consumable_id)
+            return f"Objeto: {consumable_name}"
         return None
 
     def _apply_projectile_effects(self, projectile, enemy) -> None:

@@ -13,6 +13,7 @@ class LootNotification:
         duration: float = 2.5,
         fade_duration: float = 0.65,
         start_pos: tuple[float, float] = (0.0, 0.0),
+        scale: float = 1.5,
         bg_color: pygame.Color | tuple[int, int, int, int] = (22, 28, 40, 200),
         text_color: pygame.Color | tuple[int, int, int] = (240, 240, 240),
     ) -> None:
@@ -24,6 +25,7 @@ class LootNotification:
         self.target_position = pygame.Vector2(start_pos)
         self.age = 0.0
         self.alpha = 255
+        self.scale = max(0.1, float(scale))
 
         padding_x, padding_y = 10, 6
         text_surface = font.render(text, True, text_color)
@@ -36,6 +38,13 @@ class LootNotification:
 
         # Borde sutil
         pygame.draw.rect(surface, (80, 120, 180, 220), surface.get_rect(), width=1, border_radius=4)
+
+        if self.scale != 1.0:
+            scaled_size = (
+                max(1, int(surface.get_width() * self.scale)),
+                max(1, int(surface.get_height() * self.scale)),
+            )
+            surface = pygame.transform.smoothscale(surface, scaled_size)
 
         self.surface = surface
 
@@ -74,12 +83,14 @@ class LootNotificationManager:
         self,
         font: pygame.font.Font,
         *,
-        anchor_margin: tuple[float, float] = (28.0, 120.0),
+        anchor_margin: tuple[float, float] = (48.0, 150.0),
         line_spacing: float = 6.0,
+        scale: float = 1.5,
     ) -> None:
         self.font = font
         self.anchor_margin = pygame.Vector2(anchor_margin)
         self.line_spacing = float(line_spacing)
+        self.scale = max(0.1, float(scale))
         self.notifications: list[LootNotification] = []
         self._surface_size = pygame.Vector2(0.0, 0.0)
 
@@ -91,7 +102,7 @@ class LootNotificationManager:
         base_x = self.anchor_margin.x
         base_y = self._surface_size.y - self.anchor_margin.y
         start_pos = (base_x, base_y + 40.0)
-        note = LootNotification(message, self.font, start_pos=start_pos)
+        note = LootNotification(message, self.font, start_pos=start_pos, scale=self.scale)
         self.notifications.append(note)
         self._update_targets()
 
