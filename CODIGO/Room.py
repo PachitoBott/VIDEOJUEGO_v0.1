@@ -1161,9 +1161,11 @@ class Room:
 
         width, height = self._treasure_dimensions((28, 20))
         sprite_rect = pygame.Rect(cx - width // 2, cy - height // 2, width, height)
+        hitbox = _treasure_hitbox_from_sprite_rect(sprite_rect)
         self.treasure = {
             "rect": sprite_rect,
-            "hitbox": _treasure_hitbox_from_sprite_rect(sprite_rect),
+            "hitbox": hitbox,
+            "collision_rect": hitbox,
             "opened": False,
             "loot_table": loot_table,
         }
@@ -1182,9 +1184,11 @@ class Room:
         cy = (ry + rh // 2) * ts
         width, height = self._treasure_dimensions((32, 24))
         sprite_rect = pygame.Rect(cx - width // 2, cy - height // 2, width, height)
+        hitbox = _treasure_hitbox_from_sprite_rect(sprite_rect)
         self.treasure = {
             "rect": sprite_rect,
-            "hitbox": _treasure_hitbox_from_sprite_rect(sprite_rect),
+            "hitbox": hitbox,
+            "collision_rect": hitbox,
             "opened": False,
             "loot_table": loot_table,
         }
@@ -1228,7 +1232,7 @@ class Room:
         if not self.treasure:
             return
 
-        rect: pygame.Rect = self.treasure.get("hitbox", self.treasure.get("rect"))
+        rect: pygame.Rect = self.treasure.get("collision_rect") or self.treasure.get("hitbox") or self.treasure.get("rect")
         ts = CFG.TILE_SIZE
         x0 = rect.left // ts
         y0 = rect.top // ts
@@ -1244,7 +1248,7 @@ class Room:
         if not self.treasure:
             return
 
-        hitbox: pygame.Rect = self.treasure.get("hitbox", self.treasure["rect"])
+        hitbox: pygame.Rect = self.treasure.get("collision_rect") or self.treasure.get("hitbox", self.treasure["rect"])
         player_rect = self._player_rect(player)
         interact_rect = hitbox.inflate(30, 30)
         can_interact = interact_rect.colliderect(player_rect)
