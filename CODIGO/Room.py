@@ -67,6 +67,45 @@ ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
 
 
 _OBSTACLE_ASSET_DIR = assets_dir("obstacles")
+
+# Sprite opcional para cofres personalizados (``assets/cofre.png`` o
+# ``assets/obstacles/cofre.png``). Se escala al tamaño del rectángulo del cofre
+# y se oscurece ligeramente cuando el cofre está abierto.
+_TREASURE_SPRITE_CACHE: dict[tuple[int, int], pygame.Surface | None] = {}
+_TREASURE_SPRITE_OPEN_CACHE: dict[tuple[int, int], pygame.Surface | None] = {}
+
+
+def _load_treasure_sprite(size: tuple[int, int], opened: bool) -> pygame.Surface | None:
+    cached = (
+        _TREASURE_SPRITE_OPEN_CACHE if opened else _TREASURE_SPRITE_CACHE
+    ).get(size)
+    if cached is not None or size in _TREASURE_SPRITE_CACHE:
+        return cached
+
+    candidates = [assets_dir("cofre.png"), assets_dir("obstacles", "cofre.png")]
+    sprite: pygame.Surface | None = None
+
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            sprite = pygame.image.load(path.as_posix()).convert_alpha()
+            break
+        except pygame.error:
+            sprite = None
+
+    if sprite is not None and sprite.get_size() != size:
+        sprite = pygame.transform.smoothscale(sprite, size)
+
+    _TREASURE_SPRITE_CACHE[size] = sprite
+    if sprite is not None:
+        opened_variant = sprite.copy()
+        opened_variant.fill((180, 180, 180, 255), special_flags=pygame.BLEND_RGBA_MULT)
+        _TREASURE_SPRITE_OPEN_CACHE[size] = opened_variant
+    else:
+        _TREASURE_SPRITE_OPEN_CACHE[size] = None
+
+    return _TREASURE_SPRITE_OPEN_CACHE[size] if opened else sprite
 _OBSTACLE_ASSET_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -1174,6 +1213,12 @@ class Room:
             return
         rect: pygame.Rect = self.treasure["rect"]
         opened = self.treasure.get("opened", False)
+
+        sprite = _load_treasure_sprite(rect.size, opened)
+        if sprite is not None:
+            surface.blit(sprite, rect.topleft)
+            return
+
         body_color = (176, 124, 56) if not opened else (110, 96, 96)
         lid_color = (214, 168, 96) if not opened else (140, 128, 128)
         band_color = (235, 208, 128) if not opened else (180, 172, 172)
