@@ -777,8 +777,9 @@ class Room:
             self._draw_treasure_overlay(surface, ui_font, player)
 
         if self.type == "shop" and self.shopkeeper is not None:
-            self.shopkeeper.draw(surface)
-            if hasattr(player, "rect") and self.shopkeeper.can_interact(player.rect()) and not shop_ui.active:
+            player_rect = player.rect() if hasattr(player, "rect") else None
+            self.shopkeeper.draw(surface, talk_active=shop_ui.active, player_rect=player_rect)
+            if player_rect is not None and self.shopkeeper.can_interact(player_rect) and not shop_ui.active:
                 tip = ui_font.render("E - Abrir tienda", True, (255, 255, 255))
                 surface.blit(tip, (self.shopkeeper.rect.x - 12, self.shopkeeper.rect.y - 22))
 
