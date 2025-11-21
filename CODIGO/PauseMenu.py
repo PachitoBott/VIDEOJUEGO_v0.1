@@ -50,9 +50,20 @@ class PauseMenu:
                 pygame.mixer.init()
             except pygame.error:
                 pass
-        
+
         # Cargar sonido (busca en assets/audio)
         self.click_sound = self._load_sound("boton.mp3")
+
+        # --- Volumen ---
+        self.volume: float = (
+            pygame.mixer.music.get_volume() if pygame.mixer.get_init() else 0.5
+        )
+        self.dragging_volume = False
+        self.VOLUME_BAR_SIZE = (320, 10)
+        self.VOLUME_HANDLE_SIZE = (18, 26)
+        self.volume_bar_rect = pygame.Rect(0, 0, *self.VOLUME_BAR_SIZE)
+        self.volume_handle_rect = pygame.Rect(0, 0, *self.VOLUME_HANDLE_SIZE)
+        self._apply_volume()
 
         # --- Carga de Fuentes (Estilo Retro) ---
         self.title_font = self._get_font("VT323-Regular.ttf", 96)
@@ -144,6 +155,22 @@ class PauseMenu:
             self._button_layout.append((button, rect))
             start_y += button_height + self.BUTTON_GAP
 
+        self._position_volume_slider(center_x, start_y)
+
+    def _position_volume_slider(self, center_x: int, start_y: int) -> None:
+        slider_y = start_y + 40
+        self.volume_bar_rect.centerx = center_x
+        self.volume_bar_rect.y = slider_y
+        self._update_volume_handle_pos()
+
+    def _update_volume_handle_pos(self) -> None:
+        ratio = max(0.0, min(1.0, self.volume))
+        handle_x = self.volume_bar_rect.left + ratio * self.volume_bar_rect.width
+        self.volume_handle_rect.center = (
+            int(handle_x),
+            self.volume_bar_rect.centery,
+        )
+
     # ------------------------------------------------------------------
     # Main loop
     # ------------------------------------------------------------------
@@ -154,20 +181,30 @@ class PauseMenu:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return "quit"
-                
+
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     # Reproducir sonido al reanudar con ESC
                     if self.click_sound:
                         self.click_sound.play()
                     return "resume"
-                
+
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if self._is_over_volume(event.pos):
+                        self.dragging_volume = True
+                        self._set_volume_from_mouse(event.pos[0])
+                        continue
                     for button, rect in self._button_layout:
                         if rect.collidepoint(event.pos):
                             # Reproducir sonido al hacer clic
                             if self.click_sound:
                                 self.click_sound.play()
                             return button.action
+
+                if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                    self.dragging_volume = False
+
+                if event.type == pygame.MOUSEMOTION and self.dragging_volume:
+                    self._set_volume_from_mouse(event.pos[0])
 
             self._draw(background)
             pygame.display.flip()
@@ -226,3 +263,58 @@ class PauseMenu:
         hint_text = self.small_font.render("[ ESC PARA REANUDAR ]", True, (150, 150, 150))
         hint_rect = hint_text.get_rect(center=(width // 2, title_rect.bottom + 30))
         self.screen.blit(hint_text, hint_rect)
+
+        self._draw_volume_slider()
+
+    def _draw_volume_slider(self) -> None:
+        label_surf = self.small_font.render("VOLUMEN", True, self.COLOR_TEXT_WHITE)
+        label_rect = label_surf.get_rect(
+            center=(self.volume_bar_rect.centerx, self.volume_bar_rect.top - 16)
+        )
+        self.screen.blit(label_surf, label_rect)
+
+        track_rect = self.volume_bar_rect
+        pygame.draw.rect(self.screen, (30, 30, 50), track_rect, border_radius=4)
+        fill_width = int(track_rect.width * max(0.0, min(1.0, self.volume)))
+        if fill_width > 0:
+            fill_rect = pygame.Rect(track_rect.left, track_rect.top, fill_width, track_rect.height)
+            pygame.draw.rect(self.screen, self.COLOR_NEON_BLUE, fill_rect, border_radius=4)
+
+        handle_rect = self.volume_handle_rect
+        handle_surface = pygame.Surface(handle_rect.size, pygame.SRCALPHA)
+        pygame.draw.rect(
+            handle_surface,
+            self.COLOR_NEON_PINK if self.dragging_volume else self.COLOR_NEON_BLUE,
+            handle_surface.get_rect(),
+            border_radius=6,
+        )
+        pygame.draw.rect(handle_surface, (0, 0, 0), handle_surface.get_rect(), 2, border_radius=6)
+        self.screen.blit(handle_surface, handle_rect)
+
+        percent = int(self.volume * 100)
+        percent_surf = self.small_font.render(f"{percent}%", True, (180, 180, 180))
+        percent_rect = percent_surf.get_rect(
+            center=(self.volume_bar_rect.centerx, self.volume_bar_rect.bottom + 16)
+        )
+        self.screen.blit(percent_surf, percent_rect)
+
+    def _is_over_volume(self, pos: tuple[int, int]) -> bool:
+        expanded = self.volume_bar_rect.inflate(0, 16)
+        expanded.union_ip(self.volume_handle_rect)
+        return expanded.collidepoint(pos)
+
+    def _set_volume_from_mouse(self, mouse_x: int) -> None:
+        relative = (mouse_x - self.volume_bar_rect.left) / self.volume_bar_rect.width
+        self.volume = max(0.0, min(1.0, relative))
+        self._update_volume_handle_pos()
+        self._apply_volume()
+
+    def _apply_volume(self) -> None:
+        if not pygame.mixer.get_init():
+            return
+        pygame.mixer.music.set_volume(self.volume)
+        if self.click_sound:
+            self.click_sound.set_volume(self.volume)
+        channel_count = pygame.mixer.get_num_channels()
+        for channel_index in range(channel_count):
+            pygame.mixer.Channel(channel_index).set_volume(self.volume)
