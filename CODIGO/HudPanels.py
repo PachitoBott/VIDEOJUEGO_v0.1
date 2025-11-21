@@ -50,7 +50,7 @@ class HudPanels:
         self.minimap_panel_offset = pygame.Vector2(-80, 20)
         self.minimap_margin = pygame.Vector2(16, 100)
         self.minimap_anchor = "top-right"
-        self.corner_panel_margin = pygame.Vector2(-90, 80)
+        self.corner_panel_margin = pygame.Vector2(-70, 70)
 
         self._inventory_original: pygame.Surface | None = None
         self._minimap_original: pygame.Surface | None = None
