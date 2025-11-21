@@ -181,7 +181,7 @@ class Game:
         # preparar inventario de la tienda para esta seed
         if hasattr(self, "shop"):
             self.shop.close()
-            self.shop.configure_for_seed(self.current_seed)
+            self.shop.configure_for_seed(self.current_seed, reset_purchases=True)
 
         # marcar room inicial como explorado
         self.dungeon.explored = set()
@@ -200,6 +200,10 @@ class Game:
         if hasattr(self.player, "reset_loadout"):
             self.player.reset_loadout()
         setattr(self.player, "gold", 0)
+        try:
+            self.player.shop_purchases = set()
+        except Exception:
+            pass
 
         # Reset de runtime
         self._reset_runtime_state()

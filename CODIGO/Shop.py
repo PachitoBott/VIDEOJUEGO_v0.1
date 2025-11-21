@@ -43,6 +43,7 @@ class Shop:
     def __init__(self, font=None, on_gold_spent: Callable[[int], None] | None = None):
         self.catalog = self._build_catalog()
         self.items: list[ShopItem] = []
+        self._purchased_ids: set[str] = set()
         self.active = False
         self.selected = 0
         self.hover_index: int | None = None
@@ -236,6 +237,7 @@ class Shop:
                 "name": "Kit de incursión",
                 "price": 62,
                 "type": "bundle",
+                "id": "raid_kit",
                 "contents": [
                     {"type": "gold", "amount": 45},
                     {"type": "consumable", "id": "heal_small", "amount": 1},
@@ -249,6 +251,7 @@ class Shop:
                 "name": "Paquete de reconocimiento",
                 "price": 64,
                 "type": "bundle",
+                "id": "scout_bundle",
                 "contents": [
                     {"type": "gold", "amount": 40},
                     {"type": "consumable", "id": "heal_small", "amount": 1},
@@ -260,14 +263,40 @@ class Shop:
             },
         ]
 
+    def _item_key(self, entry: ShopItem | dict | None, fallback_name: str = "") -> str:
+        if entry is None:
+            return ""
+        payload = entry.payload if isinstance(entry, ShopItem) else entry
+        if not isinstance(payload, dict):
+            return ""
+        item_id = str(payload.get("id", "")).strip()
+        if item_id:
+            return item_id
+        return f"{payload.get('type', 'unknown')}::{payload.get('name', fallback_name)}"
+
+    def _record_player_purchase(self, player, purchase_key: str) -> None:
+        if player is None or not purchase_key:
+            return
+        purchases = getattr(player, "shop_purchases", None)
+        if purchases is None:
+            try:
+                player.shop_purchases = set()
+                purchases = player.shop_purchases
+            except Exception:
+                return
+        if isinstance(purchases, set):
+            purchases.add(purchase_key)
+
     def _restock_random(self) -> None:
         self.items = self._select_items(random.Random())
         self._inventory_generated = True
         self.selected = 0
         self.hover_index = None
 
-    def configure_for_seed(self, seed: int | None) -> None:
+    def configure_for_seed(self, seed: int | None, *, reset_purchases: bool = False) -> None:
         self._seed = seed
+        if reset_purchases:
+            self._purchased_ids.clear()
         base_seed = random.randrange(1 << 30) if seed is None else int(seed)
         self._rng = random.Random(base_seed ^ 0xBADC0FFE)
         self.items = self._select_items(self._rng)
@@ -282,15 +311,19 @@ class Shop:
             self.configure_for_seed(self._seed)
 
     def ensure_inventory(self) -> None:
-        if self.items:
+        if self.items or self._inventory_generated:
             return
-        if self._inventory_generated and self._seed is not None:
+        if self._seed is not None:
             self.configure_for_seed(self._seed)
         else:
             self._restock_random()
 
     def _select_items(self, rng: random.Random) -> list[ShopItem]:
-        available = list(self.catalog)
+        available = [
+            entry
+            for entry in self.catalog
+            if self._item_key(entry, entry.get("name", "")) not in self._purchased_ids
+        ]
         weights = [float(entry.get("weight", 1.0)) for entry in available]
         chosen: list[dict] = []
         while available and len(chosen) < self.MAX_ITEMS:
@@ -299,9 +332,20 @@ class Shop:
             chosen.append(choice)
             available.pop(idx)
             weights.pop(idx)
-        if not chosen:
-            chosen = list(self.catalog)
         return [self._build_shop_item(entry) for entry in chosen]
+
+    def _apply_purchase_filter(self) -> None:
+        if not self.items:
+            return
+        filtered = [item for item in self.items if self._item_key(item, item.name) not in self._purchased_ids]
+        self.items = filtered
+        if self.items:
+            self.selected %= len(self.items)
+            if self.hover_index is not None:
+                self.hover_index = min(self.hover_index, len(self.items) - 1)
+        else:
+            self.selected = 0
+            self.hover_index = None
 
     def _build_shop_item(self, entry: dict) -> ShopItem:
         payload = {k: v for k, v in entry.items() if k not in {"description", "effect", "weight", "sprite"}}
@@ -323,7 +367,10 @@ class Shop:
     # Control de visibilidad y selección
     # ------------------------------------------------------------------
     def open(self, cx: int, cy: int, player=None) -> None:
+        if hasattr(player, "shop_purchases") and isinstance(getattr(player, "shop_purchases"), set):
+            self._purchased_ids.update(getattr(player, "shop_purchases"))
         self.ensure_inventory()
+        self._apply_purchase_filter()
         self.active = True
         self.rect.center = (cx, cy + self._scaled(22))
         self.hover_index = None
@@ -426,6 +473,10 @@ class Shop:
 
         applied = apply_reward_entry(player, item.payload)
         name = item.name
+        purchase_key = self._item_key(item, item.name)
+        if purchase_key:
+            self._purchased_ids.add(purchase_key)
+            self._record_player_purchase(player, purchase_key)
         self.items.pop(self.selected)
         if self.items:
             self.selected %= len(self.items)
