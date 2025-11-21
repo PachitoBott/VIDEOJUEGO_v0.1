@@ -73,6 +73,29 @@ _OBSTACLE_ASSET_DIR = assets_dir("obstacles")
 # y se oscurece ligeramente cuando el cofre está abierto.
 _TREASURE_SPRITE_CACHE: dict[tuple[int, int], pygame.Surface | None] = {}
 _TREASURE_SPRITE_OPEN_CACHE: dict[tuple[int, int], pygame.Surface | None] = {}
+_TREASURE_RAW_SPRITE: pygame.Surface | None = None
+_TREASURE_SPRITE_TRIED: bool = False
+
+
+def _load_raw_treasure_sprite() -> pygame.Surface | None:
+    global _TREASURE_SPRITE_TRIED
+    global _TREASURE_RAW_SPRITE
+
+    if _TREASURE_SPRITE_TRIED:
+        return _TREASURE_RAW_SPRITE
+
+    _TREASURE_SPRITE_TRIED = True
+    candidates = [assets_dir("cofre.png"), assets_dir("obstacles", "cofre.png")]
+
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            _TREASURE_RAW_SPRITE = pygame.image.load(path.as_posix()).convert_alpha()
+            break
+        except pygame.error:
+            _TREASURE_RAW_SPRITE = None
+    return _TREASURE_RAW_SPRITE
 
 
 def _load_treasure_sprite(size: tuple[int, int], opened: bool) -> pygame.Surface | None:
@@ -82,17 +105,8 @@ def _load_treasure_sprite(size: tuple[int, int], opened: bool) -> pygame.Surface
     if cached is not None or size in _TREASURE_SPRITE_CACHE:
         return cached
 
-    candidates = [assets_dir("cofre.png"), assets_dir("obstacles", "cofre.png")]
-    sprite: pygame.Surface | None = None
-
-    for path in candidates:
-        if not path.exists():
-            continue
-        try:
-            sprite = pygame.image.load(path.as_posix()).convert_alpha()
-            break
-        except pygame.error:
-            sprite = None
+    raw = _load_raw_treasure_sprite()
+    sprite = raw.copy() if raw is not None else None
 
     if sprite is not None and sprite.get_size() != size:
         sprite = pygame.transform.smoothscale(sprite, size)
@@ -1152,11 +1166,26 @@ class Room:
         """Calcula el tamaño del cofre aplicando la escala configurada."""
 
         scale = max(0.1, float(getattr(CFG, "TREASURE_SPRITE_SCALE", 1.0)))
+
         cfg_size = getattr(CFG, "TREASURE_SIZE", base_size)
+        sprite_size: tuple[int, int] | None = None
+        raw_sprite = _load_raw_treasure_sprite()
+        if raw_sprite is not None:
+            sprite_size = raw_sprite.get_size()
+
         try:
             bw, bh = int(cfg_size[0]), int(cfg_size[1])
         except (TypeError, ValueError, IndexError):
-            bw, bh = base_size
+            if sprite_size:
+                bw, bh = sprite_size
+            else:
+                bw, bh = base_size
+
+        if bw <= 0 or bh <= 0:
+            if sprite_size:
+                bw, bh = sprite_size
+            else:
+                bw, bh = base_size
 
         width = max(4, int(round(bw * scale)))
         height = max(4, int(round(bh * scale)))
