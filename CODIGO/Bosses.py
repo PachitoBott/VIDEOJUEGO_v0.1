@@ -10,14 +10,46 @@ from Config import CFG
 from Enemy import CHASE, WANDER, Enemy, FastChaserEnemy
 from Projectile import Projectile
 from enemy_sprites import LayeredBossAnimator, load_boss_animation_layers
+from asset_paths import assets_dir
 
 DEBUG_BOSS_HP = True
 
 class BossEnemy(Enemy):
     """Base genérica para bosses con fases y efectos de suelo."""
- 
+
     SPRITE_VARIANT = "boss_core"
     _CANONICAL_COLLIDER: tuple[float, float, float] | None = None
+    _PUDDLE_SPRITES: list[pygame.Surface] = []
+
+    @classmethod
+    def _load_puddle_sprites(cls) -> list[pygame.Surface]:
+        if cls._PUDDLE_SPRITES:
+            return cls._PUDDLE_SPRITES
+
+        sprites: list[pygame.Surface] = []
+        for filename in ("Charco_Verde1.png", "Charco_Verde2.png"):
+            path = assets_dir("obstacles", filename)
+            try:
+                surface = pygame.image.load(path.as_posix()).convert_alpha()
+            except Exception:
+                continue
+            sprites.append(surface)
+
+        cls._PUDDLE_SPRITES = sprites
+        return sprites
+
+    def _choose_puddle_sprite(self, rect: pygame.Rect) -> pygame.Surface | None:
+        sprites = self._load_puddle_sprites()
+        if not sprites:
+            return None
+
+        base = random.choice(sprites)
+        if base.get_size() != rect.size:
+            try:
+                return pygame.transform.smoothscale(base, rect.size)
+            except Exception:
+                return pygame.transform.scale(base, rect.size)
+        return base
 
     def draw_health_bar_hud(self, surf: "pygame.Surface", *, index: int = 0, top_padding: int = 8) -> None:
         """Dibuja la barra del boss en la HUD (coordenadas de pantalla, no cámara)."""
@@ -226,11 +258,15 @@ class BossEnemy(Enemy):
             pygame.draw.rect(surface, (255, 200, 200), rect, 2)
         for puddle in self.puddles:
             rect: pygame.Rect = puddle["rect"]
-            color = puddle.get("color", (120, 40, 40, 140))
-            overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
-            overlay.fill((*color[:3], color[3] if len(color) > 3 else 150))
-            surface.blit(overlay, rect.topleft)
-            pygame.draw.rect(surface, (255, 180, 120), rect, 1)
+            sprite: pygame.Surface | None = puddle.get("sprite")
+            if sprite is not None:
+                surface.blit(sprite, rect.topleft)
+            else:
+                color = puddle.get("color", (120, 40, 40, 140))
+                overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
+                overlay.fill((*color[:3], color[3] if len(color) > 3 else 150))
+                surface.blit(overlay, rect.topleft)
+                pygame.draw.rect(surface, (255, 180, 120), rect, 1)
 
     def draw(self, surf: pygame.Surface) -> None:
         legs, torso = self.animator.current_surfaces()
@@ -345,6 +381,7 @@ class BossEnemy(Enemy):
         tick_interval: float = 0.55,
         color: tuple[int, int, int, int] = (120, 0, 0, 180),
     ) -> None:
+        sprite = self._choose_puddle_sprite(rect)
         self.puddles.append(
             {
                 "rect": rect,
@@ -353,6 +390,7 @@ class BossEnemy(Enemy):
                 "tick": tick_interval,
                 "tick_timer": 0.0,
                 "color": color,
+                "sprite": sprite,
             }
         )
 
@@ -403,13 +441,20 @@ class BossEnemy(Enemy):
         player_rect = self._player_rect_cache or self._player_rect(player)
         survivors: list[dict] = []
         for puddle in self.puddles:
-            puddle["timer"] -= dt
-            puddle["tick_timer"] -= dt
-            if puddle["timer"] <= 0:
-                continue
-            if player_rect.colliderect(puddle["rect"]) and puddle["tick_timer"] <= 0:
-                self._apply_damage_to_player(player, puddle.get("damage", 1))
-                puddle["tick_timer"] = puddle.get("tick", 0.5)
+            duration = puddle.get("timer")
+            if duration is not None:
+                puddle["timer"] = duration - dt
+                if puddle["timer"] <= 0:
+                    continue
+
+            tick_interval = puddle.get("tick", 0.5)
+            if tick_interval > 0:
+                puddle["tick_timer"] = puddle.get("tick_timer", 0.0) - dt
+            if player_rect.colliderect(puddle["rect"]):
+                if tick_interval <= 0 or puddle.get("tick_timer", 0.0) <= 0:
+                    self._apply_damage_to_player(player, puddle.get("damage", 1))
+                    if tick_interval > 0:
+                        puddle["tick_timer"] = tick_interval
             survivors.append(puddle)
         self.puddles = survivors
 
@@ -770,7 +815,7 @@ class SecurityManagerBoss(BossEnemy):
         cy = self.y + self.h / 2
         size = int(CFG.TILE_SIZE * 1.4)
         rect = pygame.Rect(int(cx - size // 2), int(cy - size // 2), size, size)
-        self.add_puddle(rect, duration=4.5, damage=2, tick_interval=0.4)
+        self.add_puddle(rect, duration=float("inf"), damage=2, tick_interval=0.0)
 
     def _fire_cone(self, player, out_bullets) -> None:
         cx = self.x + self.w / 2
