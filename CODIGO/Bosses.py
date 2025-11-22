@@ -250,12 +250,8 @@ class BossEnemy(Enemy):
         if CFG.DEBUG_DRAW_BOSS_HITBOX_LAYOUT:
             self._draw_hitbox_layout(surf, leg_dest, torso_dest)
 
-        # Asegurarse de dibujar la barra de vida después del sprite (para que sea visible)
-        try:
-            self.draw_health_bar(surf)
-        except Exception:
-            # No romper el juego si algo sale mal al dibujar la barra
-            pass
+        # La barra de vida del boss se muestra ahora únicamente en la HUD superior,
+        # no sobre el propio sprite.
 
     def _draw_hitbox_layout(
         self,
