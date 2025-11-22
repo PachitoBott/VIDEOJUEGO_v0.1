@@ -143,6 +143,10 @@ class Player(Entity):
         # Sonido de dash
         self.dash_sound = None
         self._load_dash_sound()
+        
+        # Sonido de respawn
+        self.respawn_sound = None
+        self._load_respawn_sound()
 
         self.reset_loadout()
 
@@ -298,6 +302,9 @@ class Player(Entity):
         self._respawn_animating = True
         self._animation_override = "respawn"
         self._set_current_animation("respawn", force_reset=True)
+        # Reproducir sonido de respawn
+        if self.respawn_sound:
+            self.respawn_sound.play()
 
     def try_shoot(self, mouse_world_pos, out_projectiles) -> None:
         """Dispara hacia mouse si se pulsa y cooldown listo."""
@@ -432,6 +439,21 @@ class Player(Entity):
                 self.dash_sound = None
         except (pygame.error, FileNotFoundError):
             self.dash_sound = None
+    
+    def _load_respawn_sound(self) -> None:
+        """Carga el sonido de respawn."""
+        try:
+            audio_path = Path("assets/audio/respawn_sfx.mp3")
+            if not audio_path.exists():
+                # Intentar ruta relativa desde CODIGO
+                audio_path = Path(__file__).parent / "assets" / "audio" / "respawn_sfx.mp3"
+            if audio_path.exists():
+                self.respawn_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self.respawn_sound.set_volume(0.6)  # 60% del volumen
+            else:
+                self.respawn_sound = None
+        except (pygame.error, FileNotFoundError):
+            self.respawn_sound = None
 
     def set_skin(self, sprite_dir: str | Path | None) -> None:
         """Actualiza el directorio de sprites y recarga las animaciones."""
