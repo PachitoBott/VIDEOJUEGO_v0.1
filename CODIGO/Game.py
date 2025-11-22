@@ -1191,8 +1191,15 @@ class Game:
     def _active_boss(self, room):
         if getattr(room, "type", "") != "boss":
             return None
-        if getattr(room, "boss_defeated", False):
+        has_active_flag = getattr(room, "has_active_boss", None)
+        if callable(has_active_flag) and not has_active_flag():
             return None
+
+        if not getattr(room, "_boss_spawned", False) and hasattr(room, "_spawn_boss"):
+            try:
+                room._spawn_boss()
+            except Exception:
+                return None
 
         boss = getattr(room, "boss_instance", None)
         if boss is None:
@@ -1205,7 +1212,7 @@ class Game:
             return None
 
         try:
-            if getattr(boss, "hp", 0) <= 0:
+            if float(getattr(boss, "hp", 0)) <= 0:
                 return None
         except (TypeError, ValueError):
             return None
@@ -1219,10 +1226,6 @@ class Game:
              self.cfg.SCREEN_H * self.cfg.SCREEN_SCALE)
         )
         self.screen.blit(scaled, (0, 0))
-
-        boss = self._active_boss(room)
-        if boss is not None:
-            self._draw_boss_health_bar(self.screen, boss)
 
         inventory_rect = self.hud_panels.blit_inventory_panel(self.screen)
         weapon_rect = self._draw_weapon_hud(inventory_rect)
@@ -1274,6 +1277,10 @@ class Game:
         self.loot_notifications.draw(self.screen)
 
         self.vfx.draw_screen(self.screen)
+
+        boss = self._active_boss(room)
+        if boss is not None:
+            self._draw_boss_health_bar(self.screen, boss)
 
         mx, my = pygame.mouse.get_pos()
         cursor_rect = self._cursor_surface.get_rect(center=(mx, my))
