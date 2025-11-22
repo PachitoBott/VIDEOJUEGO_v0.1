@@ -11,6 +11,58 @@ from Enemy import CHASE, WANDER, Enemy, FastChaserEnemy
 from Projectile import Projectile
 from enemy_sprites import LayeredBossAnimator, load_boss_animation_layers
 
+# Ajustes rápidos de hitbox por tipo de boss. Cambia estos números para mover el
+# collider sin tener que buscar en el código: reduce en píxeles los lados o
+# porcentajes del sprite y aplica un desplazamiento vertical opcional.
+#
+# side_trim_pct / top_trim_pct / bottom_trim_pct recortan el ancho/alto usando
+# porcentajes del tamaño del sprite. También se respeta un mínimo en píxeles
+# para evitar hitbox de tamaño 0.
+#
+# y_offset añade un desplazamiento final (positivo = baja el collider). Es el
+# valor más directo para subir/bajar el hitbox completo.
+BOSS_COLLIDER_PRESETS: dict[str, dict[str, float | int]] = {
+    "default": {
+        "min_width": 12,
+        "min_height": 12,
+        "side_trim_pct": 0.08,
+        "top_trim_pct": 0.22,
+        "bottom_trim_pct": 0.10,
+        "min_side_trim": 4,
+        "min_top_trim": 10,
+        "min_bottom_trim": 4,
+        "y_offset": 0.0,
+    },
+    # Boss de las moscas y seguridad comparten la misma forma. Ajusta aquí los
+    # recortes laterales/superiores y el sesgo hacia abajo.
+    "boss_core": {
+        "min_width": 12,
+        "min_height": 12,
+        "side_trim_pct": 0.10,
+        "top_trim_pct": 0.36,
+        "bottom_trim_pct": 0.12,
+        "min_side_trim": 6,
+        "min_top_trim": 18,
+        "min_bottom_trim": 5,
+        "downward_bias_pct": 0.12,
+        "downward_bias_min": 6.0,
+        "y_offset": 0.0,
+    },
+    "boss_security": {
+        "min_width": 12,
+        "min_height": 12,
+        "side_trim_pct": 0.10,
+        "top_trim_pct": 0.36,
+        "bottom_trim_pct": 0.12,
+        "min_side_trim": 6,
+        "min_top_trim": 18,
+        "min_bottom_trim": 5,
+        "downward_bias_pct": 0.12,
+        "downward_bias_min": 6.0,
+        "y_offset": 0.0,
+    },
+}
+
 
 class BossEnemy(Enemy):
     """Base genérica para bosses con fases y efectos de suelo."""
@@ -63,19 +115,30 @@ class BossEnemy(Enemy):
 
         cx = self.x + self.w / 2
         cy = self.y + self.h / 2
+        profile_key = self.sprite_variant if self.sprite_variant in BOSS_COLLIDER_PRESETS else "default"
+        profile = BOSS_COLLIDER_PRESETS.get(profile_key, BOSS_COLLIDER_PRESETS["default"])
+
         width = sprite_w
         height = sprite_h
-        y_offset = 0.0
+        y_offset = float(profile.get("y_offset", 0.0))
+
+        side_trim_pct = float(profile.get("side_trim_pct", 0.0))
+        top_trim_pct = float(profile.get("top_trim_pct", 0.0))
+        bottom_trim_pct = float(profile.get("bottom_trim_pct", 0.0))
+        side_trim = max(int(width * side_trim_pct), int(profile.get("min_side_trim", 0)))
+        top_trim = max(int(height * top_trim_pct), int(profile.get("min_top_trim", 0)))
+        bottom_trim = max(int(height * bottom_trim_pct), int(profile.get("min_bottom_trim", 0)))
+
+        width = max(int(profile.get("min_width", 1)), width - side_trim * 2)
+        height = max(int(profile.get("min_height", 1)), height - (top_trim + bottom_trim))
+
+        downward_bias_pct = float(profile.get("downward_bias_pct", 0.0))
+        downward_bias_min = float(profile.get("downward_bias_min", 0.0))
+        downward_bias = max(downward_bias_min, height * downward_bias_pct)
+        y_offset += (top_trim - bottom_trim) / 2 + downward_bias
 
         shared_hitbox_variants = {"boss_core", "boss_security"}
-        if self.sprite_variant in shared_hitbox_variants:
-            side_trim = max(6, int(width * 0.1))
-            top_trim = max(18, int(height * 0.36))
-            bottom_trim = max(5, int(height * 0.12))
-            width = max(12, width - side_trim * 2)
-            height = max(12, height - (top_trim + bottom_trim))
-            downward_bias = max(6.0, height * 0.12)
-            y_offset = (top_trim - bottom_trim) / 2 + downward_bias
+        if profile_key in shared_hitbox_variants:
             if BossEnemy._CANONICAL_COLLIDER is None:
                 BossEnemy._CANONICAL_COLLIDER = (width, height, y_offset)
             else:
