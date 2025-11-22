@@ -16,6 +16,7 @@ class BossEnemy(Enemy):
     """Base genérica para bosses con fases y efectos de suelo."""
 
     SPRITE_VARIANT = "boss_core"
+    _CANONICAL_COLLIDER: tuple[float, float, float] | None = None
 
     def __init__(self, x: float, y: float, *, max_hp: int = 50, gold_reward: int = 60) -> None:
         super().__init__(x, y, hp=max_hp, gold_reward=gold_reward)
@@ -47,6 +48,43 @@ class BossEnemy(Enemy):
             default_fps=8.0,
             death_fps=12.0,
         )
+        # Ajustar el collider al tamaño real del sprite y mantenerlo centrado
+        fallback_w, fallback_h = self.animations.fallback.get_size()
+        if fallback_w > 0 and fallback_h > 0:
+            self._fit_collider_to_sprite(fallback_w, fallback_h)
+
+    def _fit_collider_to_sprite(self, sprite_w: int, sprite_h: int) -> None:
+        """Redimensiona el hitbox según el sprite actual.
+
+        El boss de las moscas tiene mucha decoración en la parte superior; se
+        recorta más por arriba y ligeramente por los lados para que el collider
+        se sienta justo.
+        """
+
+        cx = self.x + self.w / 2
+        cy = self.y + self.h / 2
+        width = sprite_w
+        height = sprite_h
+        y_offset = 0.0
+
+        shared_hitbox_variants = {"boss_core", "boss_security"}
+        if self.sprite_variant in shared_hitbox_variants:
+            side_trim = max(6, int(width * 0.1))
+            top_trim = max(18, int(height * 0.36))
+            bottom_trim = max(5, int(height * 0.12))
+            width = max(12, width - side_trim * 2)
+            height = max(12, height - (top_trim + bottom_trim))
+            downward_bias = max(6.0, height * 0.12)
+            y_offset = (top_trim - bottom_trim) / 2 + downward_bias
+            if BossEnemy._CANONICAL_COLLIDER is None:
+                BossEnemy._CANONICAL_COLLIDER = (width, height, y_offset)
+            else:
+                width, height, y_offset = BossEnemy._CANONICAL_COLLIDER
+
+        self.w = width
+        self.h = height
+        self.x = cx - self.w / 2
+        self.y = cy - self.h / 2 + y_offset
 
     def on_spawn(self, room) -> None:
         self._tracked_room = room
