@@ -19,39 +19,6 @@ class BossEnemy(Enemy):
     SPRITE_VARIANT = "boss_core"
     _CANONICAL_COLLIDER: tuple[float, float, float] | None = None
 
-    def draw_health_bar_hud(self, surf: "pygame.Surface", *, index: int = 0, top_padding: int = 8) -> None:
-        """Dibuja la barra del boss en la HUD (coordenadas de pantalla, no cámara)."""
-        import pygame
-
-        try:
-            screen_w, screen_h = surf.get_size()
-        except Exception:
-            return
-
-        bar_w = int(screen_w * 0.5)
-        bar_h = max(8, int(screen_h * 0.025))
-        gap = 6
-        x = screen_w // 2 - bar_w // 2
-        y = top_padding + index * (bar_h + gap)
-
-        bg_rect = pygame.Rect(x, y, bar_w, bar_h)
-        pygame.draw.rect(surf, (30, 30, 30), bg_rect)
-
-        max_hp = getattr(self, "max_hp", 1) or 1
-        hp = max(0, getattr(self, "hp", 0))
-        frac = max(0.0, min(1.0, float(hp) / float(max_hp)))
-        fg_rect = pygame.Rect(x, y, int(bar_w * frac), bar_h)
-        if fg_rect.width > 0:
-            pygame.draw.rect(surf, (34, 177, 76), fg_rect)
-        pygame.draw.rect(surf, (180, 50, 50), bg_rect, 1)
-
-        # DEBUG: confirmar que se dibuja
-        if DEBUG_BOSS_HP:
-            try:
-                print(f"[HUD BAR] boss hp {hp}/{max_hp} frac={frac:.2f} at {bg_rect}")
-            except Exception:
-                pass
-
     def draw_health_bar(self, surf: "pygame.Surface") -> None:
         import pygame
 
@@ -429,39 +396,64 @@ class BossEnemy(Enemy):
 
     def draw_health_bar_hud(self, surf: "pygame.Surface", *, index: int = 0, top_padding: int = 8) -> None:
         """
-        Dibuja la barra del boss en la HUD (arriba de la pantalla).
-        index: para apilar varias barras si hay >1 boss (0 = la primera, centrada).
+        Barra de vida inspirada en el Wither: centrada arriba, con fondo oscuro,
+        relleno morado y marcas segmentadas.
         """
         import pygame
 
         screen_w, screen_h = surf.get_size()
-        bar_w = int(screen_w * 0.5)  # ancho relativo en HUD (ajusta a tu gusto)
-        bar_h = max(8, int(screen_h * 0.025))
-        gap = 6
+        bar_w = min(int(screen_w * 0.6), 520)
+        bar_h = max(12, int(screen_h * 0.03))
+        gap = 10
         x = screen_w // 2 - bar_w // 2
         y = top_padding + index * (bar_h + gap)
 
-        # Fondo
-        bg_rect = pygame.Rect(x, y, bar_w, bar_h)
-        pygame.draw.rect(surf, (30, 30, 30), bg_rect)
-        # Fracción de vida
+        name = getattr(self, "hud_name", None) or getattr(self, "name", None)
+        if not name:
+            name = getattr(self, "__class__", type("", (), {})).__name__
+        name = str(name).upper()
+
         max_hp = getattr(self, "max_hp", 1) or 1
         hp = max(0, getattr(self, "hp", 0))
         frac = max(0.0, min(1.0, float(hp) / float(max_hp)))
-        fg_rect = pygame.Rect(x, y, int(bar_w * frac), bar_h)
-        if fg_rect.width > 0:
-            pygame.draw.rect(surf, (34, 177, 76), fg_rect)
-        # Borde y texto simple (opcional)
-        pygame.draw.rect(surf, (180, 50, 50), bg_rect, 1)
+
+        bg_rect = pygame.Rect(x, y, bar_w, bar_h)
+        inner_rect = bg_rect.inflate(-4, -4)
+        outline_color = (46, 46, 46)
+        base_color = (16, 16, 16)
+        fill_color = (123, 0, 142)
+        highlight_color = (206, 146, 255)
+
+        pygame.draw.rect(surf, outline_color, bg_rect, border_radius=6)
+        pygame.draw.rect(surf, base_color, bg_rect.inflate(-2, -2), border_radius=5)
+
+        fill_width = max(0, int(inner_rect.width * frac))
+        if fill_width > 0:
+            fill_rect = pygame.Rect(inner_rect.left, inner_rect.top, fill_width, inner_rect.height)
+            pygame.draw.rect(surf, fill_color, fill_rect, border_radius=4)
+            highlight_h = max(2, int(fill_rect.height * 0.35))
+            highlight_rect = pygame.Rect(fill_rect.left, fill_rect.top, fill_rect.width, highlight_h)
+            pygame.draw.rect(surf, highlight_color, highlight_rect, border_radius=3)
+
+        segment_count = 10
+        if inner_rect.width > 0:
+            step = inner_rect.width / segment_count
+            for i in range(1, segment_count):
+                px = int(inner_rect.left + step * i)
+                pygame.draw.line(
+                    surf,
+                    (64, 64, 64),
+                    (px, inner_rect.top + 2),
+                    (px, inner_rect.bottom - 2),
+                    1,
+                )
+
         try:
-            font = pygame.font.get_default_font()
-            f = pygame.font.Font(font, max(12, bar_h - 2))
-            txt = f"{hp} / {max_hp}"
-            text_surf = f.render(txt, True, (255, 255, 255))
-            ts_rect = text_surf.get_rect(center=bg_rect.center)
-            surf.blit(text_surf, ts_rect)
+            font = pygame.font.Font(pygame.font.get_default_font(), max(14, bar_h - 4))
+            text_surf = font.render(name, True, (240, 240, 240))
+            text_rect = text_surf.get_rect(midbottom=(bg_rect.centerx, bg_rect.top - 2))
+            surf.blit(text_surf, text_rect)
         except Exception:
-            # Si no hay fuente o falla, saltar el texto
             pass
 
 class CorruptedServerBoss(BossEnemy):
