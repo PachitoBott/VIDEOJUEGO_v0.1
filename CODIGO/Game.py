@@ -486,6 +486,45 @@ class Game:
     def _start_camera_shake(self, strength: float = 4.0) -> None:
         self.camera_shake = max(self.camera_shake, float(strength))
 
+    @staticmethod
+    def _clamp(value: float, min_value: float, max_value: float) -> float:
+        return max(min_value, min(value, max_value))
+
+    def _camera_offset(self) -> tuple[int, int]:
+        room = getattr(self.dungeon, "current_room", None)
+        bounds = getattr(room, "bounds", None)
+        ts = self.cfg.TILE_SIZE
+        if bounds is None:
+            room_left = 0
+            room_top = 0
+            room_right = self.cfg.SCREEN_W
+            room_bottom = self.cfg.SCREEN_H
+        else:
+            rx, ry, rw, rh = bounds
+            room_left = rx * ts
+            room_top = ry * ts
+            room_right = (rx + rw) * ts
+            room_bottom = (ry + rh) * ts
+
+        player_cx = getattr(self.player, "x", 0) + getattr(self.player, "w", 0) / 2
+        player_cy = getattr(self.player, "y", 0) + getattr(self.player, "h", 0) / 2
+
+        room_w = room_right - room_left
+        room_h = room_bottom - room_top
+
+        if room_w <= self.cfg.SCREEN_W:
+            cam_x = int(room_left + (room_w - self.cfg.SCREEN_W) / 2)
+        else:
+            max_cam_x = room_right - self.cfg.SCREEN_W
+            cam_x = int(self._clamp(player_cx - self.cfg.SCREEN_W // 2, room_left, max_cam_x))
+
+        if room_h <= self.cfg.SCREEN_H:
+            cam_y = int(room_top + (room_h - self.cfg.SCREEN_H) / 2)
+        else:
+            max_cam_y = room_bottom - self.cfg.SCREEN_H
+            cam_y = int(self._clamp(player_cy - self.cfg.SCREEN_H // 2, room_top, max_cam_y))
+        return cam_x, cam_y
+
     def _start_room_fade(self) -> None:
         duration = random.uniform(0.15, 0.25)
         self._fade_speed = 255.0 / max(0.01, duration)
@@ -1195,31 +1234,33 @@ class Game:
     def _render_world(self) -> None:
         self.world.fill(self.cfg.COLOR_BG)
         room = self.dungeon.current_room
-        room.draw(self.world, self.tileset)
-        self._draw_boss_floor_effects(room)
+        cam_x, cam_y = self._camera_offset()
+        room.draw(self.world, self.tileset, cam_x=cam_x, cam_y=cam_y)
+        self._draw_boss_floor_effects(room, cam_x=cam_x, cam_y=cam_y)
 
         if hasattr(room, "enemies"):
             for enemy in room.enemies:
-                enemy.draw(self.world)
+                enemy.draw(self.world, cam_x=cam_x, cam_y=cam_y)
 
-        for pickup in getattr(room, "pickups", ()): 
-            pickup.draw(self.world)
+        for pickup in getattr(room, "pickups", ()):
+            pickup.draw(self.world, cam_x=cam_x, cam_y=cam_y)
 
-        self.player.draw(self.world)
-        self.projectiles.draw(self.world)
-        self.enemy_projectiles.draw(self.world)
-        self.vfx.draw_world(self.world)
-        self._draw_debug_door_triggers(room)
+        self.player.draw(self.world, cam_x=cam_x, cam_y=cam_y)
+        self.projectiles.draw(self.world, cam_x=cam_x, cam_y=cam_y)
+        self.enemy_projectiles.draw(self.world, cam_x=cam_x, cam_y=cam_y)
+        self.vfx.draw_world(self.world, cam_x=cam_x, cam_y=cam_y)
+        self._draw_debug_door_triggers(room, cam_x=cam_x, cam_y=cam_y)
 
         if hasattr(room, "draw_overlay"):
-            room.draw_overlay(self.world, self.ui_font, self.player, self.shop)
+            room.draw_overlay(self.world, self.ui_font, self.player, self.shop, cam_x=cam_x, cam_y=cam_y)
         self.shop.draw(self.world)
 
-    def _draw_debug_door_triggers(self, room) -> None:
+    def _draw_debug_door_triggers(self, room, cam_x: int = 0, cam_y: int = 0) -> None:
         for rect in room._door_trigger_rects().values():
-            pygame.draw.rect(self.world, (0, 255, 0), rect, 1)
+            adj = rect.move(-cam_x, -cam_y)
+            pygame.draw.rect(self.world, (0, 255, 0), adj, 1)
 
-    def _draw_boss_floor_effects(self, room) -> None:
+    def _draw_boss_floor_effects(self, room, cam_x: int = 0, cam_y: int = 0) -> None:
         boss = getattr(room, "boss_instance", None)
         if boss is None:
             for enemy in getattr(room, "enemies", []):
@@ -1227,7 +1268,7 @@ class Game:
                     boss = enemy
                     break
         if boss and hasattr(boss, "draw_floor_effects"):
-            boss.draw_floor_effects(self.world)
+            boss.draw_floor_effects(self.world, cam_x=cam_x, cam_y=cam_y)
 
     def _active_boss(self, room):
         if getattr(room, "type", "") != "boss":

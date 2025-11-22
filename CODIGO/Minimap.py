@@ -30,6 +30,7 @@ class Minimap:
         gw = int(getattr(dungeon, "grid_w", 3))
         gh = int(getattr(dungeon, "grid_h", 3))
         explored = getattr(dungeon, "explored", set())
+        cur_room = getattr(dungeon, "current_room", None)
         cur = (int(getattr(dungeon, "i", 0)), int(getattr(dungeon, "j", 0)))
 
         w = gw * self.cell + self.padding * 2
@@ -48,21 +49,25 @@ class Minimap:
         else:
             shop_glyph2 = None
 
+        room_groups: dict[object, list[tuple[int, int]]] = {}
+        if hasattr(dungeon, "rooms"):
+            for pos, room in dungeon.rooms.items():
+                room_groups.setdefault(room, []).append(pos)
+
+        explored_rooms = {room for room, cells in room_groups.items() if any(p in explored for p in cells)}
+
         for j in range(gh):
             for i in range(gw):
                 x = self.padding + i * self.cell
                 y = self.padding + j * self.cell
                 rect = pygame.Rect(x, y, self.cell - 2, self.cell - 2)
 
-                # Base: color de grilla
                 color = self.grid
-
-                # Info de la sala (si existe)
                 room = dungeon.rooms.get((i, j)) if hasattr(dungeon, "rooms") else None
                 room_type = getattr(room, "type", "normal")
+                logical_explored = room in explored_rooms
 
-                # Exploración / Tienda
-                if (i, j) in explored:
+                if logical_explored:
                     if room_type == "shop":
                         color = self.shop_col
                     elif room_type == "treasure":
@@ -72,23 +77,27 @@ class Minimap:
                     else:
                         color = self.explored
 
-                # Jugador actual sobreescribe el color
-                if (i, j) == cur:
+                if room is not None and room is cur_room:
+                    color = self.current
+                elif (i, j) == cur:
                     color = self.current
 
-                # Dibujo del bloque
                 pygame.draw.rect(surf, color, rect)
 
-                # Icono de tienda (encima del rect), sólo si existe la sala
-                if self.show_shop_icon and room_type == "shop":
-                    # Muestra el icono si ya fue explorada (comportamiento típico)
-                    if (i, j) in explored and shop_glyph and shop_glyph2:
-                        # Centrar el texto en la celda
-                        gx = rect.x + rect.w // 2
-                        gy = rect.y + rect.h // 2
-                        # Sombra leve
-                        surf.blit(shop_glyph, shop_glyph.get_rect(center=(gx+1, gy+1)))
-                        # Glifo principal
-                        surf.blit(shop_glyph2, shop_glyph2.get_rect(center=(gx, gy)))
+        if self.show_shop_icon and room_groups:
+            for room, cells in room_groups.items():
+                room_type = getattr(room, "type", "normal")
+                if room_type != "shop":
+                    continue
+                if room not in explored_rooms:
+                    continue
+                if not (shop_glyph and shop_glyph2):
+                    continue
+                avg_x = sum(p[0] for p in cells) / len(cells)
+                avg_y = sum(p[1] for p in cells) / len(cells)
+                gx = self.padding + int(avg_x * self.cell) + (self.cell - 2) // 2
+                gy = self.padding + int(avg_y * self.cell) + (self.cell - 2) // 2
+                surf.blit(shop_glyph, shop_glyph.get_rect(center=(gx + 1, gy + 1)))
+                surf.blit(shop_glyph2, shop_glyph2.get_rect(center=(gx, gy)))
 
         return surf

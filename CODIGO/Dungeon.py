@@ -48,6 +48,9 @@ class Dungeon:
         # 2) Ramas opcionales
         self._generate_branches(branch_chance, branch_min, branch_max)
 
+        # 2b) Fusionar algunas celdas en una sala grande en L si hay espacio
+        self._inject_L_room()
+
         # Tabla de botín compartida para cofres del tesoro
         self._treasure_loot_table: list[dict] = [
             {"name": "Monedas desperdigadas (+20)", "type": "gold", "amount": 20, "weight": 8},
@@ -182,6 +185,7 @@ class Dungeon:
     def _place_room(self, x: int, y: int) -> None:
         if (x, y) not in self.rooms:
             r = Room()
+            r.grid_positions = [(x, y)]
             # Tamaños aleatorios dentro del rango, ajustados al múltiplo de sprite
             def aligned_choices(min_size: int, max_size: int) -> list[int]:
                 alignment = CFG.SPRITE_SIZE
@@ -200,6 +204,49 @@ class Dungeon:
 
             # Puertas se setean luego cuando enlaces vecinos (si ya lo haces)
             self.rooms[(x, y)] = r
+
+    def _place_L_room(self, positions: list[tuple[int, int]]) -> None:
+        """Crea una sala grande en forma de L que abarca varias celdas."""
+        if not positions:
+            return
+
+        unique_positions = list(dict.fromkeys(positions))
+        xs = [p[0] for p in unique_positions]
+        ys = [p[1] for p in unique_positions]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+
+        cols = max_x - min_x + 1
+        rows = max_y - min_y + 1
+
+        cell_w = max(CFG.ROOM_W_MIN, min(CFG.ROOM_W_MAX, (CFG.MAP_W - 2) // cols))
+        cell_h = max(CFG.ROOM_H_MIN, min(CFG.ROOM_H_MAX, (CFG.MAP_H - 2) // rows))
+
+        total_w = max(CFG.ROOM_W_MIN, min(CFG.MAP_W, cell_w * cols))
+        total_h = max(CFG.ROOM_H_MIN, min(CFG.MAP_H, cell_h * rows))
+
+        room = Room()
+        room.grid_positions = unique_positions
+        room.build_centered(total_w, total_h)
+
+        assert room.bounds is not None
+        rx, ry, _, _ = room.bounds
+        valid_cells = set(unique_positions)
+
+        for gy in range(rows):
+            for gx in range(cols):
+                grid_coord = (min_x + gx, min_y + gy)
+                if grid_coord in valid_cells:
+                    continue
+                start_tx = rx + gx * cell_w
+                start_ty = ry + gy * cell_h
+                for ty in range(start_ty, start_ty + cell_h):
+                    for tx in range(start_tx, start_tx + cell_w):
+                        if 0 <= tx < CFG.MAP_W and 0 <= ty < CFG.MAP_H:
+                            room.tiles[ty][tx] = CFG.WALL
+
+        for pos in unique_positions:
+            self.rooms[pos] = room
 
     def _generate_main_path(self, length: int) -> None:
         x, y = self.i, self.j
@@ -284,15 +331,41 @@ class Dungeon:
                 if not moved:
                     break  # rama termina si no encuentra expansión segura
 
+    def _inject_L_room(self) -> None:
+        """Busca un conjunto de celdas adyacentes para fusionarlas en una sala en L."""
+        shapes = [
+            [(0, 0), (0, 1), (1, 1)],
+            [(0, 0), (1, 0), (1, -1)],
+            [(0, 0), (0, -1), (1, -1)],
+            [(0, 0), (-1, 0), (-1, 1)],
+        ]
+
+        occupied = set(self.rooms.keys())
+        for base in list(occupied):
+            for shape in shapes:
+                coords = [(base[0] + dx, base[1] + dy) for dx, dy in shape]
+                if any(c not in occupied for c in coords):
+                    continue
+                if self.start in coords:
+                    continue
+                rooms_in_shape = {self.rooms[c] for c in coords}
+                if len(rooms_in_shape) != len(coords):
+                    continue
+                self._place_L_room(coords)
+                return
+
     def _link_neighbors_and_carve(self) -> None:
         # Define puertas según adyacencia real y talla corredores cortos
+        room_doors: dict[Room, dict[str, bool]] = {}
         for (x, y), room in self.rooms.items():
-            # Puertas según vecinos existentes
-            room.doors["N"] = (x, y-1) in self.rooms
-            room.doors["S"] = (x, y+1) in self.rooms
-            room.doors["W"] = (x-1, y) in self.rooms
-            room.doors["E"] = (x+1, y) in self.rooms
-            # Corredores visuales
+            doors = room_doors.setdefault(room, {"N": False, "S": False, "E": False, "W": False})
+            doors["N"] = doors["N"] or (x, y - 1) in self.rooms
+            doors["S"] = doors["S"] or (x, y + 1) in self.rooms
+            doors["W"] = doors["W"] or (x - 1, y) in self.rooms
+            doors["E"] = doors["E"] or (x + 1, y) in self.rooms
+
+        for room, doors in room_doors.items():
+            room.doors.update(doors)
             room.carve_corridors(width_tiles=2, length_tiles=3)
             
     def _build_depth_map(self) -> None:
@@ -429,9 +502,10 @@ class Dungeon:
         if not self.can_move(direction):
             return False
 
-        # hook de salida
         cur_room = self.current_room
-        if hasattr(cur_room, "on_exit"):
+        di, dj = DIRS[direction]
+        next_room = self.rooms.get((self.i + di, self.j + dj))
+        if cur_room is not next_room and hasattr(cur_room, "on_exit"):
             cur_room.on_exit()
 
         # mover
@@ -439,7 +513,7 @@ class Dungeon:
 
         # hook de entrada
         new_room = self.current_room
-        if hasattr(new_room, "on_enter"):
+        if cur_room is not new_room and hasattr(new_room, "on_enter"):
             new_room.on_enter(player, cfg, ShopkeeperCls=ShopkeeperCls)
 
         return True

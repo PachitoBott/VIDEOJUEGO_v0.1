@@ -59,15 +59,15 @@ class _MuzzleFlash(_WorldEffect):
     def update(self, dt: float) -> None:
         self._timer = max(0.0, self._timer - dt)
 
-    def draw(self, surface: pygame.Surface) -> None:
+    def draw(self, surface: pygame.Surface, cam_x: int = 0, cam_y: int = 0) -> None:
         if self._timer <= 0.0:
             return
         ratio = self._timer / self._duration
         length = 12 + 10 * ratio
         start = self._pos - self._dir * 2
         end = self._pos + self._dir * length
-        start_pos = (int(start.x), int(start.y))
-        end_pos = (int(end.x), int(end.y))
+        start_pos = (int(start.x - cam_x), int(start.y - cam_y))
+        end_pos = (int(end.x - cam_x), int(end.y - cam_y))
         outer_width = max(2, int(4 * ratio) + 1)
         inner_width = max(1, outer_width - 1)
         pygame.draw.line(surface, (255, 200, 90), start_pos, end_pos, outer_width)
@@ -113,12 +113,12 @@ class _EnemyDeathFlash(_WorldEffect):
             remaining.append(particle)
         self._particles = remaining
 
-    def draw(self, surface: pygame.Surface) -> None:
+    def draw(self, surface: pygame.Surface, cam_x: int = 0, cam_y: int = 0) -> None:
         if self._flash_timer > 0.0:
             ratio = self._flash_timer / 0.08
             size = int(8 + 10 * ratio)
             rect = pygame.Rect(0, 0, size, size)
-            rect.center = (int(self._center.x), int(self._center.y))
+            rect.center = (int(self._center.x - cam_x), int(self._center.y - cam_y))
             pygame.draw.rect(surface, (255, 255, 255), rect)
         for particle in self._particles:
             timer = float(particle["timer"])
@@ -127,7 +127,7 @@ class _EnemyDeathFlash(_WorldEffect):
             size = max(1, int(int(particle["size"]) * ratio) + 1)
             rect = pygame.Rect(0, 0, size, size)
             pos: pygame.Vector2 = particle["pos"]  # type: ignore[assignment]
-            rect.center = (int(pos.x), int(pos.y))
+            rect.center = (int(pos.x - cam_x), int(pos.y - cam_y))
             color_value = 200 + int(55 * ratio)
             pygame.draw.rect(surface, (255, color_value, 220), rect)
 
@@ -150,9 +150,9 @@ class VFXManager:
             effect.update(dt)
         self._world_effects = [effect for effect in self._world_effects if effect.is_alive()]
 
-    def draw_world(self, surface: pygame.Surface) -> None:
+    def draw_world(self, surface: pygame.Surface, cam_x: int = 0, cam_y: int = 0) -> None:
         for effect in self._world_effects:
-            effect.draw(surface)
+            effect.draw(surface, cam_x=cam_x, cam_y=cam_y)
 
     def draw_screen(self, surface: pygame.Surface) -> None:
         self._damage_flash.draw(surface)

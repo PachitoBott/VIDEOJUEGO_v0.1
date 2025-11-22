@@ -335,13 +335,13 @@ class Player(Entity):
                     direction = direction.normalize()
                 self.on_shoot((bullet.x, bullet.y), (direction.x, direction.y))
 
-    def draw(self, surf):
-        self._draw_dash_trail(surf)
+    def draw(self, surf, cam_x: int = 0, cam_y: int = 0):
+        self._draw_dash_trail(surf, cam_x=cam_x, cam_y=cam_y)
         animation = self._animations[self._current_animation]
         sprite = self._prepare_sprite(animation.current_frame())
         sprite_rect = sprite.get_rect()
-        sprite_rect.centerx = int(round(self.x + self.w / 2))
-        sprite_rect.centery = int(round(self.y + self.h / 2 - PLAYER_SPRITE_CENTER_OFFSET_Y))
+        sprite_rect.centerx = int(round(self.x + self.w / 2 - cam_x))
+        sprite_rect.centery = int(round(self.y + self.h / 2 - PLAYER_SPRITE_CENTER_OFFSET_Y - cam_y))
         surf.blit(sprite, sprite_rect)
 
     def _prepare_sprite(self, base_sprite: pygame.Surface) -> pygame.Surface:
@@ -592,7 +592,7 @@ class Player(Entity):
             )
             self._dash_trail.append(DashTrailSegment(pos=(cx, cy), life=self.dash_trail_lifetime))
 
-    def _draw_dash_trail(self, surf) -> None:
+    def _draw_dash_trail(self, surf, cam_x: int = 0, cam_y: int = 0) -> None:
         if not self._dash_trail:
             return
 
@@ -604,7 +604,7 @@ class Player(Entity):
             trail_surface = pygame.Surface((size, size), pygame.SRCALPHA)
             trail_surface.fill((255, 255, 255, alpha))
             pos_x, pos_y = segment.pos
-            surf.blit(trail_surface, (pos_x - size / 2, pos_y - size / 2))
+            surf.blit(trail_surface, (pos_x - size / 2 - cam_x, pos_y - size / 2 - cam_y))
 
     # ------------------------------------------------------------------
     # Armas

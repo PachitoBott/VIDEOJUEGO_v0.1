@@ -469,6 +469,7 @@ class Room:
         self.tiles: List[List[int]] = [[CFG.WALL for _ in range(CFG.MAP_W)] for _ in range(CFG.MAP_H)]
         self.bounds: Optional[Tuple[int, int, int, int]] = None
         self.doors: Dict[str, bool] = {"N": False, "S": False, "E": False, "W": False}
+        self.grid_positions: list[tuple[int, int]] = getattr(self, "grid_positions", []) or []
 
         # contenido dinámico
         self.enemies: List[Enemy] = []
@@ -953,22 +954,28 @@ class Room:
                     bought, msg = shop_ui.handle_click((mx, my), player)
                     # TODO: usar msg en HUD si se desea
 
-    def draw_overlay(self, surface, ui_font, player, shop_ui):
+    def draw_overlay(self, surface, ui_font, player, shop_ui, cam_x: int = 0, cam_y: int = 0):
         """
         Dibuja elementos propios de la sala por encima del piso (p.ej. el mercader y tooltip).
         """
         if self.rune_chest:
-            self._draw_rune_chest_overlay(surface, ui_font, player)
+            self._draw_rune_chest_overlay(surface, ui_font, player, cam_x=cam_x, cam_y=cam_y)
 
         if self.treasure:
-            self._draw_treasure_overlay(surface, ui_font, player)
+            self._draw_treasure_overlay(surface, ui_font, player, cam_x=cam_x, cam_y=cam_y)
 
         if self.type == "shop" and self.shopkeeper is not None:
             player_rect = player.rect() if hasattr(player, "rect") else None
-            self.shopkeeper.draw(surface, talk_active=shop_ui.active, player_rect=player_rect)
+            self.shopkeeper.draw(surface, talk_active=shop_ui.active, player_rect=player_rect, cam_x=cam_x, cam_y=cam_y)
             if player_rect is not None and self.shopkeeper.can_interact(player_rect) and not shop_ui.active:
                 tip = ui_font.render("E - Abrir tienda", True, (255, 255, 255))
-                surface.blit(tip, (self.shopkeeper.rect.x - 12, self.shopkeeper.rect.y - 22))
+                surface.blit(
+                    tip,
+                    (
+                        self.shopkeeper.rect.x - 12 - cam_x,
+                        self.shopkeeper.rect.y - 22 - cam_y,
+                    ),
+                )
 
             
             
@@ -1259,12 +1266,13 @@ class Room:
     # ------------------------------------------------------------------ #
     # Dibujo
     # ------------------------------------------------------------------ #
-    def draw(self, surf: pygame.Surface, tileset) -> None:
+    def draw(self, surf: pygame.Surface, tileset, cam_x: int = 0, cam_y: int = 0) -> None:
         """
         Dibuja el room en `surf`. Si tu `Tileset` tiene un método específico,
         úsalo; si no, renderizo con rectángulos de colores.
         """
         ts = CFG.TILE_SIZE
+        off_x, off_y = int(cam_x), int(cam_y)
 
         # Rellenar el suelo con un color plano para evitar repetir sprites.
         floor = CFG.COLOR_FLOOR
@@ -1272,12 +1280,14 @@ class Room:
             row = self.tiles[ty]
             for tx in range(CFG.MAP_W):
                 if row[tx] == CFG.FLOOR:
-                    pygame.draw.rect(surf, floor, pygame.Rect(tx * ts, ty * ts, ts, ts))
+                    pygame.draw.rect(
+                        surf, floor, pygame.Rect(tx * ts - off_x, ty * ts - off_y, ts, ts)
+                    )
 
         # Si tu tileset expone un método de dibujado por mapa, úsalo para las paredes.
         drew_with_tileset = False
         if hasattr(tileset, "draw_map"):
-            drew_with_tileset = tileset.draw_map(surf, self.tiles)
+            drew_with_tileset = tileset.draw_map(surf, self.tiles, offset=(off_x, off_y))
 
         if not drew_with_tileset:
             # Fallback: colorear las paredes a mano, evitando el exterior.
@@ -1286,13 +1296,16 @@ class Room:
                 row = self.tiles[ty]
                 for tx in range(CFG.MAP_W):
                     if row[tx] != CFG.FLOOR and self._wall_adjacent_to_floor(tx, ty):
-                        pygame.draw.rect(surf, wall, pygame.Rect(tx * ts, ty * ts, ts, ts))
+                    pygame.draw.rect(
+                        surf, wall, pygame.Rect(tx * ts - off_x, ty * ts - off_y, ts, ts)
+                    )
 
         if self.is_start_room:
             graffiti = _load_start_graffiti_sprite()
             if graffiti is not None and self.bounds is not None:
                 cx, cy = self.center_px()
-                surf.blit(graffiti, graffiti.get_rect(center=(cx, cy)))
+                rect = graffiti.get_rect(center=(cx - off_x, cy - off_y))
+                surf.blit(graffiti, rect)
 
         if self.obstacles:
             for obstacle in self.obstacles:
@@ -1302,21 +1315,24 @@ class Room:
                 surf.blit(
                     sprite,
                     (
-                        obstacle["rect"].x + offset[0],
-                        obstacle["rect"].y + offset[1],
+                        obstacle["rect"].x + offset[0] - off_x,
+                        obstacle["rect"].y + offset[1] - off_y,
                     ),
                 )
 
         if self.rune_chest:
-            self._draw_rune_chest(surf)
+            self._draw_rune_chest(surf, cam_x=off_x, cam_y=off_y)
         if self.treasure:
-            self._draw_treasure(surf)
+            self._draw_treasure(surf, cam_x=off_x, cam_y=off_y)
         # Puertas bloqueadas: dibuja “rejas” rojas en las aberturas
         if self.locked:
             bars = self._door_opening_rects()
             for d, r in bars.items():
-                pygame.draw.rect(surf, (180, 40, 40), r)         # relleno rojo
-                pygame.draw.rect(surf, (255, 90, 90), r, 1)      # borde claro
+                adj = pygame.Rect(r)
+                adj.x -= off_x
+                adj.y -= off_y
+                pygame.draw.rect(surf, (180, 40, 40), adj)         # relleno rojo
+                pygame.draw.rect(surf, (255, 90, 90), adj, 1)      # borde claro
 
     # ------------------------------------------------------------------ #
     # Cofre rúnico especial
@@ -1481,37 +1497,41 @@ class Room:
         self.rune_message = message
         self.rune_message_until = pygame.time.get_ticks() + max(500, duration)
 
-    def _draw_rune_chest(self, surface: pygame.Surface) -> None:
+    def _draw_rune_chest(self, surface: pygame.Surface, cam_x: int = 0, cam_y: int = 0) -> None:
         if not self.rune_chest:
             return
         rect: pygame.Rect = self.rune_chest["rect"]
         hitbox: pygame.Rect = self.rune_chest.get("hitbox", rect)
+        draw_rect = rect.move(-cam_x, -cam_y)
+        draw_hitbox = hitbox.move(-cam_x, -cam_y)
         opened = self.rune_chest.get("opened", False)
 
         sprite = _load_rune_chest_sprite(rect.size, opened)
 
         if sprite is not None:
-            surface.blit(sprite, rect)
+            surface.blit(sprite, draw_rect)
         else:
             body_color = (90, 62, 140) if not opened else (58, 48, 92)
             lid_color = (130, 92, 186) if not opened else (92, 74, 134)
             band_color = (196, 176, 240) if not opened else (150, 138, 196)
 
-            pygame.draw.rect(surface, body_color, rect)
-            lid_height = max(6, rect.height // 3)
-            lid_rect = pygame.Rect(rect.x, rect.y, rect.width, lid_height)
+            pygame.draw.rect(surface, body_color, draw_rect)
+            lid_height = max(6, draw_rect.height // 3)
+            lid_rect = pygame.Rect(draw_rect.x, draw_rect.y, draw_rect.width, lid_height)
             pygame.draw.rect(surface, lid_color, lid_rect)
-            pygame.draw.rect(surface, band_color, pygame.Rect(rect.centerx - 3, rect.y, 6, rect.height))
-            pygame.draw.rect(surface, (22, 14, 44), rect, 2)
+            pygame.draw.rect(surface, band_color, pygame.Rect(draw_rect.centerx - 3, draw_rect.y, 6, draw_rect.height))
+            pygame.draw.rect(surface, (22, 14, 44), draw_rect, 2)
 
         if getattr(CFG, "DEBUG_DRAW_DOOR_TRIGGERS", False):
-            pygame.draw.rect(surface, (255, 0, 255), hitbox, 1)
+            pygame.draw.rect(surface, (255, 0, 255), draw_hitbox, 1)
 
-    def _draw_rune_chest_overlay(self, surface, ui_font, player) -> None:
+    def _draw_rune_chest_overlay(self, surface, ui_font, player, cam_x: int = 0, cam_y: int = 0) -> None:
         rect = self.rune_chest["rect"]
         hitbox = self.rune_chest.get("hitbox", rect)
         player_rect = self._player_rect(player)
         near = hitbox.inflate(36, 36).colliderect(player_rect)
+
+        draw_rect = rect.move(-cam_x, -cam_y)
 
         if not self.rune_chest.get("opened", False) and near:
             if not self._rune_wave_triggered:
@@ -1521,7 +1541,7 @@ class Room:
             else:
                 tip_text = "Guardianes activos"
             tip = ui_font.render(tip_text, True, (235, 220, 255))
-            surface.blit(tip, (rect.centerx - tip.get_width() // 2, rect.y - 24))
+            surface.blit(tip, (draw_rect.centerx - tip.get_width() // 2, draw_rect.y - 24))
 
         now = pygame.time.get_ticks()
         if self.rune_message and now <= self.rune_message_until:
@@ -1708,47 +1728,51 @@ class Room:
         return apply_reward_entry(player, reward)
 
 
-    def _draw_treasure(self, surface: pygame.Surface) -> None:
+    def _draw_treasure(self, surface: pygame.Surface, cam_x: int = 0, cam_y: int = 0) -> None:
         if not self.treasure:
             return
         rect: pygame.Rect = self.treasure["rect"]
         hitbox: pygame.Rect = self.treasure.get("hitbox", rect)
+        draw_rect = rect.move(-cam_x, -cam_y)
+        draw_hitbox = hitbox.move(-cam_x, -cam_y)
         opened = self.treasure.get("opened", False)
 
         sprite = _load_treasure_sprite(rect.size, opened)
         if sprite is not None:
-            surface.blit(sprite, rect.topleft)
+            surface.blit(sprite, draw_rect.topleft)
             return
 
         body_color = (176, 124, 56) if not opened else (110, 96, 96)
         lid_color = (214, 168, 96) if not opened else (140, 128, 128)
         band_color = (235, 208, 128) if not opened else (180, 172, 172)
 
-        pygame.draw.rect(surface, body_color, rect)
-        lid_height = max(6, rect.height // 3)
-        lid_rect = pygame.Rect(rect.x, rect.y, rect.width, lid_height)
+        pygame.draw.rect(surface, body_color, draw_rect)
+        lid_height = max(6, draw_rect.height // 3)
+        lid_rect = pygame.Rect(draw_rect.x, draw_rect.y, draw_rect.width, lid_height)
         pygame.draw.rect(surface, lid_color, lid_rect)
-        pygame.draw.rect(surface, band_color, pygame.Rect(rect.centerx - 3, rect.y, 6, rect.height))
-        pygame.draw.rect(surface, (20, 12, 8), rect, 2)
+        pygame.draw.rect(surface, band_color, pygame.Rect(draw_rect.centerx - 3, draw_rect.y, 6, draw_rect.height))
+        pygame.draw.rect(surface, (20, 12, 8), draw_rect, 2)
 
         # Hitbox visible para depuración: se dibuja sólo si las banderas debug lo permiten.
         if getattr(CFG, "DEBUG_DRAW_DOOR_TRIGGERS", False):
-            pygame.draw.rect(surface, (255, 0, 0), hitbox, 1)
+            pygame.draw.rect(surface, (255, 0, 0), draw_hitbox, 1)
 
-    def _draw_treasure_overlay(self, surface, ui_font, player) -> None:
+    def _draw_treasure_overlay(self, surface, ui_font, player, cam_x: int = 0, cam_y: int = 0) -> None:
         rect = self.treasure["rect"]
         hitbox = self.treasure.get("hitbox", rect)
         player_rect = self._player_rect(player)
         near = hitbox.inflate(36, 36).colliderect(player_rect)
 
+        draw_rect = rect.move(-cam_x, -cam_y)
+
         if not self.treasure.get("opened", False) and near:
             tip = ui_font.render("E - Abrir cofre", True, (255, 255, 255))
-            surface.blit(tip, (rect.centerx - tip.get_width() // 2, rect.y - 22))
+            surface.blit(tip, (draw_rect.centerx - tip.get_width() // 2, draw_rect.y - 22))
 
         now = pygame.time.get_ticks()
         if self.treasure_message and now <= self.treasure_message_until:
             msg = ui_font.render(self.treasure_message, True, (255, 230, 140))
-            surface.blit(msg, (rect.centerx - msg.get_width() // 2, rect.bottom + 8))
+            surface.blit(msg, (draw_rect.centerx - msg.get_width() // 2, draw_rect.bottom + 8))
         elif now > self.treasure_message_until:
             self.treasure_message = ""
 

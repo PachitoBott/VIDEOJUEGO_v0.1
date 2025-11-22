@@ -243,7 +243,7 @@ class Enemy(Entity):
         self._update_facing(dx)
         self.move(dx, dy, dt * (self.chase_speed / max(1e-6, self.speed)) * speed_factor, room)
 
-    def draw(self, surf: pygame.Surface) -> None:
+    def draw(self, surf: pygame.Surface, cam_x: int = 0, cam_y: int = 0) -> None:
         frame = self.animator.current_surface()
         if not self._facing_right:
             frame = pygame.transform.flip(frame, True, False)
@@ -252,7 +252,8 @@ class Enemy(Entity):
             flash_overlay = pygame.Surface(frame.get_size(), pygame.SRCALPHA)
             flash_overlay.fill((255, 255, 255, 220))
             frame.blit(flash_overlay, (0, 0), special_flags=pygame.BLEND_ADD)
-        dest = frame.get_rect(center=self.rect().center)
+        cx, cy = self.rect().center
+        dest = frame.get_rect(center=(cx - cam_x, cy - cam_y))
         surf.blit(frame, dest)
 
     def _update_animation(self, dt: float) -> None:

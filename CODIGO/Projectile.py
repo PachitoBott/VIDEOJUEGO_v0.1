@@ -66,8 +66,10 @@ class Projectile:
                     return True
         return False
 
-    def draw(self, surf):
-        pygame.draw.circle(surf, self.color, (int(self.x), int(self.y)), self.radius)
+    def draw(self, surf, cam_x: int = 0, cam_y: int = 0):
+        pygame.draw.circle(
+            surf, self.color, (int(self.x - cam_x), int(self.y - cam_y)), self.radius
+        )
 
 
 class ProjectileGroup:
@@ -90,9 +92,9 @@ class ProjectileGroup:
     def prune(self) -> None:
         self._items = [p for p in self._items if p.alive]
 
-    def draw(self, surf) -> None:
+    def draw(self, surf, cam_x: int = 0, cam_y: int = 0) -> None:
         for projectile in self._items:
-            projectile.draw(surf)
+            projectile.draw(surf, cam_x=cam_x, cam_y=cam_y)
 
     def __iter__(self) -> Iterator[Projectile]:
         return iter(self._items)

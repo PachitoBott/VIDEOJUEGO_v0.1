@@ -64,11 +64,11 @@ class MicrochipPickup:
             self.vy = 0.0
         self.bob_phase = (self.bob_phase + self.bob_speed * dt) % math.tau
 
-    def draw(self, surface: pygame.Surface) -> None:
+    def draw(self, surface: pygame.Surface, cam_x: int = 0, cam_y: int = 0) -> None:
         if self._collected:
             return
         offset_y = math.sin(self.bob_phase) * self.bob_amplitude
-        surface.blit(self.sprite, (int(self.x), int(self.y + offset_y)))
+        surface.blit(self.sprite, (int(self.x - cam_x), int(self.y + offset_y - cam_y)))
 
     def _move_axis(self, dt: float, room, axis: str) -> None:
         velocity = self.vx if axis == "x" else self.vy
@@ -166,11 +166,11 @@ class LootPickup:
             self.vy = 0.0
         self.bob_phase = (self.bob_phase + self.bob_speed * dt) % math.tau
 
-    def draw(self, surface: pygame.Surface) -> None:
+    def draw(self, surface: pygame.Surface, cam_x: int = 0, cam_y: int = 0) -> None:
         if self._collected:
             return
         offset_y = math.sin(self.bob_phase) * self.bob_amplitude
-        surface.blit(self.sprite, (int(self.x), int(self.y + offset_y)))
+        surface.blit(self.sprite, (int(self.x - cam_x), int(self.y + offset_y - cam_y)))
 
     def _move_axis(self, dt: float, room, axis: str) -> None:
         velocity = self.vx if axis == "x" else self.vy

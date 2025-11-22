@@ -214,7 +214,7 @@ class BossEnemy(Enemy):
     def on_phase_changed(self, new_phase: int) -> None:  # pragma: no cover - gancho opcional
         self.enraged = new_phase >= 3
 
-    def draw_floor_effects(self, surface: pygame.Surface) -> None:
+    def draw_floor_effects(self, surface: pygame.Surface, cam_x: int = 0, cam_y: int = 0) -> None:
         for entry in self.telegraphs:
             rect: pygame.Rect = entry["rect"]
             duration = max(0.01, entry.get("duration", 0.8))
@@ -222,15 +222,17 @@ class BossEnemy(Enemy):
             color = entry.get("color", (255, 80, 80, 140))
             overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
             overlay.fill((*color[:3], min(255, max(0, alpha))))
-            surface.blit(overlay, rect.topleft)
-            pygame.draw.rect(surface, (255, 200, 200), rect, 2)
+            offset_rect = rect.move(-cam_x, -cam_y)
+            surface.blit(overlay, offset_rect.topleft)
+            pygame.draw.rect(surface, (255, 200, 200), offset_rect, 2)
         for puddle in self.puddles:
             rect: pygame.Rect = puddle["rect"]
             color = puddle.get("color", (120, 40, 40, 140))
             overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
             overlay.fill((*color[:3], color[3] if len(color) > 3 else 150))
-            surface.blit(overlay, rect.topleft)
-            pygame.draw.rect(surface, (255, 180, 120), rect, 1)
+            offset_rect = rect.move(-cam_x, -cam_y)
+            surface.blit(overlay, offset_rect.topleft)
+            pygame.draw.rect(surface, (255, 180, 120), offset_rect, 1)
 
     def draw(self, surf: pygame.Surface) -> None:
         legs, torso = self.animator.current_surfaces()

@@ -69,36 +69,43 @@ class Tileset:
     # -----------------------------------------------------------
     # Dibujo de mapas completos
     # -----------------------------------------------------------
-    def draw_map(self, surf: pygame.Surface, tiles: Sequence[Sequence[int]]) -> bool:
+    def draw_map(
+        self,
+        surf: pygame.Surface,
+        tiles: Sequence[Sequence[int]],
+        offset: tuple[int, int] = (0, 0),
+    ) -> bool:
         """Dibuja el mapa completo usando los sprites disponibles.
 
         Devuelve True si se usaron sprites; False si cayó en el fallback.
         """
         if not self.surface:
-            self._draw_map_fallback(surf, tiles)
+            self._draw_map_fallback(surf, tiles, offset)
             return False
 
         used_sprite = False
         ts = CFG.TILE_SIZE
+
+        off_x, off_y = offset
 
         if CFG.FLOOR in self.rects:
             used_sprite = True
             for ty, row in enumerate(tiles):
                 for tx, tile_id in enumerate(row):
                     if tile_id == CFG.FLOOR:
-                        px = tx * ts
-                        py = ty * ts
+                        px = tx * ts - off_x
+                        py = ty * ts - off_y
                         self.draw_tile(surf, CFG.FLOOR, px, py)
         else:
-            self._draw_floor_fallback(surf, tiles)
+            self._draw_floor_fallback(surf, tiles, offset)
 
         for ty, row in enumerate(tiles):
             for tx, tile_id in enumerate(row):
                 if not self._should_draw_wall(tiles, tx, ty):
                     continue
 
-                px = tx * ts
-                py = ty * ts
+                px = tx * ts - off_x
+                py = ty * ts - off_y
                 variant = self._wall_variant(tiles, tx, ty)
                 sprite_id = variant
 
@@ -112,15 +119,21 @@ class Tileset:
 
         return used_sprite
 
-    def _draw_map_fallback(self, surf: pygame.Surface, tiles: Sequence[Sequence[int]]) -> None:
-        self._draw_floor_fallback(surf, tiles)
+    def _draw_map_fallback(
+        self,
+        surf: pygame.Surface,
+        tiles: Sequence[Sequence[int]],
+        offset: tuple[int, int] = (0, 0),
+    ) -> None:
+        self._draw_floor_fallback(surf, tiles, offset)
         ts = CFG.TILE_SIZE
+        off_x, off_y = offset
         for ty, row in enumerate(tiles):
             for tx, tile_id in enumerate(row):
                 if not self._should_draw_wall(tiles, tx, ty):
                     continue
-                px = tx * ts
-                py = ty * ts
+                px = tx * ts - off_x
+                py = ty * ts - off_y
                 rect = pygame.Rect(px, py, ts, ts)
                 trim_x, trim_y = self._trim_for_tile(tile_id)
                 if trim_x:
@@ -131,13 +144,19 @@ class Tileset:
                     rect.height = max(0, rect.height - 2)
                 pygame.draw.rect(surf, CFG.COLOR_WALL, rect)
 
-    def _draw_floor_fallback(self, surf: pygame.Surface, tiles: Sequence[Sequence[int]]) -> None:
+    def _draw_floor_fallback(
+        self,
+        surf: pygame.Surface,
+        tiles: Sequence[Sequence[int]],
+        offset: tuple[int, int] = (0, 0),
+    ) -> None:
         ts = CFG.TILE_SIZE
+        off_x, off_y = offset
         for ty, row in enumerate(tiles):
             for tx, tile_id in enumerate(row):
                 if tile_id == CFG.FLOOR:
-                    px = tx * ts
-                    py = ty * ts
+                    px = tx * ts - off_x
+                    py = ty * ts - off_y
                     pygame.draw.rect(surf, CFG.COLOR_FLOOR, (px, py, ts, ts))
 
     def _wall_variant(self, tiles: Sequence[Sequence[int]], tx: int, ty: int) -> int:

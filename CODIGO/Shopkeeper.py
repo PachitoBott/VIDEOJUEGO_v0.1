@@ -111,7 +111,7 @@ class Shopkeeper(pygame.sprite.Sprite):
         area = self.rect.inflate(self.interact_radius*2, self.interact_radius*2)
         return area.colliderect(player_rect)
 
-    def draw(self, surface, talk_active: bool = False, player_rect=None):
+    def draw(self, surface, talk_active: bool = False, player_rect=None, cam_x: int = 0, cam_y: int = 0):
         now = pygame.time.get_ticks()
         dt = (now - self._last_tick) / 1000.0
         self._last_tick = now
@@ -124,7 +124,7 @@ class Shopkeeper(pygame.sprite.Sprite):
         if self._facing_left:
             sprite = pygame.transform.flip(sprite, True, False)
 
-        center = self.rect.center
+        center = (self.rect.centerx - cam_x, self.rect.centery - cam_y)
         self.image = sprite
-        self.rect = self.image.get_rect(center=center)
-        surface.blit(self.image, self.rect)
+        draw_rect = self.image.get_rect(center=center)
+        surface.blit(self.image, draw_rect)
