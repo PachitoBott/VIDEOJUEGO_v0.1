@@ -81,6 +81,8 @@ class BossEnemy(Enemy):
             else:
                 width, height, y_offset = BossEnemy._CANONICAL_COLLIDER
 
+        y_offset += CFG.BOSS_HITBOX_EXTRA_Y_OFFSET
+
         self.w = width
         self.h = height
         self.x = cx - self.w / 2
@@ -132,6 +134,21 @@ class BossEnemy(Enemy):
         if torso is not None:
             torso_dest = torso.get_rect(center=center)
             surf.blit(torso, torso_dest)
+
+        self._draw_debug_hitbox(surf)
+
+    def _draw_debug_hitbox(self, surf: pygame.Surface) -> None:
+        if not CFG.DEBUG_DRAW_BOSS_HITBOX:
+            return
+        rect = self.rect()
+        color = CFG.DEBUG_BOSS_HITBOX_COLOR
+        overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
+        overlay.fill((*color, 70))
+        surf.blit(overlay, rect.topleft)
+        pygame.draw.rect(surf, color, rect, 2)
+        cx, cy = rect.center
+        pygame.draw.line(surf, color, (cx - 6, cy), (cx + 6, cy), 2)
+        pygame.draw.line(surf, color, (cx, cy - 6), (cx, cy + 6), 2)
 
     def add_telegraph(
         self,
