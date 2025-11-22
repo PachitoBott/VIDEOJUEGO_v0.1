@@ -589,7 +589,7 @@ class SecurityManagerBoss(BossEnemy):
             self._dash_trail_timer = self._dash_trail_interval
             cx = self.x + self.w / 2
             cy = self.y + self.h / 2
-            vertical_offset = max(4, int(self.h * 0.08))
+            vertical_offset = max(8, int(self.h * 0.16))
             self._dash_trail.append(
                 {
                     "pos": (cx, cy + vertical_offset),
