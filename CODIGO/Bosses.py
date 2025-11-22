@@ -512,6 +512,11 @@ class SecurityManagerBoss(BossEnemy):
         self._cone_timer = 1.0
         self._cone_cooldown = 2.6
         self._dash_origin: pygame.Vector2 | None = None
+        self._dash_trail: list[dict] = []
+        self._dash_trail_timer = 0.0
+        self._dash_trail_interval = 0.02
+        self._dash_trail_lifetime = 0.22
+        self._dash_trail_size = max(8, int(self.w * 0.45))
 
     def on_phase_changed(self, new_phase: int) -> None:
         super().on_phase_changed(new_phase)
@@ -523,6 +528,7 @@ class SecurityManagerBoss(BossEnemy):
     def update(self, dt: float, player, room) -> None:
         super().update(dt, player, room)
         self._update_dash(dt, room)
+        self._update_dash_trail(dt, self._dash_active)
 
     def maybe_shoot(self, dt, player, room, out_bullets) -> bool:
         fired = False
@@ -573,6 +579,53 @@ class SecurityManagerBoss(BossEnemy):
             if self.phase >= 2:
                 self._leave_puddle()
 
+    def _update_dash_trail(self, dt: float, dash_active: bool) -> None:
+        for segment in self._dash_trail:
+            segment["life"] -= dt
+        self._dash_trail = [seg for seg in self._dash_trail if seg["life"] > 0.0]
+
+        self._dash_trail_timer = max(0.0, self._dash_trail_timer - dt)
+        if dash_active and self._dash_trail_timer <= 0.0:
+            self._dash_trail_timer = self._dash_trail_interval
+            cx = self.x + self.w / 2
+            cy = self.y + self.h / 2
+            vertical_offset = max(14, int(self.h * 0.22))
+            self._dash_trail.append(
+                {
+                    "pos": (cx, cy + vertical_offset),
+                    "life": self._dash_trail_lifetime,
+                }
+            )
+
+    def _draw_dash_trail(self, surf: pygame.Surface) -> None:
+        if not self._dash_trail:
+            return
+
+        max_life = self._dash_trail_lifetime if self._dash_trail_lifetime > 0 else 0.0001
+        size = self._dash_trail_size
+        for segment in self._dash_trail:
+            life = segment["life"]
+            alpha = max(0, min(255, int(255 * (life / max_life))))
+            trail_surface = pygame.Surface((size, size), pygame.SRCALPHA)
+            dark_green = (25, 90, 60, int(alpha * 0.75))
+            bright_green = (120, 255, 170, alpha)
+
+            inner_size = max(2, int(size * 0.58))
+            inner_margin = (size - inner_size) // 2
+
+            pygame.draw.rect(
+                trail_surface,
+                dark_green,
+                pygame.Rect(0, 0, size, size),
+            )
+            pygame.draw.rect(
+                trail_surface,
+                bright_green,
+                pygame.Rect(inner_margin, inner_margin, inner_size, inner_size),
+            )
+            pos_x, pos_y = segment["pos"]
+            surf.blit(trail_surface, (pos_x - size / 2, pos_y - size / 2))
+
     def _leave_puddle(self) -> None:
         cx = self.x + self.w / 2
         cy = self.y + self.h / 2
@@ -609,6 +662,10 @@ class SecurityManagerBoss(BossEnemy):
                 color=(255, 120, 90),
             )
             out_bullets.add(proj)
+
+    def draw(self, surf: pygame.Surface) -> None:
+        self._draw_dash_trail(surf)
+        super().draw(surf)
 
 
 BOSS_BLUEPRINTS = [CorruptedServerBoss, SecurityManagerBoss]
