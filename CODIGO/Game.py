@@ -69,6 +69,20 @@ class Game:
         self.world = pygame.Surface((cfg.SCREEN_W, cfg.SCREEN_H))
         pygame.mouse.set_visible(False)
         self._cursor_surface = self._create_cursor_surface()
+        self._elapsed_time = 0.0
+
+        # Indicadores globales
+        self.camera_shake = 0.0
+        self._fade_surface = pygame.Surface(self.screen.get_size())
+        self._fade_surface.fill((0, 0, 0))
+        self._fade_alpha = 255.0
+        self._fade_direction = -1
+        self._fade_bounce = False
+        self._fade_speed = 255.0 / 0.2
+        self._low_hp_surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        self._low_hp_surface.fill((255, 0, 0))
+        self._low_hp_base_alpha = 28
+        self._low_hp_pulse = 7
 
         # ---------- UI ----------
         loot_font_path = Path(__file__).resolve().parent / "assets" / "ui" / "VT323-Regular.ttf"
@@ -237,6 +251,8 @@ class Game:
         self._run_gold_spent = 0
         self._run_kills = 0
         self.vfx.reset()
+        self.camera_shake = 0.0
+        self._start_fade_in()
 
     def _register_gold_spent(self, amount: int) -> None:
         if amount <= 0:
@@ -288,6 +304,7 @@ class Game:
         self._frame_counter = 0
         while self.running:
             dt = self.clock.tick(self.cfg.FPS) / 1000.0
+            self._elapsed_time += dt
             self.door_cooldown = max(0.0, self.door_cooldown - dt)
 
             events = self._handle_events()
@@ -444,6 +461,42 @@ class Game:
         self._handle_room_transition(room)
         self._update_shop(events)
         self.loot_notifications.update(dt, self.screen)
+        self._update_screen_effects(dt)
+
+    def _update_screen_effects(self, dt: float) -> None:
+        if self.camera_shake > 0.0:
+            self.camera_shake *= 0.8
+            if self.camera_shake < 0.1:
+                self.camera_shake = 0.0
+
+        if self._fade_direction != 0:
+            self._fade_alpha += self._fade_speed * self._fade_direction * dt
+            if self._fade_direction > 0 and self._fade_alpha >= 255.0:
+                self._fade_alpha = 255.0
+                if self._fade_bounce:
+                    self._fade_direction = -1
+                    self._fade_bounce = False
+                else:
+                    self._fade_direction = 0
+            elif self._fade_direction < 0 and self._fade_alpha <= 0.0:
+                self._fade_alpha = 0.0
+                self._fade_direction = 0
+
+    def _start_camera_shake(self, strength: float = 4.0) -> None:
+        self.camera_shake = max(self.camera_shake, float(strength))
+
+    def _start_room_fade(self) -> None:
+        duration = random.uniform(0.15, 0.25)
+        self._fade_speed = 255.0 / max(0.01, duration)
+        self._fade_direction = 1
+        self._fade_bounce = True
+
+    def _start_fade_in(self) -> None:
+        duration = random.uniform(0.15, 0.25)
+        self._fade_speed = 255.0 / max(0.01, duration)
+        self._fade_direction = -1
+        self._fade_bounce = False
+        self._fade_alpha = 255.0
 
     def _update_player(self, dt: float, room) -> None:
         self.player.update(dt, room)
@@ -543,6 +596,7 @@ class Game:
                 took_hit = bool(self.player.take_damage(contact_damage))
             if took_hit:
                 self.vfx.trigger_damage_flash()
+                self._start_camera_shake()
                 player_invulnerable = getattr(self.player, "is_invulnerable", lambda: False)()
         for projectile in self.enemy_projectiles:
             if not projectile.alive:
@@ -564,6 +618,7 @@ class Game:
             if took_hit:
                 projectile.alive = False
                 self.vfx.trigger_damage_flash()
+                self._start_camera_shake()
                 player_invulnerable = getattr(self.player, "is_invulnerable", lambda: False)()
             else:
                 projectile.alive = False
@@ -1124,6 +1179,7 @@ class Game:
         new_room = self.dungeon.current_room
         self._spawn_room_enemies(new_room)
         self._update_room_lock(new_room)
+        self._start_room_fade()
 
     def _update_room_lock(self, room) -> None:
         if not hasattr(room, "enemies") or not hasattr(room, "cleared"):
@@ -1252,7 +1308,32 @@ class Game:
         cursor_rect = self._cursor_surface.get_rect(center=(mx, my))
         self.screen.blit(self._cursor_surface, cursor_rect.topleft)
 
+        self._apply_screen_overlays()
+
         pygame.display.flip()
+
+    def _apply_screen_overlays(self) -> None:
+        if self.camera_shake > 0.0:
+            offset_x = int(round(random.uniform(-self.camera_shake, self.camera_shake)))
+            offset_y = int(round(random.uniform(-self.camera_shake, self.camera_shake)))
+            frame = self.screen.copy()
+            self.screen.fill(self.cfg.COLOR_BG)
+            self.screen.blit(frame, (offset_x, offset_y))
+
+        if self._should_draw_low_hp_overlay():
+            pulse = math.sin(self._elapsed_time * 6.0)
+            alpha = self._low_hp_base_alpha + self._low_hp_pulse * pulse
+            alpha = max(20, min(35, int(alpha)))
+            self._low_hp_surface.set_alpha(alpha)
+            self.screen.blit(self._low_hp_surface, (0, 0))
+
+        if self._fade_alpha > 0.0:
+            self._fade_surface.set_alpha(int(self._fade_alpha))
+            self.screen.blit(self._fade_surface, (0, 0))
+
+    def _should_draw_low_hp_overlay(self) -> bool:
+        player = getattr(self, "player", None)
+        return player is not None and getattr(player, "hp", 0) == 1
 
     def set_microchip_icon_scale(self, scale: float) -> None:
         scale = max(0.1, float(scale))
