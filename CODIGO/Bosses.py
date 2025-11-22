@@ -589,7 +589,7 @@ class SecurityManagerBoss(BossEnemy):
             self._dash_trail_timer = self._dash_trail_interval
             cx = self.x + self.w / 2
             cy = self.y + self.h / 2
-            vertical_offset = max(8, int(self.h * 0.16))
+            vertical_offset = max(14, int(self.h * 0.22))
             self._dash_trail.append(
                 {
                     "pos": (cx, cy + vertical_offset),
@@ -607,12 +607,13 @@ class SecurityManagerBoss(BossEnemy):
             life = segment["life"]
             alpha = max(0, min(255, int(255 * (life / max_life))))
             trail_surface = pygame.Surface((size, size), pygame.SRCALPHA)
+            outer_radius = max(3, int(size * 0.5))
+            inner_radius = max(2, int(size * 0.32))
             dark_green = (25, 90, 60, int(alpha * 0.75))
             bright_green = (120, 255, 170, alpha)
-            pygame.draw.rect(trail_surface, dark_green, (0, 0, size, size))
-            inner_size = max(4, int(size * 0.6))
-            inset = (size - inner_size) // 2
-            pygame.draw.rect(trail_surface, bright_green, (inset, inset, inner_size, inner_size))
+            center = (size // 2, size // 2)
+            pygame.draw.circle(trail_surface, dark_green, center, outer_radius)
+            pygame.draw.circle(trail_surface, bright_green, center, inner_radius)
             pos_x, pos_y = segment["pos"]
             surf.blit(trail_surface, (pos_x - size / 2, pos_y - size / 2))
 
