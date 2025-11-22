@@ -97,8 +97,12 @@ class StartMenu:
         # --- Skins ---
         self.skin_options = self._build_skin_options()
         self.selected_skin_id = self._infer_default_skin_id()
-        self.skin_rects: list[tuple[str, pygame.Rect]] = []
+        self.selected_body, self.selected_color = self._split_skin_id(self.selected_skin_id)
+        self.body_cards: list[tuple[str, pygame.Rect]] = []
+        self.color_rects: list[tuple[str, pygame.Rect]] = []
         self.skins_overlay_rect = pygame.Rect(0, 0, 0, 0)
+        self.preview_anim_time = 0.0
+        self.preview_cache: dict[tuple[str, str], list[pygame.Surface]] = {}
 
         self.button_rects: list[tuple[str, pygame.Rect]] = []
         self.seed_rect = pygame.Rect(0, 0, self.INPUT_WIDTH, self.INPUT_HEIGHT)
@@ -282,6 +286,16 @@ class StartMenu:
     def _select_skin(self, skin_id: str) -> None:
         if any(option["id"] == skin_id for option in self.skin_options):
             self.selected_skin_id = skin_id
+            self.selected_body, self.selected_color = self._split_skin_id(skin_id)
+
+    def _split_skin_id(self, skin_id: str) -> tuple[str, str]:
+        if "_" in skin_id:
+            color, body = skin_id.split("_", 1)
+            return body, color
+        return "flaco", "blue"
+
+    def _update_selected_skin(self) -> None:
+        self.selected_skin_id = f"{self.selected_color}_{self.selected_body}"
 
     def selected_skin_path(self) -> str:
         match = next((opt for opt in self.skin_options if opt["id"] == self.selected_skin_id), None)
@@ -309,7 +323,8 @@ class StartMenu:
     def run(self) -> StartMenuResult:
         running = True
         while running:
-            self.clock.tick(self.cfg.FPS)
+            dt = self.clock.tick(self.cfg.FPS) / 1000.0
+            self.preview_anim_time = (self.preview_anim_time + dt) % 9999
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self._start_requested = False
@@ -423,10 +438,17 @@ class StartMenu:
             ):
                 self.overlay_key = None
                 return True
-            for skin_id, rect in self.skin_rects:
+            for body, rect in self.body_cards:
                 if rect.collidepoint(event.pos):
                     self._play_click()
-                    self._select_skin(skin_id)
+                    self.selected_body = body
+                    self._update_selected_skin()
+                    return True
+            for color, rect in self.color_rects:
+                if rect.collidepoint(event.pos):
+                    self._play_click()
+                    self.selected_color = color
+                    self._update_selected_skin()
                     return True
         if event.type == pygame.QUIT:
             self._start_requested = False
@@ -657,24 +679,23 @@ class StartMenu:
         title_rect = title_surf.get_rect(center=(width // 2, overlay_rect.top + 50))
         self.screen.blit(title_surf, title_rect)
 
-        columns = 2
-        card_width = overlay_rect.width // columns - 60
-        card_height = 140
-        start_x = overlay_rect.left + 40
-        start_y = overlay_rect.top + 110
-
-        self.skin_rects = []
         mouse_pos = pygame.mouse.get_pos()
-        for idx, option in enumerate(self.skin_options):
-            col = idx % columns
-            row = idx // columns
-            x = start_x + col * (card_width + 30)
-            y = start_y + row * (card_height + 24)
-            rect = pygame.Rect(x, y, card_width, card_height)
-            self.skin_rects.append((option["id"], rect))
+        self.body_cards = []
+        self.color_rects = []
+
+        card_width = overlay_rect.width // 3
+        card_height = 240
+        start_y = overlay_rect.top + 110
+        gap = 40
+
+        for idx, body in enumerate(("flaco", "gordo")):
+            rect = pygame.Rect(0, 0, card_width, card_height)
+            rect.centerx = overlay_rect.left + (idx + 1) * overlay_rect.width // 3
+            rect.y = start_y
+            self.body_cards.append((body, rect))
 
             hovered = rect.collidepoint(mouse_pos)
-            selected = option["id"] == self.selected_skin_id
+            selected = body == self.selected_body
             base_color = pygame.Color(20, 20, 30)
             if selected:
                 base_color = pygame.Color(40, 20, 50)
@@ -682,26 +703,91 @@ class StartMenu:
                 base_color += pygame.Color(15, 15, 15)
 
             border_color = self.COLOR_NEON_PINK if selected else self.COLOR_NEON_BLUE
-
             pygame.draw.rect(self.screen, base_color, rect, border_radius=8)
             pygame.draw.rect(self.screen, border_color, rect, 2, border_radius=8)
 
-            label_surf = self.button_font.render(option["label"].upper(), True, self.COLOR_TEXT_WHITE)
-            label_rect = label_surf.get_rect(center=(rect.centerx, rect.top + 36))
+            label = "FLACO" if body == "flaco" else "GORDO"
+            label_surf = self.button_font.render(label, True, self.COLOR_TEXT_WHITE)
+            label_rect = label_surf.get_rect(center=(rect.centerx, rect.top + 30))
             self.screen.blit(label_surf, label_rect)
 
-            body_surf = self.small_font.render(f"Tipo: {option['body']}", True, (180, 180, 200))
-            body_rect = body_surf.get_rect(midleft=(rect.left + 18, rect.centery - 6))
-            self.screen.blit(body_surf, body_rect)
+            preview_rect = pygame.Rect(0, 0, rect.width - 60, rect.height - 110)
+            preview_rect.center = (rect.centerx, rect.centery + 20)
+            self._draw_skin_preview(body, preview_rect)
 
-            color_surf = self.small_font.render(f"Color: {option['color']}", True, (180, 180, 200))
-            color_rect = color_surf.get_rect(midleft=(rect.left + 18, rect.centery + 20))
-            self.screen.blit(color_surf, color_rect)
+        colors = [
+            ("grey", (140, 140, 140)),
+            ("red", (200, 60, 80)),
+            ("blue", (60, 120, 255)),
+            ("green", (60, 190, 100)),
+        ]
+        swatch_size = 70
+        swatch_gap = 28
+        total_width = len(colors) * swatch_size + (len(colors) - 1) * swatch_gap
+        start_x = overlay_rect.centerx - total_width // 2
+        swatch_y = start_y + card_height + gap
 
-        hint_text = "Click para elegir / ESC para volver"
+        for idx, (color_id, rgb) in enumerate(colors):
+            rect = pygame.Rect(start_x + idx * (swatch_size + swatch_gap), swatch_y, swatch_size, swatch_size)
+            self.color_rects.append((color_id, rect))
+
+            hovered = rect.collidepoint(mouse_pos)
+            selected = color_id == self.selected_color
+            border_color = self.COLOR_NEON_PINK if selected else self.COLOR_NEON_BLUE
+            shade = pygame.Color(*rgb)
+            if hovered:
+                shade = pygame.Color(min(255, shade.r + 20), min(255, shade.g + 20), min(255, shade.b + 20))
+
+            pygame.draw.rect(self.screen, shade, rect, border_radius=4)
+            pygame.draw.rect(self.screen, border_color, rect, 3, border_radius=6)
+
+        hint_text = "Elige cuerpo y color (click para confirmar, ESC para volver)"
         hint_surf = self.small_font.render(hint_text.upper(), True, self.COLOR_NEON_PINK)
         hint_rect = hint_surf.get_rect(center=(width // 2, overlay_rect.bottom - 40))
         self.screen.blit(hint_surf, hint_rect)
+
+    def _draw_skin_preview(self, body: str, rect: pygame.Rect) -> None:
+        frames = self._load_preview_animation(body, self.selected_color)
+        if not frames:
+            pygame.draw.rect(self.screen, (30, 30, 40), rect, border_radius=6)
+            pygame.draw.rect(self.screen, self.COLOR_NEON_BLUE, rect, 2, border_radius=6)
+            missing_surf = self.small_font.render("Sin sprites", True, self.COLOR_TEXT_WHITE)
+            missing_rect = missing_surf.get_rect(center=rect.center)
+            self.screen.blit(missing_surf, missing_rect)
+            return
+
+        frame_time = 0.12
+        frame_idx = int(self.preview_anim_time / frame_time) % len(frames)
+        frame = frames[frame_idx]
+        bg = pygame.Surface(rect.size, pygame.SRCALPHA)
+        bg.fill((10, 10, 20, 200))
+        pygame.draw.rect(bg, (0, 0, 0, 120), bg.get_rect(), border_radius=8)
+        self.screen.blit(bg, rect)
+
+        frame_rect = frame.get_rect()
+        scale = min((rect.width - 16) / frame_rect.width, (rect.height - 16) / frame_rect.height, 3)
+        scaled = pygame.transform.smoothscale(frame, (int(frame_rect.width * scale), int(frame_rect.height * scale)))
+        scaled_rect = scaled.get_rect(center=rect.center)
+        self.screen.blit(scaled, scaled_rect)
+
+    def _load_preview_animation(self, body: str, color: str) -> list[pygame.Surface]:
+        key = (body, color)
+        if key in self.preview_cache:
+            return self.preview_cache[key]
+
+        sprite_dir = Path("assets") / "player" / f"{color}_{body}"
+        frames: list[pygame.Surface] = []
+        for i in range(4):
+            path = sprite_dir / f"player_run_{i}.png"
+            try:
+                frame = pygame.image.load(path.as_posix()).convert_alpha()
+            except (FileNotFoundError, pygame.error):
+                frames = []
+                break
+            frames.append(frame)
+
+        self.preview_cache[key] = frames
+        return frames
 
     def _draw_overlay(self) -> None:
         width, height = self.screen.get_size()
