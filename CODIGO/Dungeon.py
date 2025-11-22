@@ -119,6 +119,11 @@ class Dungeon:
         # Obstáculos en salas hostiles
         self._populate_hostile_obstacles()
 
+        # Marca la sala inicial para decoraciones especiales (p.ej. grafitis).
+        start_room = self.rooms.get(self.start)
+        if start_room is not None:
+            setattr(start_room, "is_start_room", True)
+
 
         # marcar inicial como explorado
         self.explored.add((self.i, self.j))
