@@ -84,6 +84,9 @@ _RUNE_SPRITE_OPEN_CACHE: dict[tuple[int, int], pygame.Surface | None] = {}
 _RUNE_RAW_SPRITE: pygame.Surface | None = None
 _RUNE_SPRITE_TRIED: bool = False
 
+_START_GRAFFITI_SPRITE: pygame.Surface | None = None
+_START_GRAFFITI_TRIED: bool = False
+
 
 def _load_raw_treasure_sprite() -> pygame.Surface | None:
     global _TREASURE_SPRITE_TRIED
@@ -174,6 +177,25 @@ def _load_rune_chest_sprite(size: tuple[int, int], opened: bool) -> pygame.Surfa
         _RUNE_SPRITE_OPEN_CACHE[size] = None
 
     return _RUNE_SPRITE_OPEN_CACHE[size] if opened else sprite
+
+
+def _load_start_graffiti_sprite() -> pygame.Surface | None:
+    global _START_GRAFFITI_TRIED
+    global _START_GRAFFITI_SPRITE
+
+    if _START_GRAFFITI_TRIED:
+        return _START_GRAFFITI_SPRITE
+
+    _START_GRAFFITI_TRIED = True
+    path = assets_dir("obstacles", "grafiti.png")
+    if not path.exists():
+        return None
+
+    try:
+        _START_GRAFFITI_SPRITE = pygame.image.load(path.as_posix()).convert_alpha()
+    except pygame.error:
+        _START_GRAFFITI_SPRITE = None
+    return _START_GRAFFITI_SPRITE
 _OBSTACLE_ASSET_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -470,6 +492,7 @@ class Room:
         self._populated_once = False
         self.shopkeeper = None
         self.treasure: dict | None = None
+        self.is_start_room: bool = getattr(self, "is_start_room", False)
         self.treasure_message: str = ""
         self.treasure_message_until: int = 0
         self._treasure_tiles: set[tuple[int, int]] = set()
@@ -1264,6 +1287,12 @@ class Room:
                 for tx in range(CFG.MAP_W):
                     if row[tx] != CFG.FLOOR and self._wall_adjacent_to_floor(tx, ty):
                         pygame.draw.rect(surf, wall, pygame.Rect(tx * ts, ty * ts, ts, ts))
+
+        if self.is_start_room:
+            graffiti = _load_start_graffiti_sprite()
+            if graffiti is not None and self.bounds is not None:
+                cx, cy = self.center_px()
+                surf.blit(graffiti, graffiti.get_rect(center=(cx, cy)))
 
         if self.obstacles:
             for obstacle in self.obstacles:
