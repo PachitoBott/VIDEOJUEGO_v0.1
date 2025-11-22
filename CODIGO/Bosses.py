@@ -453,6 +453,8 @@ class CorruptedServerBoss(BossEnemy):
             px = cx + math.cos(angle) * distance
             py = cy + math.sin(angle) * distance
             minion = FastChaserEnemy(px - 6, py - 6)
+            minion.detect_radius = 150.0
+            minion.lose_radius = 210.0
             room.enemies.append(minion)
 
     def _spawn_telegraphs(self, player) -> None:
