@@ -389,6 +389,7 @@ class Player(Entity):
                 audio_path = Path(__file__).parent / "assets" / "audio" / "run.mp3"
             if audio_path.exists():
                 self.run_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self.run_sound.set_volume(0.1)  # 10% del volumen - muy bajo
             else:
                 self.run_sound = None
         except (pygame.error, FileNotFoundError):
