@@ -53,6 +53,24 @@ class BossEnemy(Enemy):
         if fallback_w > 0 and fallback_h > 0:
             self._fit_collider_to_sprite(fallback_w, fallback_h)
 
+    def take_damage(
+        self,
+        amount: int,
+        knockback_dir: tuple[float, float] | None = None,
+        stun_duration: float = 0.22,
+        knockback_strength: float = 150.0,
+    ) -> bool:
+        """Reduce el retroceso aplicado a los bosses para que mantengan presencia."""
+
+        if knockback_strength > 0.0:
+            knockback_strength *= 0.35
+        return super().take_damage(
+            amount,
+            knockback_dir,
+            stun_duration=stun_duration,
+            knockback_strength=knockback_strength,
+        )
+
     def _fit_collider_to_sprite(self, sprite_w: int, sprite_h: int) -> None:
         """Redimensiona el hitbox según el sprite actual.
 
