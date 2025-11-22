@@ -456,7 +456,7 @@ class Player(Entity):
                 audio_path = Path(__file__).parent / "assets" / "audio" / "respawn_sfx.mp3"
             if audio_path.exists():
                 self.respawn_sound = pygame.mixer.Sound(audio_path.as_posix())
-                self.respawn_sound.set_volume(0.15)  # 15% del volumen
+                self.respawn_sound.set_volume(0.075)  # 7.5% del volumen
             else:
                 self.respawn_sound = None
         except (pygame.error, FileNotFoundError):
