@@ -25,7 +25,10 @@ class Dungeon:
                  branch_chance: float = 0.45,
                  branch_min: int = 2,
                  branch_max: int = 4,
-                 seed: int | None = None) -> None:
+                 seed: int | None = None,
+                 corrupted_room_chance: float = 0.08,
+                 corrupted_bonus_mode: str = "upgrade",
+                 corrupted_chip_bonus: float = 0.5) -> None:
         if seed is not None:
             random.seed(seed)
         if seed is None:
@@ -40,6 +43,11 @@ class Dungeon:
         self.explored: Set[Tuple[int, int]] = set()
         self.main_path: list[Tuple[int, int]] = []  # <<< NUEVO: orden del camino principal
         self.depth_map: Dict[Tuple[int, int], int] = {}
+
+        # Salas corruptas (glitch)
+        self.corrupted_room_chance = max(0.0, min(1.0, float(corrupted_room_chance)))
+        self.corrupted_bonus_mode = corrupted_bonus_mode
+        self.corrupted_chip_bonus = max(0.0, float(corrupted_chip_bonus))
 
 
         # 1) Camino principal
@@ -198,6 +206,12 @@ class Dungeon:
 
             r.build_centered(rw, rh)
 
+            # Probabilidad de sala corrupta (excepto inicio)
+            if (x, y) != self.start and random.random() < self.corrupted_room_chance:
+                r.is_corrupted = True
+                r.corrupted_loot_mode = getattr(self, "corrupted_bonus_mode", "upgrade")
+                r.corrupted_chip_bonus = getattr(self, "corrupted_chip_bonus", 0.5)
+
             # Puertas se setean luego cuando enlaces vecinos (si ya lo haces)
             self.rooms[(x, y)] = r
 
@@ -351,6 +365,7 @@ class Dungeon:
         # Marca de tipo (no rompe si Room no define 'type')
         setattr(room, "type", "shop")     # <<< etiqueta directa en Room
         self.shop_pos = (sx, sy)          # <<< guarda la coordenada para otras clases
+        room.is_corrupted = False
 
     def _place_treasure_rooms(self, max_rooms: int = 1, base_chance: float = 0.12) -> None:
         """Selecciona algunas salas y las convierte en cuartos del tesoro."""
@@ -474,6 +489,7 @@ class Dungeon:
             room.carve_corridors(width_tiles=2, length_tiles=3)
         self.boss_pos = farthest
         setattr(room, "type", "boss")
+        room.is_corrupted = False
         room.no_spawn = True
         room.safe = False
         room.locked = False

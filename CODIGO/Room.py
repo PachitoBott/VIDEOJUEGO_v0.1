@@ -480,7 +480,17 @@ class Room:
         # 🔒 estado de puertas
         self.locked: bool = False
         self.cleared: bool = False
-        
+
+        # Salas corruptas (glitch)
+        self.is_corrupted: bool = getattr(self, "is_corrupted", False)
+        self.corrupted_loot_mode: str = getattr(self, "corrupted_loot_mode", "upgrade")
+        self.corrupted_chip_bonus: float = getattr(self, "corrupted_chip_bonus", 0.5)
+        self._glitch_timer: float = 0.0
+        self._next_glitch_burst: float = random.uniform(0.08, 0.18)
+        self._glitch_lines: list[tuple[pygame.Rect, tuple[int, int, int, int]]] = []
+        self._glitch_offset: tuple[int, int] = (0, 0)
+        self._microchips_dropped_total: int = 0
+
         self.type = getattr(self, "type", "normal")  # "normal" / "shop"
         self.bounds = getattr(self, "bounds", (0, 0, 9, 9))  # (rx,ry,rw,rh) tiles
         self.doors = getattr(self, "doors", {"N":False,"S":False,"E":False,"W":False})
@@ -809,6 +819,7 @@ class Room:
         - Evita spawn de enemigos
         - Crea Shopkeeper si aplica
         """
+        self._microchips_dropped_total = 0
         if self.type == "shop":
             self.safe = True
             self.no_spawn = True
@@ -838,6 +849,10 @@ class Room:
                 # e.g., self.enemies = spawn_enemies_for(self)
                 pass
             self._populated_once = True
+
+        if self.is_corrupted:
+            for enemy in self.enemies:
+                self._apply_corruption_to_enemy(enemy)
 
     def on_exit(self):
         """Llamado cuando sales de la sala."""
@@ -970,6 +985,31 @@ class Room:
                 tip = ui_font.render("E - Abrir tienda", True, (255, 255, 255))
                 surface.blit(tip, (self.shopkeeper.rect.x - 12, self.shopkeeper.rect.y - 22))
 
+    def _apply_corruption_to_enemy(self, enemy: Enemy) -> None:
+        if getattr(enemy, "_corruption_buffed", False):
+            return
+        enemy.corrupted_visual = True
+        enemy._corruption_buffed = True
+
+        if hasattr(enemy, "chase_speed"):
+            enemy.chase_speed *= 1.12
+        if hasattr(enemy, "wander_speed"):
+            enemy.wander_speed *= 1.12
+
+        try:
+            enemy.hp = int(enemy.hp * 1.15)
+        except Exception:
+            pass
+
+        cooldown_attrs = ("fire_cooldown", "attack_cooldown")
+        for attr in cooldown_attrs:
+            if hasattr(enemy, attr):
+                value = getattr(enemy, attr)
+                try:
+                    setattr(enemy, attr, float(value) * 0.9)
+                except Exception:
+                    continue
+
             
             
 
@@ -1005,6 +1045,9 @@ class Room:
                     enemy._pick_wander()
                     enemy.state = enemy_mod.WANDER
 
+                if self.is_corrupted:
+                    self._apply_corruption_to_enemy(enemy)
+
                 self.enemies.append(enemy)
                 break
 
@@ -1022,6 +1065,8 @@ class Room:
                 bonus = FastChaserEnemy(px, py)
                 bonus._pick_wander()
                 bonus.state = enemy_mod.WANDER
+                if self.is_corrupted:
+                    self._apply_corruption_to_enemy(bonus)
                 self.enemies.append(bonus)
                 break
 
@@ -1241,6 +1286,34 @@ class Room:
             self.cleared = True
             self.locked = False
 
+    def update(self, dt: float) -> None:
+        if not self.is_corrupted:
+            return
+        self._glitch_timer += dt
+        if self._glitch_timer >= self._next_glitch_burst:
+            self._glitch_timer = 0.0
+            self._next_glitch_burst = random.uniform(0.08, 0.18)
+            self._glitch_lines.clear()
+            if self.bounds:
+                rx, ry, rw, rh = self.bounds
+                ts = CFG.TILE_SIZE
+                base_rect = pygame.Rect(rx * ts, ry * ts, rw * ts, rh * ts)
+                for _ in range(random.randint(6, 12)):
+                    horizontal = random.random() < 0.5
+                    length = random.randint(ts // 2, ts * 2)
+                    thickness = random.randint(2, 4)
+                    if horizontal:
+                        x = random.randint(base_rect.left, base_rect.right - length)
+                        y = random.randint(base_rect.top, base_rect.bottom - thickness)
+                        rect = pygame.Rect(x, y, length, thickness)
+                    else:
+                        x = random.randint(base_rect.left, base_rect.right - thickness)
+                        y = random.randint(base_rect.top, base_rect.bottom - length)
+                        rect = pygame.Rect(x, y, thickness, length)
+                    color = (180, 60, 255, 130)
+                    self._glitch_lines.append((rect, color))
+                self._glitch_offset = (random.randint(-2, 2), random.randint(-2, 2))
+
 
 
 
@@ -1311,6 +1384,27 @@ class Room:
             self._draw_rune_chest(surf)
         if self.treasure:
             self._draw_treasure(surf)
+
+        if self.is_corrupted and self.bounds is not None:
+            rx, ry, rw, rh = self.bounds
+            overlay_rect = pygame.Rect(rx * ts, ry * ts, rw * ts, rh * ts)
+            overlay = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
+            overlay.fill((90, 0, 120, 100))
+            surf.blit(overlay, overlay_rect.topleft)
+
+            if self._glitch_offset != (0, 0):
+                ghost = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
+                ghost.fill((70, 20, 110, 55))
+                surf.blit(ghost, (overlay_rect.x + self._glitch_offset[0], overlay_rect.y + self._glitch_offset[1]))
+
+            if self._glitch_lines:
+                lines_surf = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
+                for rect, color in self._glitch_lines:
+                    local_rect = rect.move(-overlay_rect.x, -overlay_rect.y)
+                    pygame.draw.rect(lines_surf, color, local_rect)
+                surf.blit(lines_surf, overlay_rect.topleft)
+                self._glitch_lines.clear()
+
         # Puertas bloqueadas: dibuja “rejas” rojas en las aberturas
         if self.locked:
             bars = self._door_opening_rects()
@@ -1430,6 +1524,8 @@ class Room:
                 if random.random() < 0.35 and hasattr(enemy, "_pick_wander"):
                     enemy._pick_wander()
                     enemy.state = getattr(enemy_mod, "WANDER", enemy.state)
+                if self.is_corrupted:
+                    self._apply_corruption_to_enemy(enemy)
                 self.enemies.append(enemy)
                 break
 
@@ -1535,6 +1631,7 @@ class Room:
     # ------------------------------------------------------------------ #
     def setup_treasure_room(self, loot_table: list[dict]) -> None:
         self.type = "treasure"
+        self.is_corrupted = False
         self.safe = True
         self.no_spawn = True
         self.no_combat = True
