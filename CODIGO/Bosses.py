@@ -441,13 +441,20 @@ class BossEnemy(Enemy):
         player_rect = self._player_rect_cache or self._player_rect(player)
         survivors: list[dict] = []
         for puddle in self.puddles:
-            puddle["timer"] -= dt
-            puddle["tick_timer"] -= dt
-            if puddle["timer"] <= 0:
-                continue
-            if player_rect.colliderect(puddle["rect"]) and puddle["tick_timer"] <= 0:
-                self._apply_damage_to_player(player, puddle.get("damage", 1))
-                puddle["tick_timer"] = puddle.get("tick", 0.5)
+            duration = puddle.get("timer")
+            if duration is not None:
+                puddle["timer"] = duration - dt
+                if puddle["timer"] <= 0:
+                    continue
+
+            tick_interval = puddle.get("tick", 0.5)
+            if tick_interval > 0:
+                puddle["tick_timer"] = puddle.get("tick_timer", 0.0) - dt
+            if player_rect.colliderect(puddle["rect"]):
+                if tick_interval <= 0 or puddle.get("tick_timer", 0.0) <= 0:
+                    self._apply_damage_to_player(player, puddle.get("damage", 1))
+                    if tick_interval > 0:
+                        puddle["tick_timer"] = tick_interval
             survivors.append(puddle)
         self.puddles = survivors
 
@@ -808,7 +815,7 @@ class SecurityManagerBoss(BossEnemy):
         cy = self.y + self.h / 2
         size = int(CFG.TILE_SIZE * 1.4)
         rect = pygame.Rect(int(cx - size // 2), int(cy - size // 2), size, size)
-        self.add_puddle(rect, duration=4.5, damage=2, tick_interval=0.4)
+        self.add_puddle(rect, duration=float("inf"), damage=2, tick_interval=0.0)
 
     def _fire_cone(self, player, out_bullets) -> None:
         cx = self.x + self.w / 2
