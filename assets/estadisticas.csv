@@ -1,6 +1,2 @@
 total_runs,total_duration_seconds,total_rooms_explored,total_gold_obtained,total_gold_spent,total_kills,total_deaths
-<<<<<<< HEAD
-497,24441.19,1097,318000007454,4021,928,3
-=======
-503,25375.97,1107,324000007443,3707,933,3
->>>>>>> feature/sounds
+4,339.61,13,4000000593,0,22,1

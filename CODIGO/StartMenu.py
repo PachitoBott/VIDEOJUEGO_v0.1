@@ -60,7 +60,7 @@ class StartMenu:
 
         # --- Volumen ---
         self.volume: float = (
-            pygame.mixer.music.get_volume() if pygame.mixer.get_init() else 0.5
+            pygame.mixer.music.get_volume() if pygame.mixer.get_init() else 0.01
         )
         self.dragging_volume = False
         self.VOLUME_BAR_SIZE = (360, 10)
@@ -73,7 +73,7 @@ class StartMenu:
 
         # --- Volumen ---
         self.volume: float = (
-            pygame.mixer.music.get_volume() if pygame.mixer.get_init() else 0.5
+            pygame.mixer.music.get_volume() if pygame.mixer.get_init() else 0.01
         )
         self.dragging_volume = False
         self.VOLUME_BAR_SIZE = (360, 10)
@@ -145,7 +145,7 @@ class StartMenu:
         if music_path and music_path.exists():
             try:
                 pygame.mixer.music.load(str(music_path))
-                pygame.mixer.music.set_volume(0.5) # Volumen al 50%
+                pygame.mixer.music.set_volume(0.01)  # Volumen al 1%
                 pygame.mixer.music.play(-1) # -1 significa loop infinito
                 print(f"Reproduciendo música: {music_file}")
             except Exception as e:

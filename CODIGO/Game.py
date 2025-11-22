@@ -165,6 +165,9 @@ class Game:
         ]
         self.pause_menu_handlers: dict[str, Callable[[], bool | None]] = {}
 
+        # ---------- Sonidos de pickup ----------
+        self._load_pickup_sounds()
+
         # ---------- Estadísticas ----------
         self.stats_manager = StatisticsManager()
         self._run_start_time: float | None = None
@@ -879,6 +882,9 @@ class Game:
         if collected_total:
             self._add_player_gold(collected_total)
             self._notify_microchips(collected_total)
+            # Reproducir sonido de microchip
+            if self.microchip_pickup_sound:
+                self.microchip_pickup_sound.play()
         for reward_pickup in reward_pickups:
             try:
                 applied = reward_pickup.apply(self.player)
@@ -888,6 +894,9 @@ class Game:
                 self._notify_reward(
                     reward_pickup.reward_data, getattr(reward_pickup, "sprite", None)
                 )
+                # Reproducir sonido de objeto
+                if self.object_pickup_sound:
+                    self.object_pickup_sound.play()
 
     def _add_player_gold(self, amount: int) -> None:
         amount = int(amount)
@@ -1501,6 +1510,32 @@ class Game:
         width = max(1, int(source.get_width() * scale))
         height = max(1, int(source.get_height() * scale))
         return pygame.transform.smoothscale(source, (width, height))
+    
+    def _load_pickup_sounds(self) -> None:
+        """Carga los sonidos para recoger objetos."""
+        # Sonido de microchips
+        self.microchip_pickup_sound = None
+        try:
+            audio_path = Path("assets/audio/microchip_pickup_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "microchip_pickup_sfx.mp3"
+            if audio_path.exists():
+                self.microchip_pickup_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self.microchip_pickup_sound.set_volume(0.15)  # 15% del volumen
+        except (pygame.error, FileNotFoundError):
+            pass
+        
+        # Sonido de otros objetos
+        self.object_pickup_sound = None
+        try:
+            audio_path = Path("assets/audio/object_pickup_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "object_pickup_sfx.mp3"
+            if audio_path.exists():
+                self.object_pickup_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self.object_pickup_sound.set_volume(0.15)  # 15% del volumen
+        except (pygame.error, FileNotFoundError):
+            pass
 
     def _create_microchip_sprites(self) -> tuple[pygame.Surface, pygame.Surface]:
         procedural_icon, pickup_sprite = self._create_procedural_microchip()

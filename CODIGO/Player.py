@@ -147,6 +147,10 @@ class Player(Entity):
         # Sonido de respawn
         self.respawn_sound = None
         self._load_respawn_sound()
+        
+        # Sonido de daño
+        self.damage_sound = None
+        self._load_damage_sound()
 
         self.reset_loadout()
 
@@ -262,6 +266,9 @@ class Player(Entity):
         self.invulnerable_timer = max(self.invulnerable_timer, self.post_hit_invulnerability)
         if prev_hp != self.hp:
             self._hits_taken_current_life = self.max_hp - self.hp
+            # Reproducir sonido de daño
+            if self.damage_sound:
+                self.damage_sound.play()
         return True
 
     def lose_life(self) -> bool:
@@ -405,7 +412,7 @@ class Player(Entity):
                 audio_path = Path(__file__).parent / "assets" / "audio" / "run.mp3"
             if audio_path.exists():
                 self.run_sound = pygame.mixer.Sound(audio_path.as_posix())
-                self.run_sound.set_volume(0.04)  # 4% del volumen - muy bajo
+                self.run_sound.set_volume(0.01)  # 1% del volumen - muy bajo
             else:
                 self.run_sound = None
         except (pygame.error, FileNotFoundError):
@@ -434,7 +441,7 @@ class Player(Entity):
                 audio_path = Path(__file__).parent / "assets" / "audio" / "dash_sfx.mp3"
             if audio_path.exists():
                 self.dash_sound = pygame.mixer.Sound(audio_path.as_posix())
-                self.dash_sound.set_volume(0.5)  # 50% del volumen
+                self.dash_sound.set_volume(0.125)  # 12.5% del volumen
             else:
                 self.dash_sound = None
         except (pygame.error, FileNotFoundError):
@@ -449,11 +456,26 @@ class Player(Entity):
                 audio_path = Path(__file__).parent / "assets" / "audio" / "respawn_sfx.mp3"
             if audio_path.exists():
                 self.respawn_sound = pygame.mixer.Sound(audio_path.as_posix())
-                self.respawn_sound.set_volume(0.6)  # 60% del volumen
+                self.respawn_sound.set_volume(0.075)  # 7.5% del volumen
             else:
                 self.respawn_sound = None
         except (pygame.error, FileNotFoundError):
             self.respawn_sound = None
+    
+    def _load_damage_sound(self) -> None:
+        """Carga el sonido de daño."""
+        try:
+            audio_path = Path("assets/audio/dmgplayer_sfx.mp3")
+            if not audio_path.exists():
+                # Intentar ruta relativa desde CODIGO
+                audio_path = Path(__file__).parent / "assets" / "audio" / "dmgplayer_sfx.mp3"
+            if audio_path.exists():
+                self.damage_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self.damage_sound.set_volume(0.05)  # 5% del volumen
+            else:
+                self.damage_sound = None
+        except (pygame.error, FileNotFoundError):
+            self.damage_sound = None
 
     def set_skin(self, sprite_dir: str | Path | None) -> None:
         """Actualiza el directorio de sprites y recarga las animaciones."""
