@@ -81,6 +81,8 @@ class Enemy(Entity):
         self._ready_to_remove = False
         self._movement_lock_timer = 0.0
         self._movement_locked = False
+        self.hit_flash_timer = 0.0
+        self._hit_flash_duration = 0.1
 
     def _center(self):
         return (self.x + self.w/2, self.y + self.h/2)
@@ -93,6 +95,7 @@ class Enemy(Entity):
             if self.animator.is_death_finished():
                 self._ready_to_remove = True
             return
+        self.hit_flash_timer = max(0.0, self.hit_flash_timer - dt)
         self.alert_timer = max(0.0, self.alert_timer - dt)
         if self._slow_timer > 0.0:
             self._slow_timer = max(0.0, self._slow_timer - dt)
@@ -169,6 +172,7 @@ class Enemy(Entity):
             return False
         if amount > 0:
             self.hp -= amount
+            self.hit_flash_timer = max(self.hit_flash_timer, self._hit_flash_duration)
         alive = self.hp > 0
         if alive:
             if stun_duration > 0.0:
@@ -243,6 +247,11 @@ class Enemy(Entity):
         frame = self.animator.current_surface()
         if not self._facing_right:
             frame = pygame.transform.flip(frame, True, False)
+        if self.hit_flash_timer > 0.0:
+            frame = frame.copy()
+            flash_overlay = pygame.Surface(frame.get_size(), pygame.SRCALPHA)
+            flash_overlay.fill((255, 255, 255, 220))
+            frame.blit(flash_overlay, (0, 0), special_flags=pygame.BLEND_ADD)
         dest = frame.get_rect(center=self.rect().center)
         surf.blit(frame, dest)
 
