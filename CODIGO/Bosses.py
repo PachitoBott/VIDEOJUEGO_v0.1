@@ -120,7 +120,7 @@ class BossEnemy(Enemy):
 
         width = sprite_w
         height = sprite_h
-        y_offset = float(profile.get("y_offset", 0.0))
+        profile_y_offset = float(profile.get("y_offset", 0.0))
 
         side_trim_pct = float(profile.get("side_trim_pct", 0.0))
         top_trim_pct = float(profile.get("top_trim_pct", 0.0))
@@ -135,14 +135,16 @@ class BossEnemy(Enemy):
         downward_bias_pct = float(profile.get("downward_bias_pct", 0.0))
         downward_bias_min = float(profile.get("downward_bias_min", 0.0))
         downward_bias = max(downward_bias_min, height * downward_bias_pct)
-        y_offset += (top_trim - bottom_trim) / 2 + downward_bias
+        auto_y_offset = (top_trim - bottom_trim) / 2 + downward_bias
+        y_offset = auto_y_offset + profile_y_offset
 
         shared_hitbox_variants = {"boss_core", "boss_security"}
         if profile_key in shared_hitbox_variants:
             if BossEnemy._CANONICAL_COLLIDER is None:
-                BossEnemy._CANONICAL_COLLIDER = (width, height, y_offset)
+                BossEnemy._CANONICAL_COLLIDER = (width, height, auto_y_offset)
             else:
                 width, height, y_offset = BossEnemy._CANONICAL_COLLIDER
+                y_offset += profile_y_offset
 
         self.w = width
         self.h = height
