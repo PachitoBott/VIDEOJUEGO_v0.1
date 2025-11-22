@@ -4,7 +4,10 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence
+
+import pygame
 
 from Projectile import Projectile
 
@@ -37,6 +40,11 @@ class Weapon:
         self._shots_since_reload = 0
         self._time_since_last_shot = 999.0
         self._continuous_fire_time = 0.0
+        
+        # Cargar sonido de disparo para arma por defecto
+        self._gun_sound = None
+        if spec.weapon_id == "short_rifle":
+            self._load_gun_sound()
 
     # ------------------------- Temporización -------------------------
     def tick(self, dt: float) -> None:
@@ -146,6 +154,11 @@ class Weapon:
             self._reload_timer = self.spec.reload_time
         self._shots_since_reload += 1
         self._time_since_last_shot = 0.0
+        
+        # Reproducir sonido de disparo
+        if self._gun_sound:
+            self._gun_sound.play()
+        
         return bullets
 
     # ----------------------- Ajustes dinámicos -----------------------
@@ -154,6 +167,21 @@ class Weapon:
         self._cooldown_scale = max(0.05, cooldown_scale)
 
     # -------------------------- Especiales --------------------------
+    def _load_gun_sound(self) -> None:
+        """Carga el sonido de disparo del arma."""
+        try:
+            audio_path = Path("assets/audio/default_gun_sfx.mp3")
+            if not audio_path.exists():
+                # Intentar ruta relativa desde CODIGO
+                audio_path = Path(__file__).parent / "assets" / "audio" / "default_gun_sfx.mp3"
+            if audio_path.exists():
+                self._gun_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self._gun_sound.set_volume(0.4)  # 40% del volumen
+            else:
+                self._gun_sound = None
+        except (pygame.error, FileNotFoundError):
+            self._gun_sound = None
+    
     def _effective_spread_deg(self) -> float:
         base = self.spec.spread_deg
         recoil_cfg = self.spec.special.get("recoil_ramp")

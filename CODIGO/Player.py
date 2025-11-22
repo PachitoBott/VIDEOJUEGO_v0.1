@@ -135,6 +135,19 @@ class Player(Entity):
         self._facing_left = False
         self._reload_key_down = False
 
+        # Sonido de caminata
+        self.run_sound = None
+        self._is_run_sound_playing = False
+        self._load_run_sound()
+        
+        # Sonido de dash
+        self.dash_sound = None
+        self._load_dash_sound()
+        
+        # Sonido de respawn
+        self.respawn_sound = None
+        self._load_respawn_sound()
+
         self.reset_loadout()
 
     def update(self, dt: float, room) -> None:
@@ -185,6 +198,9 @@ class Player(Entity):
                     self._dash_cooldown_timer = self.dash_cooldown
                     self.invulnerable_timer = max(self.invulnerable_timer, self.dash_iframe_duration)
                     dash_active = True
+                    # Reproducir sonido de dash
+                    if self.dash_sound:
+                        self.dash_sound.play()
             if not dash_active and input_mag > 0:
                 if self.controls_enabled and keys and (keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]):
                     speed_scale = self.sprint_multiplier
@@ -212,6 +228,9 @@ class Player(Entity):
             self.weapon.tick(dt)
 
         moving = dash_active or input_mag > 0
+        # Solo reproducir sonido de run cuando NO está haciendo dash
+        moving_no_dash = input_mag > 0 and not dash_active
+        self._update_run_sound(moving_no_dash)
         self._update_animation(dt, moving)
         if self._was_dashing and not dash_active and self.dash_core_bonus_iframe > 0.0:
             if self._recent_enemy_shot_timer > 0.0:
@@ -283,6 +302,9 @@ class Player(Entity):
         self._respawn_animating = True
         self._animation_override = "respawn"
         self._set_current_animation("respawn", force_reset=True)
+        # Reproducir sonido de respawn
+        if self.respawn_sound:
+            self.respawn_sound.play()
 
     def try_shoot(self, mouse_world_pos, out_projectiles) -> None:
         """Dispara hacia mouse si se pulsa y cooldown listo."""
@@ -373,6 +395,65 @@ class Player(Entity):
         if CFG.PLAYER_SPRITES_PATH:
             return Path(CFG.PLAYER_SPRITES_PATH)
         return None
+
+    def _load_run_sound(self) -> None:
+        """Carga el sonido de caminata."""
+        try:
+            audio_path = Path("assets/audio/run.mp3")
+            if not audio_path.exists():
+                # Intentar ruta relativa desde CODIGO
+                audio_path = Path(__file__).parent / "assets" / "audio" / "run.mp3"
+            if audio_path.exists():
+                self.run_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self.run_sound.set_volume(0.04)  # 4% del volumen - muy bajo
+            else:
+                self.run_sound = None
+        except (pygame.error, FileNotFoundError):
+            self.run_sound = None
+
+    def _update_run_sound(self, moving: bool) -> None:
+        """Controla la reproducción del sonido de caminata."""
+        if not self.run_sound:
+            return
+        
+        if moving and not self._is_run_sound_playing:
+            # Iniciar sonido en loop
+            self.run_sound.play(loops=-1)
+            self._is_run_sound_playing = True
+        elif not moving and self._is_run_sound_playing:
+            # Detener sonido
+            self.run_sound.stop()
+            self._is_run_sound_playing = False
+    
+    def _load_dash_sound(self) -> None:
+        """Carga el sonido de dash."""
+        try:
+            audio_path = Path("assets/audio/dash_sfx.mp3")
+            if not audio_path.exists():
+                # Intentar ruta relativa desde CODIGO
+                audio_path = Path(__file__).parent / "assets" / "audio" / "dash_sfx.mp3"
+            if audio_path.exists():
+                self.dash_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self.dash_sound.set_volume(0.5)  # 50% del volumen
+            else:
+                self.dash_sound = None
+        except (pygame.error, FileNotFoundError):
+            self.dash_sound = None
+    
+    def _load_respawn_sound(self) -> None:
+        """Carga el sonido de respawn."""
+        try:
+            audio_path = Path("assets/audio/respawn_sfx.mp3")
+            if not audio_path.exists():
+                # Intentar ruta relativa desde CODIGO
+                audio_path = Path(__file__).parent / "assets" / "audio" / "respawn_sfx.mp3"
+            if audio_path.exists():
+                self.respawn_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self.respawn_sound.set_volume(0.6)  # 60% del volumen
+            else:
+                self.respawn_sound = None
+        except (pygame.error, FileNotFoundError):
+            self.respawn_sound = None
 
     def set_skin(self, sprite_dir: str | Path | None) -> None:
         """Actualiza el directorio de sprites y recarga las animaciones."""
