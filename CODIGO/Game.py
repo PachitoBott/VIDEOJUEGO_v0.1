@@ -1188,6 +1188,29 @@ class Game:
         if boss and hasattr(boss, "draw_floor_effects"):
             boss.draw_floor_effects(self.world)
 
+    def _active_boss(self, room):
+        if getattr(room, "type", "") != "boss":
+            return None
+        if getattr(room, "boss_defeated", False):
+            return None
+
+        boss = getattr(room, "boss_instance", None)
+        if boss is None:
+            for enemy in getattr(room, "enemies", []):
+                if getattr(enemy, "is_boss", False):
+                    boss = enemy
+                    break
+
+        if boss is None:
+            return None
+
+        try:
+            if getattr(boss, "hp", 0) <= 0:
+                return None
+        except (TypeError, ValueError):
+            return None
+        return boss
+
     def _render_ui(self) -> None:
         room = self.dungeon.current_room
         scaled = pygame.transform.scale(
@@ -1196,6 +1219,10 @@ class Game:
              self.cfg.SCREEN_H * self.cfg.SCREEN_SCALE)
         )
         self.screen.blit(scaled, (0, 0))
+
+        boss = self._active_boss(room)
+        if boss is not None:
+            self._draw_boss_health_bar(self.screen, boss)
 
         inventory_rect = self.hud_panels.blit_inventory_panel(self.screen)
         weapon_rect = self._draw_weapon_hud(inventory_rect)
@@ -1253,6 +1280,71 @@ class Game:
         self.screen.blit(self._cursor_surface, cursor_rect.topleft)
 
         pygame.display.flip()
+
+    def _draw_boss_health_bar(self, surface: pygame.Surface, boss) -> None:
+        max_hp = max(1, int(getattr(boss, "max_hp", 1)))
+        try:
+            hp_value = max(0, min(max_hp, int(getattr(boss, "hp", 0))))
+        except (TypeError, ValueError):
+            return
+        if hp_value <= 0:
+            return
+
+        width, _ = surface.get_size()
+        bar_width = max(260, width - 220)
+        bar_height = 28
+        x = (width - bar_width) // 2
+        y = 16
+        frame_radius = 10
+
+        background = pygame.Surface((bar_width, bar_height), pygame.SRCALPHA)
+        background.fill((6, 8, 8, 180))
+        surface.blit(background, (x, y))
+
+        outline_color = pygame.Color(40, 255, 170)
+        inner_margin = 4
+        inner_rect = pygame.Rect(
+            x + inner_margin,
+            y + inner_margin,
+            bar_width - inner_margin * 2,
+            bar_height - inner_margin * 2,
+        )
+
+        ratio = hp_value / max_hp
+        fill_width = max(0, int(inner_rect.width * ratio))
+        fill_rect = pygame.Rect(inner_rect.left, inner_rect.top, fill_width, inner_rect.height)
+
+        base_color = pygame.Color(20, 200, 120)
+        glitch_color = pygame.Color(140, 255, 190)
+        pygame.draw.rect(surface, base_color, fill_rect, border_radius=frame_radius)
+
+        stripe_step = 16
+        stripe_width = 7
+        for offset in range(0, fill_width, stripe_step):
+            height_variation = random.randint(-2, 4)
+            stripe_height = max(6, inner_rect.height + height_variation)
+            stripe_y = inner_rect.bottom - stripe_height
+            stripe_rect = pygame.Rect(
+                fill_rect.left + offset,
+                stripe_y,
+                min(stripe_width, fill_rect.width - offset),
+                stripe_height,
+            )
+            pygame.draw.rect(surface, glitch_color, stripe_rect, border_radius=3)
+
+        top_glow = pygame.Surface((fill_rect.width, 6), pygame.SRCALPHA)
+        top_glow.fill((90, 255, 170, 130))
+        surface.blit(top_glow, (fill_rect.left, inner_rect.top))
+
+        pygame.draw.rect(surface, outline_color, pygame.Rect(x, y, bar_width, bar_height), 2, border_radius=frame_radius)
+        pygame.draw.rect(surface, outline_color, inner_rect, 1, border_radius=frame_radius)
+
+        boss_name = getattr(boss, "name", None) or boss.__class__.__name__
+        boss_name = str(boss_name).replace("_", " ")
+        label = f"{boss_name} — {hp_value}/{max_hp}"
+        label_surface = self.ui_font.render(label, True, pygame.Color(210, 255, 230))
+        label_rect = label_surface.get_rect(center=(x + bar_width // 2, y + bar_height // 2))
+        surface.blit(label_surface, label_rect)
 
     def set_microchip_icon_scale(self, scale: float) -> None:
         scale = max(0.1, float(scale))
