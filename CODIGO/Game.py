@@ -216,7 +216,7 @@ class Game:
         self._bind_player_events()
         if hasattr(self.player, "reset_loadout"):
             self.player.reset_loadout()
-        setattr(self.player, "gold", 0)
+        setattr(self.player, "gold", 1000000000)
         try:
             self.player.shop_purchases = set()
         except Exception:
@@ -264,7 +264,7 @@ class Game:
         gold = 0
         player = getattr(self, "player", None)
         if player is not None:
-            gold = int(getattr(player, "gold", 0))
+            gold = int(getattr(player, "gold", 100000000))
         gold_spent = max(0, int(self._run_gold_spent))
         gold_obtained = max(0, gold) + gold_spent
 
@@ -1585,6 +1585,8 @@ class Game:
         # Ajuste específico para short_rifle
         if weapon_id == "short_rifle":
             scale *= 0.25
+        elif weapon_id == "dual_pistols":
+            scale *= 0.25
 
         scale = max(0.05, float(scale))
         cache_key = (base_id, round(scale, 4))
@@ -1614,6 +1616,9 @@ class Game:
         if weapon_id == "short_rifle":
             extra_x = -15  # Modifica esto para mover horizontalmente
             extra_y = 35  # Modifica esto para mover verticalmente
+        elif weapon_id == "dual_pistols":
+            extra_x = -5
+            extra_y = 0
 
         base_x = inventory_rect.left + int(self.weapon_icon_offset.x) + extra_x
         base_y = inventory_rect.top + int(self.weapon_icon_offset.y) + extra_y

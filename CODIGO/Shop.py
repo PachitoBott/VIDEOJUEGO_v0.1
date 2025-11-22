@@ -168,6 +168,7 @@ class Shop:
                 "weight": 3,
                 "description": "Botas afinadas para correr con mayor fluidez.",
                 "effect": "Mejora el movimiento del jugador un 5% permanente.",
+                "sprite": "weapons/spd_up.png",
             },
             {
                 "name": "Talismán de recarga (-10%)",
@@ -177,6 +178,7 @@ class Shop:
                 "weight": 3,
                 "description": "Cristal que acelera los mecanismos del arma.",
                 "effect": "Reduce los tiempos de recarga y enfriamiento en un 10%.",
+                "sprite": "weapons/cdr_charm.png",
             },
             {
                 "name": "Manual de puntería (-12% cd)",
@@ -186,6 +188,7 @@ class Shop:
                 "weight": 2,
                 "description": "Rutinas de disparo mejoradas y lubricación óptima.",
                 "effect": "Disminuye el cooldown de disparo un 12% adicional.",
+                "sprite": "weapons/cdr_core.png",
             },
             {
                 "name": "Botas relámpago (+10% sprint)",
@@ -195,6 +198,7 @@ class Shop:
                 "weight": 3,
                 "description": "Botas electrizantes que responden al instante.",
                 "effect": "Aumentan la velocidad de sprint en un 10% y algo el movimiento.",
+                "sprite": "weapons/sprint_core.png",
             },
             {
                 "name": "Condensador de fase (-15% dash)",
@@ -204,6 +208,7 @@ class Shop:
                 "weight": 2,
                 "description": "Concentrador que mejora la disipación de calor del dash.",
                 "effect": "Reduce el enfriamiento del dash en un 15% y da micro iframes.",
+                "sprite": "weapons/dash_core.png",
             },
             {
                 "name": "Impulso cinético (+duración dash)",
@@ -213,6 +218,7 @@ class Shop:
                 "weight": 2,
                 "description": "Mecanismo que extiende el impulso del dash.",
                 "effect": "Alarga la duración del dash y permite fasear durante más tiempo.",
+                "sprite": "weapons/dash_drive.png",
             },
             {
                 "name": "Pack de cápsulas (+2 golpes)",
@@ -223,6 +229,7 @@ class Shop:
                 "weight": 4,
                 "description": "Mini cápsulas reparadoras de emergencia.",
                 "effect": "Recupera dos golpes de tu batería de vida actual.",
+                "sprite": "weapons/heal_small.png",
             },
             {
                 "name": "Batería verde (vida completa)",
@@ -232,6 +239,7 @@ class Shop:
                 "weight": 1,
                 "description": "Batería de reserva con carga completa.",
                 "effect": "Recupera la vida completa de la batería en uso.",
+                "sprite": "weapons/heal_battery_full.png",
             },
             {
                 "name": "Kit de incursión",
@@ -246,6 +254,7 @@ class Shop:
                 "weight": 2,
                 "description": "Pack de inicio con recursos para seguir explorando.",
                 "effect": "Suma microchips, curación ligera y un impulso de velocidad.",
+                "sprite": "weapons/raid_kit.png",
             },
             {
                 "name": "Paquete de reconocimiento",
@@ -260,6 +269,7 @@ class Shop:
                 "weight": 2,
                 "description": "Equipo para mantenerte con vida en las primeras salas.",
                 "effect": "Microchips, curación y menor recarga para tus armas.",
+                "sprite": "weapons/scout_bundle.png",
             },
         ]
 
