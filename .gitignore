@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 assets/estadisticas.csv
+assets/obstacles/Charco_Verde1.png
+assets/obstacles/Charco_Verde2.png
