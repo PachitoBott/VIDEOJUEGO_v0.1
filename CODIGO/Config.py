@@ -78,6 +78,7 @@ class Config:
     DEBUG_DRAW_DOOR_TRIGGERS: bool = False
     DEBUG_DRAW_BOSS_HITBOX: bool = False
     DEBUG_BOSS_HITBOX_COLOR: Tuple[int, int, int] = (20, 220, 255)
+    BOSS_HITBOX_EXTRA_Y_OFFSET: float = 10.0
 
     # --- HUD ---
     HUD_WEAPON_ICON_SCALE: float = 0.9

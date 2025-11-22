@@ -81,6 +81,8 @@ class BossEnemy(Enemy):
             else:
                 width, height, y_offset = BossEnemy._CANONICAL_COLLIDER
 
+        y_offset += CFG.BOSS_HITBOX_EXTRA_Y_OFFSET
+
         self.w = width
         self.h = height
         self.x = cx - self.w / 2
