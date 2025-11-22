@@ -516,7 +516,7 @@ class SecurityManagerBoss(BossEnemy):
         self._dash_trail_timer = 0.0
         self._dash_trail_interval = 0.02
         self._dash_trail_lifetime = 0.22
-        self._dash_trail_size = max(12, int(self.w * 0.9))
+        self._dash_trail_size = max(12, int(self.w * 0.75))
 
     def on_phase_changed(self, new_phase: int) -> None:
         super().on_phase_changed(new_phase)
@@ -601,7 +601,12 @@ class SecurityManagerBoss(BossEnemy):
             life = segment["life"]
             alpha = max(0, min(255, int(255 * (life / max_life))))
             trail_surface = pygame.Surface((size, size), pygame.SRCALPHA)
-            trail_surface.fill((255, 255, 255, alpha))
+            radius = size // 2
+            dark_green = (25, 90, 60, int(alpha * 0.75))
+            bright_green = (120, 255, 170, alpha)
+            pygame.draw.circle(trail_surface, dark_green, (radius, radius), radius)
+            inner_radius = max(2, int(radius * 0.65))
+            pygame.draw.circle(trail_surface, bright_green, (radius, radius), inner_radius)
             pos_x, pos_y = segment["pos"]
             surf.blit(trail_surface, (pos_x - size / 2, pos_y - size / 2))
 
