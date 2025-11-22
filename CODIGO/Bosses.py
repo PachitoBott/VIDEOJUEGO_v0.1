@@ -607,13 +607,22 @@ class SecurityManagerBoss(BossEnemy):
             life = segment["life"]
             alpha = max(0, min(255, int(255 * (life / max_life))))
             trail_surface = pygame.Surface((size, size), pygame.SRCALPHA)
-            outer_radius = max(3, int(size * 0.5))
-            inner_radius = max(2, int(size * 0.32))
             dark_green = (25, 90, 60, int(alpha * 0.75))
             bright_green = (120, 255, 170, alpha)
-            center = (size // 2, size // 2)
-            pygame.draw.circle(trail_surface, dark_green, center, outer_radius)
-            pygame.draw.circle(trail_surface, bright_green, center, inner_radius)
+
+            inner_size = max(2, int(size * 0.58))
+            inner_margin = (size - inner_size) // 2
+
+            pygame.draw.rect(
+                trail_surface,
+                dark_green,
+                pygame.Rect(0, 0, size, size),
+            )
+            pygame.draw.rect(
+                trail_surface,
+                bright_green,
+                pygame.Rect(inner_margin, inner_margin, inner_size, inner_size),
+            )
             pos_x, pos_y = segment["pos"]
             surf.blit(trail_surface, (pos_x - size / 2, pos_y - size / 2))
 
