@@ -196,6 +196,13 @@ class BossEnemy(Enemy):
             torso_dest = torso.get_rect(center=center)
             surf.blit(torso, torso_dest)
 
+        if CFG.DEBUG_DRAW_BOSS_HITBOX:
+            collider_rect = self.rect()
+            overlay = pygame.Surface(collider_rect.size, pygame.SRCALPHA)
+            overlay.fill((255, 70, 70, 90))
+            surf.blit(overlay, collider_rect.topleft)
+            pygame.draw.rect(surf, (255, 50, 50), collider_rect, 2)
+
         if CFG.DEBUG_DRAW_BOSS_HITBOX_LAYOUT:
             self._draw_hitbox_layout(surf, leg_dest, torso_dest)
 
