@@ -63,7 +63,7 @@ class DashTrailSegment:
 class Player(Entity):
     HITBOX_SIZE = PLAYER_HITBOX_SIZE
 
-    def __init__(self, x: float, y: float) -> None:
+    def __init__(self, x: float, y: float, *, sprite_dir: str | Path | None = None) -> None:
         super().__init__(x, y, w=PLAYER_HITBOX_SIZE[0], h=PLAYER_HITBOX_SIZE[1], speed=120.0)
         self.gold = 0
         self.cooldown_scale = 1.0
@@ -127,6 +127,7 @@ class Player(Entity):
 
         self.controls_enabled = True
 
+        self.sprite_dir: Path | None = self._resolve_sprite_dir(sprite_dir)
         self._animations = self._build_animations()
         self._current_animation = "idle"
         self._animation_override: str | None = None
@@ -366,8 +367,23 @@ class Player(Entity):
     # ------------------------------------------------------------------
     # Animaciones
     # ------------------------------------------------------------------
+    def _resolve_sprite_dir(self, sprite_dir: str | Path | None) -> Path | None:
+        if sprite_dir:
+            return Path(sprite_dir)
+        if CFG.PLAYER_SPRITES_PATH:
+            return Path(CFG.PLAYER_SPRITES_PATH)
+        return None
+
+    def set_skin(self, sprite_dir: str | Path | None) -> None:
+        """Actualiza el directorio de sprites y recarga las animaciones."""
+
+        self.sprite_dir = self._resolve_sprite_dir(sprite_dir)
+        self._animations = self._build_animations()
+        self._current_animation = "idle"
+        self._animation_override = None
+
     def _build_animations(self) -> dict[str, FrameAnimation]:
-        sprite_dir = Path(CFG.PLAYER_SPRITES_PATH) if CFG.PLAYER_SPRITES_PATH else None
+        sprite_dir = self.sprite_dir
         sprite_prefix = getattr(CFG, "PLAYER_SPRITE_PREFIX", "player")
 
         def load_surface(path: Path) -> pygame.Surface | None:
