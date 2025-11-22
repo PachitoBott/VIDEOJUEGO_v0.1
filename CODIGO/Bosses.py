@@ -234,14 +234,14 @@ class BossEnemy(Enemy):
             surface.blit(overlay, offset_rect.topleft)
             pygame.draw.rect(surface, (255, 180, 120), offset_rect, 1)
 
-    def draw(self, surf: pygame.Surface) -> None:
+    def draw(self, surf: pygame.Surface, cam_x: int = 0, cam_y: int = 0) -> None:
         legs, torso = self.animator.current_surfaces()
         if not self._facing_right:
             legs = pygame.transform.flip(legs, True, False)
             if torso:
                 torso = pygame.transform.flip(torso, True, False)
 
-        center = self.rect().center
+        center = self.rect().move(-cam_x, -cam_y).center
         leg_dest = legs.get_rect(center=center)
         surf.blit(legs, leg_dest)
 
@@ -738,7 +738,7 @@ class SecurityManagerBoss(BossEnemy):
                 }
             )
 
-    def _draw_dash_trail(self, surf: pygame.Surface) -> None:
+    def _draw_dash_trail(self, surf: pygame.Surface, cam_x: int = 0, cam_y: int = 0) -> None:
         if not self._dash_trail:
             return
 
@@ -765,7 +765,7 @@ class SecurityManagerBoss(BossEnemy):
                 pygame.Rect(inner_margin, inner_margin, inner_size, inner_size),
             )
             pos_x, pos_y = segment["pos"]
-            surf.blit(trail_surface, (pos_x - size / 2, pos_y - size / 2))
+            surf.blit(trail_surface, (pos_x - cam_x - size / 2, pos_y - cam_y - size / 2))
 
     def _leave_puddle(self) -> None:
         cx = self.x + self.w / 2
@@ -804,9 +804,9 @@ class SecurityManagerBoss(BossEnemy):
             )
             out_bullets.add(proj)
 
-    def draw(self, surf: pygame.Surface) -> None:
-        self._draw_dash_trail(surf)
-        super().draw(surf)
+    def draw(self, surf: pygame.Surface, cam_x: int = 0, cam_y: int = 0) -> None:
+        self._draw_dash_trail(surf, cam_x=cam_x, cam_y=cam_y)
+        super().draw(surf, cam_x=cam_x, cam_y=cam_y)
 
 
 BOSS_BLUEPRINTS = [CorruptedServerBoss, SecurityManagerBoss]
