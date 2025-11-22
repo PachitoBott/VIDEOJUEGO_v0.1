@@ -1263,15 +1263,32 @@ class Game:
         self.vfx.draw_screen(self.screen)
 
         # Recolectar bosses visibles/activos (ajusta según tu estructura)
-        bosses = []
+        bosses: list[BossEnemy] = []
+        boss_ids: set[int] = set()
+
+        try:
+            room = self.dungeon.current_room
+        except Exception:
+            room = None
+
+        # Preferir la referencia directa si la sala maneja el boss aparte de la lista de enemigos
+        if room is not None:
+            boss_instance = getattr(room, "boss_instance", None)
+            if isinstance(boss_instance, BossEnemy) and boss_instance.hp > 0:
+                bosses.append(boss_instance)
+                boss_ids.add(id(boss_instance))
+
         # ejemplo si guardas enemigos en current room:
         try:
-            room_enemies = getattr(self.dungeon.current_room, "enemies", []) or []
+            room_enemies = getattr(room, "enemies", []) or []
         except Exception:
             room_enemies = getattr(self, "enemies", [])
         for e in room_enemies:
-            if isinstance(e, BossEnemy):
+            if isinstance(e, BossEnemy) and getattr(e, "hp", 0) > 0:
+                if id(e) in boss_ids:
+                    continue
                 bosses.append(e)
+                boss_ids.add(id(e))
 
         # Dibujar barras HUD para cada boss, en orden (0..n) en la parte superior de la pantalla
         for i, boss in enumerate(bosses):
