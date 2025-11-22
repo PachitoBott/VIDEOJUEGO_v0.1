@@ -176,7 +176,7 @@ class Weapon:
                 audio_path = Path(__file__).parent / "assets" / "audio" / "default_gun_sfx.mp3"
             if audio_path.exists():
                 self._gun_sound = pygame.mixer.Sound(audio_path.as_posix())
-                self._gun_sound.set_volume(0.4)  # 40% del volumen
+                self._gun_sound.set_volume(0.1)  # 10% del volumen
             else:
                 self._gun_sound = None
         except (pygame.error, FileNotFoundError):
