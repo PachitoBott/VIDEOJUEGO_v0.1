@@ -139,6 +139,10 @@ class Player(Entity):
         self.run_sound = None
         self._is_run_sound_playing = False
         self._load_run_sound()
+        
+        # Sonido de dash
+        self.dash_sound = None
+        self._load_dash_sound()
 
         self.reset_loadout()
 
@@ -190,6 +194,9 @@ class Player(Entity):
                     self._dash_cooldown_timer = self.dash_cooldown
                     self.invulnerable_timer = max(self.invulnerable_timer, self.dash_iframe_duration)
                     dash_active = True
+                    # Reproducir sonido de dash
+                    if self.dash_sound:
+                        self.dash_sound.play()
             if not dash_active and input_mag > 0:
                 if self.controls_enabled and keys and (keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]):
                     speed_scale = self.sprint_multiplier
@@ -217,7 +224,9 @@ class Player(Entity):
             self.weapon.tick(dt)
 
         moving = dash_active or input_mag > 0
-        self._update_run_sound(moving)
+        # Solo reproducir sonido de run cuando NO está haciendo dash
+        moving_no_dash = input_mag > 0 and not dash_active
+        self._update_run_sound(moving_no_dash)
         self._update_animation(dt, moving)
         if self._was_dashing and not dash_active and self.dash_core_bonus_iframe > 0.0:
             if self._recent_enemy_shot_timer > 0.0:
@@ -389,7 +398,7 @@ class Player(Entity):
                 audio_path = Path(__file__).parent / "assets" / "audio" / "run.mp3"
             if audio_path.exists():
                 self.run_sound = pygame.mixer.Sound(audio_path.as_posix())
-                self.run_sound.set_volume(0.1)  # 10% del volumen - muy bajo
+                self.run_sound.set_volume(0.04)  # 4% del volumen - muy bajo
             else:
                 self.run_sound = None
         except (pygame.error, FileNotFoundError):
@@ -408,6 +417,21 @@ class Player(Entity):
             # Detener sonido
             self.run_sound.stop()
             self._is_run_sound_playing = False
+    
+    def _load_dash_sound(self) -> None:
+        """Carga el sonido de dash."""
+        try:
+            audio_path = Path("assets/audio/dash_sfx.mp3")
+            if not audio_path.exists():
+                # Intentar ruta relativa desde CODIGO
+                audio_path = Path(__file__).parent / "assets" / "audio" / "dash_sfx.mp3"
+            if audio_path.exists():
+                self.dash_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self.dash_sound.set_volume(0.5)  # 50% del volumen
+            else:
+                self.dash_sound = None
+        except (pygame.error, FileNotFoundError):
+            self.dash_sound = None
 
     def set_skin(self, sprite_dir: str | Path | None) -> None:
         """Actualiza el directorio de sprites y recarga las animaciones."""
