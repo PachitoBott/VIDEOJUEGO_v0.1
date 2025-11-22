@@ -11,12 +11,108 @@ from Enemy import CHASE, WANDER, Enemy, FastChaserEnemy
 from Projectile import Projectile
 from enemy_sprites import LayeredBossAnimator, load_boss_animation_layers
 
+DEBUG_BOSS_HP = True
 
 class BossEnemy(Enemy):
     """Base genérica para bosses con fases y efectos de suelo."""
-
+ 
     SPRITE_VARIANT = "boss_core"
     _CANONICAL_COLLIDER: tuple[float, float, float] | None = None
+
+    def draw_health_bar_hud(self, surf: "pygame.Surface", *, index: int = 0, top_padding: int = 8) -> None:
+        """Dibuja la barra del boss en la HUD (coordenadas de pantalla, no cámara)."""
+        import pygame
+
+        try:
+            screen_w, screen_h = surf.get_size()
+        except Exception:
+            return
+
+        bar_w = int(screen_w * 0.5)
+        bar_h = max(8, int(screen_h * 0.025))
+        gap = 6
+        x = screen_w // 2 - bar_w // 2
+        y = top_padding + index * (bar_h + gap)
+
+        bg_rect = pygame.Rect(x, y, bar_w, bar_h)
+        pygame.draw.rect(surf, (30, 30, 30), bg_rect)
+
+        max_hp = getattr(self, "max_hp", 1) or 1
+        hp = max(0, getattr(self, "hp", 0))
+        frac = max(0.0, min(1.0, float(hp) / float(max_hp)))
+        fg_rect = pygame.Rect(x, y, int(bar_w * frac), bar_h)
+        if fg_rect.width > 0:
+            pygame.draw.rect(surf, (34, 177, 76), fg_rect)
+        pygame.draw.rect(surf, (180, 50, 50), bg_rect, 1)
+
+        # DEBUG: confirmar que se dibuja
+        if DEBUG_BOSS_HP:
+            try:
+                print(f"[HUD BAR] boss hp {hp}/{max_hp} frac={frac:.2f} at {bg_rect}")
+            except Exception:
+                pass
+
+    def draw_health_bar(self, surf: "pygame.Surface") -> None:
+        import pygame
+
+        def is_rect_like(o):
+            return (hasattr(o, "width") and hasattr(o, "height") and hasattr(o, "top"))
+
+        # Intentar resolver un rect seguro desde varias fuentes.
+        dest = None
+        candidates = ("dest", "dest_rect", "rect", "get_rect")
+        for name in candidates:
+            cand = getattr(self, name, None)
+            if cand is None:
+                continue
+            # Si es callable, intentar llamar sin argumentos
+            if callable(cand):
+                try:
+                    cand = cand()
+                except TypeError:
+                    # no-arg call falló: no forzar más llamadas
+                    cand = None
+                except Exception:
+                    cand = None
+            if cand is None:
+                continue
+            if is_rect_like(cand):
+                dest = cand
+                break
+
+        # Fallback: construir rect centrado en self.x,self.y usando sprite size
+        if not is_rect_like(dest):
+            sprite_w = int(getattr(self, "sprite_w", getattr(self, "w", 64)))
+            sprite_h = int(getattr(self, "sprite_h", getattr(self, "h", 64)))
+            try:
+                cx = int(getattr(self, "x"))
+                cy = int(getattr(self, "y"))
+            except Exception:
+                return
+            dest = pygame.Rect(cx - sprite_w // 2, cy - sprite_h // 2, sprite_w, sprite_h)
+
+        # Dibujar barra sobre el boss
+        bar_w = int(dest.width * 0.9)
+        bar_h = max(4, int(dest.height * 0.08))
+        bar_x = dest.centerx - bar_w // 2
+        bar_y = dest.top - 8 - bar_h
+
+        full_rect = pygame.Rect(bar_x, bar_y, bar_w, bar_h)
+        pygame.draw.rect(surf, (40, 40, 40), full_rect)
+        if getattr(self, "max_hp", 0) > 0:
+            frac = max(0.0, min(1.0, float(getattr(self, "hp", 0)) / float(self.max_hp)))
+        else:
+            frac = 0.0
+        fg_rect = pygame.Rect(bar_x, bar_y, int(bar_w * frac), bar_h)
+        if fg_rect.width > 0:
+            pygame.draw.rect(surf, (34, 177, 76), fg_rect)
+        pygame.draw.rect(surf, (180, 50, 50), full_rect, 1)
+
+        if DEBUG_BOSS_HP:
+            try:
+                print("HP BAR:", getattr(self, "hp", None), "/", getattr(self, "max_hp", None), "dest", (dest.x, dest.y, dest.w if hasattr(dest,'w') else dest.width), "surf", surf.get_size())
+            except Exception:
+                print("HP BAR: debug print failed")
 
     def __init__(self, x: float, y: float, *, max_hp: int = 50, gold_reward: int = 60) -> None:
         super().__init__(x, y, hp=max_hp, gold_reward=gold_reward)
@@ -153,6 +249,13 @@ class BossEnemy(Enemy):
 
         if CFG.DEBUG_DRAW_BOSS_HITBOX_LAYOUT:
             self._draw_hitbox_layout(surf, leg_dest, torso_dest)
+
+        # Asegurarse de dibujar la barra de vida después del sprite (para que sea visible)
+        try:
+            self.draw_health_bar(surf)
+        except Exception:
+            # No romper el juego si algo sale mal al dibujar la barra
+            pass
 
     def _draw_hitbox_layout(
         self,
@@ -328,6 +431,42 @@ class BossEnemy(Enemy):
             return
         self.animator.trigger_shoot(variant)
 
+    def draw_health_bar_hud(self, surf: "pygame.Surface", *, index: int = 0, top_padding: int = 8) -> None:
+        """
+        Dibuja la barra del boss en la HUD (arriba de la pantalla).
+        index: para apilar varias barras si hay >1 boss (0 = la primera, centrada).
+        """
+        import pygame
+
+        screen_w, screen_h = surf.get_size()
+        bar_w = int(screen_w * 0.5)  # ancho relativo en HUD (ajusta a tu gusto)
+        bar_h = max(8, int(screen_h * 0.025))
+        gap = 6
+        x = screen_w // 2 - bar_w // 2
+        y = top_padding + index * (bar_h + gap)
+
+        # Fondo
+        bg_rect = pygame.Rect(x, y, bar_w, bar_h)
+        pygame.draw.rect(surf, (30, 30, 30), bg_rect)
+        # Fracción de vida
+        max_hp = getattr(self, "max_hp", 1) or 1
+        hp = max(0, getattr(self, "hp", 0))
+        frac = max(0.0, min(1.0, float(hp) / float(max_hp)))
+        fg_rect = pygame.Rect(x, y, int(bar_w * frac), bar_h)
+        if fg_rect.width > 0:
+            pygame.draw.rect(surf, (34, 177, 76), fg_rect)
+        # Borde y texto simple (opcional)
+        pygame.draw.rect(surf, (180, 50, 50), bg_rect, 1)
+        try:
+            font = pygame.font.get_default_font()
+            f = pygame.font.Font(font, max(12, bar_h - 2))
+            txt = f"{hp} / {max_hp}"
+            text_surf = f.render(txt, True, (255, 255, 255))
+            ts_rect = text_surf.get_rect(center=bg_rect.center)
+            surf.blit(text_surf, ts_rect)
+        except Exception:
+            # Si no hay fuente o falla, saltar el texto
+            pass
 
 class CorruptedServerBoss(BossEnemy):
     SPRITE_VARIANT = "boss_core"
