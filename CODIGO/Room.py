@@ -1296,9 +1296,9 @@ class Room:
                 row = self.tiles[ty]
                 for tx in range(CFG.MAP_W):
                     if row[tx] != CFG.FLOOR and self._wall_adjacent_to_floor(tx, ty):
-                    pygame.draw.rect(
-                        surf, wall, pygame.Rect(tx * ts - off_x, ty * ts - off_y, ts, ts)
-                    )
+                        pygame.draw.rect(
+                            surf, wall, pygame.Rect(tx * ts - off_x, ty * ts - off_y, ts, ts)
+                        )
 
         if self.is_start_room:
             graffiti = _load_start_graffiti_sprite()
