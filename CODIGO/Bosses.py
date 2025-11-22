@@ -516,7 +516,7 @@ class SecurityManagerBoss(BossEnemy):
         self._dash_trail_timer = 0.0
         self._dash_trail_interval = 0.02
         self._dash_trail_lifetime = 0.22
-        self._dash_trail_size = max(10, int(self.w * 0.6))
+        self._dash_trail_size = max(8, int(self.w * 0.45))
 
     def on_phase_changed(self, new_phase: int) -> None:
         super().on_phase_changed(new_phase)
@@ -610,7 +610,7 @@ class SecurityManagerBoss(BossEnemy):
             dark_green = (25, 90, 60, int(alpha * 0.75))
             bright_green = (120, 255, 170, alpha)
             pygame.draw.rect(trail_surface, dark_green, (0, 0, size, size))
-            inner_size = max(4, int(size * 0.65))
+            inner_size = max(4, int(size * 0.6))
             inset = (size - inner_size) // 2
             pygame.draw.rect(trail_surface, bright_green, (inset, inset, inner_size, inner_size))
             pos_x, pos_y = segment["pos"]
