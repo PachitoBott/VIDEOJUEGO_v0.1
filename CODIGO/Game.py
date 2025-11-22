@@ -27,6 +27,7 @@ from VFX import VFXManager
 from asset_paths import WEAPON_SPRITE_FILENAMES, assets_dir, weapon_sprite_path
 from loot_tables import ENEMY_LOOT_TABLE
 from rewards import apply_reward_entry
+from Bosses import BossEnemy, DEBUG_BOSS_HP
 
 
 class Game:
@@ -574,23 +575,6 @@ class Game:
                 handler = getattr(room, "on_boss_defeated", None)
                 if callable(handler):
                     handler(enemy)
-            if getattr(enemy, "hp", 1) <= 0 and not getattr(enemy, "_death_vfx_spawned", False):
-                center = None
-                try:
-                    center = enemy.rect().center
-                except AttributeError:
-                    center = None
-                self.vfx.spawn_enemy_flash(center)
-                setattr(enemy, "_death_vfx_spawned", True)
-            ready_fn = getattr(enemy, "is_ready_to_remove", None)
-            dying_fn = getattr(enemy, "is_dying", None)
-            if callable(ready_fn) and ready_fn():
-                self._drop_enemy_microchips(enemy, room)
-                self._maybe_spawn_enemy_loot(enemy, room)
-                continue
-            if callable(dying_fn) and dying_fn():
-                survivors.append(enemy)
-                continue
             if getattr(enemy, "hp", 1) > 0:
                 survivors.append(enemy)
             else:
@@ -1278,9 +1262,21 @@ class Game:
 
         self.vfx.draw_screen(self.screen)
 
-        boss = self._active_boss(room)
-        if boss is not None:
-            self._draw_boss_health_bar(self.screen, boss)
+        # Recolectar bosses visibles/activos (ajusta según tu estructura)
+        bosses = []
+        # ejemplo si guardas enemigos en current room:
+        try:
+            room_enemies = getattr(self.dungeon.current_room, "enemies", []) or []
+        except Exception:
+            room_enemies = getattr(self, "enemies", [])
+        for e in room_enemies:
+            if isinstance(e, BossEnemy):
+                bosses.append(e)
+
+        # Dibujar barras HUD para cada boss, en orden (0..n) en la parte superior de la pantalla
+        for i, boss in enumerate(bosses):
+            # dibujamos con índice para que se apilen en la parte superior
+            self._draw_boss_health_bar(self.screen, boss, index=i, top_padding=8)
 
         mx, my = pygame.mouse.get_pos()
         cursor_rect = self._cursor_surface.get_rect(center=(mx, my))
@@ -1288,7 +1284,11 @@ class Game:
 
         pygame.display.flip()
 
-    def _draw_boss_health_bar(self, surface: pygame.Surface, boss) -> None:
+    def _draw_boss_health_bar(self, surface: pygame.Surface, boss, index: int = 0, top_padding: int = 8) -> None:
+        """
+        Dibuja la barra del boss en la parte superior de la pantalla.
+        Si hay varios bosses, se apilan hacia abajo usando 'index' y 'top_padding'.
+        """
         max_hp = max(1, int(getattr(boss, "max_hp", 1)))
         try:
             hp_value = max(0, min(max_hp, int(getattr(boss, "hp", 0))))
@@ -1300,8 +1300,9 @@ class Game:
         width, _ = surface.get_size()
         bar_width = max(260, width - 220)
         bar_height = 28
+        spacing = 8  # espacio entre barras si hay varias
         x = (width - bar_width) // 2
-        y = 16
+        y = top_padding + index * (bar_height + spacing)  # posición en la parte superior según índice
         frame_radius = 10
 
         background = pygame.Surface((bar_width, bar_height), pygame.SRCALPHA)
@@ -1825,3 +1826,35 @@ class Game:
         height = rows * icon_h + max(0, rows - 1) * spacing_y
 
         return pygame.Rect(ox, oy, width, height)
+    
+    def _draw_frame_end(self) -> None:
+        """(Inserta este bloque donde termines de dibujar el frame, antes del flip)"""
+        # ...existing drawing code for world, VFX, HUD panels, etc. ...
+
+        # Dibujar barra(es) HUD de boss(es) en la superficie final (arriba, sin cámara)
+        screen_surf = getattr(self, "screen", None) or getattr(self, "screen_surf", None)
+        if screen_surf is None:
+            return
+
+        # Intentar obtener boss activo; fallback: buscar BossEnemy en la sala actual
+        boss = None
+        try:
+            room = getattr(self.dungeon, "current_room", None)
+            if room:
+                boss = getattr(self, "_active_boss", lambda r: None)(room)
+                if boss is None:
+                    for e in getattr(room, "enemies", []) or []:
+                        if isinstance(e, BossEnemy):
+                            boss = e
+                            break
+        except Exception:
+            boss = None
+
+        if boss is not None:
+            try:
+                boss.draw_health_bar_hud(screen_surf, index=0, top_padding=8)
+            except Exception as e:
+                if DEBUG_BOSS_HP:
+                    print("Error dibujando HUD boss bar:", e)
+
+        # ...añadir aquí display.flip() / pygame.display.update() ...
