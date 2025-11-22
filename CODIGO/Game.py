@@ -488,8 +488,9 @@ class Game:
     def _start_room_fade(self) -> None:
         duration = random.uniform(0.15, 0.25)
         self._fade_speed = 255.0 / max(0.01, duration)
-        self._fade_direction = 1
-        self._fade_bounce = True
+        self._fade_direction = -1
+        self._fade_bounce = False
+        self._fade_alpha = 255.0
 
     def _start_fade_in(self) -> None:
         duration = random.uniform(0.15, 0.25)
