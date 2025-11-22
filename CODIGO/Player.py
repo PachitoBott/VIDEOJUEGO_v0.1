@@ -135,6 +135,11 @@ class Player(Entity):
         self._facing_left = False
         self._reload_key_down = False
 
+        # Sonido de caminata
+        self.run_sound = None
+        self._is_run_sound_playing = False
+        self._load_run_sound()
+
         self.reset_loadout()
 
     def update(self, dt: float, room) -> None:
@@ -212,6 +217,7 @@ class Player(Entity):
             self.weapon.tick(dt)
 
         moving = dash_active or input_mag > 0
+        self._update_run_sound(moving)
         self._update_animation(dt, moving)
         if self._was_dashing and not dash_active and self.dash_core_bonus_iframe > 0.0:
             if self._recent_enemy_shot_timer > 0.0:
@@ -373,6 +379,34 @@ class Player(Entity):
         if CFG.PLAYER_SPRITES_PATH:
             return Path(CFG.PLAYER_SPRITES_PATH)
         return None
+
+    def _load_run_sound(self) -> None:
+        """Carga el sonido de caminata."""
+        try:
+            audio_path = Path("assets/audio/run.mp3")
+            if not audio_path.exists():
+                # Intentar ruta relativa desde CODIGO
+                audio_path = Path(__file__).parent / "assets" / "audio" / "run.mp3"
+            if audio_path.exists():
+                self.run_sound = pygame.mixer.Sound(audio_path.as_posix())
+            else:
+                self.run_sound = None
+        except (pygame.error, FileNotFoundError):
+            self.run_sound = None
+
+    def _update_run_sound(self, moving: bool) -> None:
+        """Controla la reproducción del sonido de caminata."""
+        if not self.run_sound:
+            return
+        
+        if moving and not self._is_run_sound_playing:
+            # Iniciar sonido en loop
+            self.run_sound.play(loops=-1)
+            self._is_run_sound_playing = True
+        elif not moving and self._is_run_sound_playing:
+            # Detener sonido
+            self.run_sound.stop()
+            self._is_run_sound_playing = False
 
     def set_skin(self, sprite_dir: str | Path | None) -> None:
         """Actualiza el directorio de sprites y recarga las animaciones."""
