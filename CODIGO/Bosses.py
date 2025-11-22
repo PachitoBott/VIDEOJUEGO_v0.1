@@ -589,7 +589,13 @@ class SecurityManagerBoss(BossEnemy):
             self._dash_trail_timer = self._dash_trail_interval
             cx = self.x + self.w / 2
             cy = self.y + self.h / 2
-            self._dash_trail.append({"pos": (cx, cy), "life": self._dash_trail_lifetime})
+            vertical_offset = max(4, int(self.h * 0.08))
+            self._dash_trail.append(
+                {
+                    "pos": (cx, cy + vertical_offset),
+                    "life": self._dash_trail_lifetime,
+                }
+            )
 
     def _draw_dash_trail(self, surf: pygame.Surface) -> None:
         if not self._dash_trail:
