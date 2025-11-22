@@ -156,6 +156,7 @@ class Game:
         self._stats_pending_reason: str | None = None
         self._run_gold_spent: int = 0
         self._run_kills: int = 0
+        self.selected_skin_path: str | None = getattr(cfg, "PLAYER_SPRITES_PATH", None)
 
     def _bind_room_notifications(self) -> None:
         if not hasattr(self, "dungeon") or not getattr(self, "dungeon", None):
@@ -202,8 +203,9 @@ class Game:
         spawn_x = px - Player.HITBOX_SIZE[0] / 2
         spawn_y = py - Player.HITBOX_SIZE[1] / 2
         if not hasattr(self, "player"):
-            self.player = Player(spawn_x, spawn_y)
+            self.player = Player(spawn_x, spawn_y, sprite_dir=self.selected_skin_path)
         else:
+            self.player.set_skin(self.selected_skin_path)
             self.player.x, self.player.y = spawn_x, spawn_y
         self._bind_player_events()
         if hasattr(self.player, "reset_loadout"):
@@ -333,6 +335,7 @@ class Game:
             self.running = False
             return False
         pygame.mouse.set_visible(False)
+        self.selected_skin_path = menu_result.skin_path or self.cfg.PLAYER_SPRITES_PATH
         self.start_new_run(seed=menu_result.seed)
         self._skip_frame = True
         return True

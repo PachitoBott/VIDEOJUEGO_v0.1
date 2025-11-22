@@ -15,6 +15,7 @@ class StartMenuResult:
     """Resultado devuelto por el menú de inicio."""
     start_game: bool
     seed: Optional[int]
+    skin_path: Optional[str]
 
 
 class StartMenu:
@@ -92,6 +93,12 @@ class StartMenu:
         self.overlay_key: Optional[str] = None
         self.overlay_lines: tuple[str, ...] = ()
         self.stats_manager = stats_manager
+
+        # --- Skins ---
+        self.skin_options = self._build_skin_options()
+        self.selected_skin_id = self._infer_default_skin_id()
+        self.skin_rects: list[tuple[str, pygame.Rect]] = []
+        self.skins_overlay_rect = pygame.Rect(0, 0, 0, 0)
 
         self.button_rects: list[tuple[str, pygame.Rect]] = []
         self.seed_rect = pygame.Rect(0, 0, self.INPUT_WIDTH, self.INPUT_HEIGHT)
@@ -239,6 +246,49 @@ class StartMenu:
 
         self._position_volume_slider(center_x, layout_bottom)
 
+    def _build_skin_options(self) -> list[dict[str, str]]:
+        color_names = {
+            "blue": "Azul",
+            "red": "Rojo",
+            "green": "Verde",
+            "grey": "Gris",
+        }
+        body_names = {"flaco": "Flaco", "gordo": "Gordo"}
+        base = Path("assets") / "player"
+        options: list[dict[str, str]] = []
+        for body in ("flaco", "gordo"):
+            for color in ("blue", "red", "green", "grey"):
+                skin_id = f"{color}_{body}"
+                options.append(
+                    {
+                        "id": skin_id,
+                        "label": f"{color_names[color]} {body_names[body]}",
+                        "color": color_names[color],
+                        "body": body_names[body],
+                        "path": str(base / skin_id),
+                    }
+                )
+        return options
+
+    def _infer_default_skin_id(self) -> str:
+        default = "blue_flaco"
+        current = getattr(self.cfg, "PLAYER_SPRITES_PATH", None)
+        if current:
+            candidate = Path(current).name
+            if any(option["id"] == candidate for option in self.skin_options):
+                return candidate
+        return default
+
+    def _select_skin(self, skin_id: str) -> None:
+        if any(option["id"] == skin_id for option in self.skin_options):
+            self.selected_skin_id = skin_id
+
+    def selected_skin_path(self) -> str:
+        match = next((opt for opt in self.skin_options if opt["id"] == self.selected_skin_id), None)
+        if match:
+            return match["path"]
+        return str(Path("assets") / "player" / self.selected_skin_id)
+
     def _position_volume_slider(self, center_x: int, layout_bottom: int) -> None:
         slider_y = layout_bottom + 70
         self.volume_bar_rect.centerx = center_x
@@ -266,7 +316,10 @@ class StartMenu:
                     running = False
                     break
                 if self.overlay_key:
-                    keep_running = self._handle_overlay_event(event)
+                    if self.overlay_key == "skins":
+                        keep_running = self._handle_skins_event(event)
+                    else:
+                        keep_running = self._handle_overlay_event(event)
                 else:
                     keep_running = self._handle_menu_event(event)
 
@@ -279,7 +332,10 @@ class StartMenu:
             
             if self.overlay_key:
                 self._draw_menu(dim_background=True)
-                self._draw_overlay()
+                if self.overlay_key == "skins":
+                    self._draw_skins_overlay()
+                else:
+                    self._draw_overlay()
             else:
                 self._draw_menu()
 
@@ -288,9 +344,13 @@ class StartMenu:
         if self._start_requested:
             # Detener la música del menú con un fadeout de 500ms al iniciar el juego
             pygame.mixer.music.fadeout(500)
-            return StartMenuResult(start_game=True, seed=self.selected_seed())
-            
-        return StartMenuResult(start_game=False, seed=None)
+            return StartMenuResult(
+                start_game=True,
+                seed=self.selected_seed(),
+                skin_path=self.selected_skin_path(),
+            )
+
+        return StartMenuResult(start_game=False, seed=None, skin_path=None)
 
     # ------------------------------------------------------------------
     # Event handling
@@ -346,12 +406,43 @@ class StartMenu:
             return False
         return True
 
+    def _handle_skins_event(self, event: pygame.event.Event) -> bool:
+        if event.type == pygame.KEYDOWN and event.key in (
+            pygame.K_ESCAPE,
+            pygame.K_RETURN,
+            pygame.K_BACKSPACE,
+        ):
+            self.overlay_key = None
+            return True
+
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if (
+                self.skins_overlay_rect.width
+                and self.skins_overlay_rect.height
+                and not self.skins_overlay_rect.collidepoint(event.pos)
+            ):
+                self.overlay_key = None
+                return True
+            for skin_id, rect in self.skin_rects:
+                if rect.collidepoint(event.pos):
+                    self._play_click()
+                    self._select_skin(skin_id)
+                    return True
+        if event.type == pygame.QUIT:
+            self._start_requested = False
+            return False
+        return True
+
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
     def _trigger_button(self, action: str) -> bool:
         if action == "play":
             return self._commit_play()
+        if action == "skins":
+            self.overlay_key = action
+            self.overlay_lines = ()
+            return True
         if action == "credits" or action == "controls":
             if action in self.menu_cfg.sections:
                 self.overlay_key = action
@@ -552,6 +643,65 @@ class StartMenu:
         channel_count = pygame.mixer.get_num_channels()
         for channel_index in range(channel_count):
             pygame.mixer.Channel(channel_index).set_volume(self.volume)
+
+    def _draw_skins_overlay(self) -> None:
+        width, height = self.screen.get_size()
+        overlay_rect = pygame.Rect(0, 0, int(width * 0.85), int(height * 0.85))
+        overlay_rect.center = (width // 2, height // 2)
+        self.skins_overlay_rect = overlay_rect
+
+        pygame.draw.rect(self.screen, (10, 10, 20), overlay_rect)
+        pygame.draw.rect(self.screen, self.COLOR_NEON_BLUE, overlay_rect, 2)
+
+        title_surf = self.button_font.render("SELECCIONA TU SKIN", True, self.COLOR_TEXT_WHITE)
+        title_rect = title_surf.get_rect(center=(width // 2, overlay_rect.top + 50))
+        self.screen.blit(title_surf, title_rect)
+
+        columns = 2
+        card_width = overlay_rect.width // columns - 60
+        card_height = 140
+        start_x = overlay_rect.left + 40
+        start_y = overlay_rect.top + 110
+
+        self.skin_rects = []
+        mouse_pos = pygame.mouse.get_pos()
+        for idx, option in enumerate(self.skin_options):
+            col = idx % columns
+            row = idx // columns
+            x = start_x + col * (card_width + 30)
+            y = start_y + row * (card_height + 24)
+            rect = pygame.Rect(x, y, card_width, card_height)
+            self.skin_rects.append((option["id"], rect))
+
+            hovered = rect.collidepoint(mouse_pos)
+            selected = option["id"] == self.selected_skin_id
+            base_color = pygame.Color(20, 20, 30)
+            if selected:
+                base_color = pygame.Color(40, 20, 50)
+            if hovered:
+                base_color += pygame.Color(15, 15, 15)
+
+            border_color = self.COLOR_NEON_PINK if selected else self.COLOR_NEON_BLUE
+
+            pygame.draw.rect(self.screen, base_color, rect, border_radius=8)
+            pygame.draw.rect(self.screen, border_color, rect, 2, border_radius=8)
+
+            label_surf = self.button_font.render(option["label"].upper(), True, self.COLOR_TEXT_WHITE)
+            label_rect = label_surf.get_rect(center=(rect.centerx, rect.top + 36))
+            self.screen.blit(label_surf, label_rect)
+
+            body_surf = self.small_font.render(f"Tipo: {option['body']}", True, (180, 180, 200))
+            body_rect = body_surf.get_rect(midleft=(rect.left + 18, rect.centery - 6))
+            self.screen.blit(body_surf, body_rect)
+
+            color_surf = self.small_font.render(f"Color: {option['color']}", True, (180, 180, 200))
+            color_rect = color_surf.get_rect(midleft=(rect.left + 18, rect.centery + 20))
+            self.screen.blit(color_surf, color_rect)
+
+        hint_text = "Click para elegir / ESC para volver"
+        hint_surf = self.small_font.render(hint_text.upper(), True, self.COLOR_NEON_PINK)
+        hint_rect = hint_surf.get_rect(center=(width // 2, overlay_rect.bottom - 40))
+        self.screen.blit(hint_surf, hint_rect)
 
     def _draw_overlay(self) -> None:
         width, height = self.screen.get_size()
