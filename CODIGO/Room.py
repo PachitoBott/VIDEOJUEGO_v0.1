@@ -1725,6 +1725,8 @@ class Room:
                 continue
 
             target_rect = sprite.get_rect(center=rect.center)
+            if direction in ("E", "W"):
+                target_rect.move_ip(0, -CFG.TILE_SIZE // 2)
             surf.blit(sprite, target_rect)
 
     # ------------------------------------------------------------------ #
