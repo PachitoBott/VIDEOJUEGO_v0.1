@@ -28,6 +28,7 @@ from asset_paths import WEAPON_SPRITE_FILENAMES, assets_dir, weapon_sprite_path
 from loot_tables import ENEMY_LOOT_TABLE
 from rewards import apply_reward_entry
 from Bosses import BossEnemy, DEBUG_BOSS_HP
+from Weapons import WeaponFactory
 
 
 class Game:
@@ -125,19 +126,22 @@ class Game:
         self.weapon_ammo_align_center = True
         self._weapon_icons = self._load_weapon_icons()
         self._weapon_icon_cache: dict[tuple[str, float], pygame.Surface] = {}
-        self.current_seed: int | None = None
+        self._pickup_icon_cache: dict[str, pygame.Surface] = {}
+        
         self.microchip_icon_offset = pygame.Vector2(193, 42)
         self.microchip_value_offset = pygame.Vector2(0, -100)
         self.microchip_value_color = pygame.Color(255, 240, 180)
 
         # --- Tienda ---
-        self.shop = Shop(font=self.ui_font, on_gold_spent=self._register_gold_spent)
+        self.shop = Shop(
+            font=self.ui_font, 
+            on_gold_spent=self._register_gold_spent,
+            on_weapon_purchased=self._handle_shop_weapon_purchase
+        )
         self._enemy_loot_table = ENEMY_LOOT_TABLE
         self._enemy_drop_rates = ENEMY_LOOT_TABLE.get("global_drop_rates", {})
 
-        # --- HUD ---
         self.hud_panels = HudPanels()
-        # Ajusta posiciones/escala desde fuera, por ejemplo:
         # self.hud_panels.inventory_panel_position.update(nuevo_x, nuevo_y)
         if hasattr(self.hud_panels, "set_minimap_anchor"):
             # Centra el minimapa dentro del panel de esquina para que quede cubierto.
@@ -178,6 +182,11 @@ class Game:
         self._run_gold_spent: int = 0
         self._run_kills: int = 0
         self.selected_skin_path: str | None = getattr(cfg, "PLAYER_SPRITES_PATH", None)
+
+        # --- Interacción de armas ---
+        self.hovered_weapon_pickup = None
+        self.prompt_font = pygame.font.Font(Path(__file__).resolve().parent / "assets" / "ui" / "VT323-Regular.ttf", 20)
+        self.weapon_factory = WeaponFactory()
 
     def _bind_room_notifications(self) -> None:
         if not hasattr(self, "dungeon") or not getattr(self, "dungeon", None):
@@ -345,6 +354,9 @@ class Game:
                     self.start_new_run(seed=None)
                 elif e.key == pygame.K_b and (pygame.key.get_mods() & pygame.KMOD_CTRL):
                     self._warp_to_boss_room()
+                elif e.key == pygame.K_f:
+                    if self.hovered_weapon_pickup:
+                        self._swap_weapon(self.hovered_weapon_pickup)
         return events
 
     def _open_start_menu(self) -> bool:
@@ -898,6 +910,25 @@ class Game:
         )
         room.pickups.append(pickup)
 
+    def _get_scaled_pickup_icon(self, weapon_id: str) -> pygame.Surface | None:
+        if weapon_id in self._pickup_icon_cache:
+            return self._pickup_icon_cache[weapon_id]
+        
+        original = self._weapon_icons.get(weapon_id)
+        if not original:
+            return None
+            
+        # Escalar para que encaje en aprox 24x24 manteniendo aspecto
+        # El sprite original suele ser grande (ej 64x32 o similar)
+        max_dim = 24
+        w, h = original.get_size()
+        scale = min(max_dim / w, max_dim / h)
+        new_size = (int(w * scale), int(h * scale))
+        
+        scaled = pygame.transform.smoothscale(original, new_size)
+        self._pickup_icon_cache[weapon_id] = scaled
+        return scaled
+
     def _sprite_for_reward(self, reward: dict | None) -> pygame.Surface | None:
         if not isinstance(reward, dict):
             return None
@@ -905,6 +936,11 @@ class Game:
         if rtype == "heal" or self._is_heal_reward(reward):
             return self._heal_pickup_sprite
         if rtype == "weapon":
+            wid = reward.get("id")
+            if wid:
+                icon = self._get_scaled_pickup_icon(wid)
+                if icon:
+                    return icon
             return self._weapon_pickup_sprite
         if rtype == "upgrade":
             return self._upgrade_pickup_sprite
@@ -1007,16 +1043,29 @@ class Game:
         collected_total = 0
         survivors: list[object] = []
         reward_pickups: list[LootPickup] = []
+        self.hovered_weapon_pickup = None
         for pickup in pickups:
             pickup.update(dt, room)
             if pickup.collected:
                 continue
+            
             if player_rect.colliderect(pickup.rect()):
-                pickup.collect()
-                if isinstance(pickup, MicrochipPickup):
-                    collected_total += getattr(pickup, "value", 0)
-                elif hasattr(pickup, "apply"):
-                    reward_pickups.append(pickup)
+                # Verificar si es un arma para lógica de intercambio
+                is_weapon = False
+                if isinstance(pickup, LootPickup):
+                    rtype = pickup.reward_data.get("type", "")
+                    if rtype == "weapon":
+                        is_weapon = True
+                
+                if is_weapon:
+                    self.hovered_weapon_pickup = pickup
+                    survivors.append(pickup)
+                else:
+                    pickup.collect()
+                    if isinstance(pickup, MicrochipPickup):
+                        collected_total += getattr(pickup, "value", 0)
+                    elif hasattr(pickup, "apply"):
+                        reward_pickups.append(pickup)
             else:
                 survivors.append(pickup)
         room.pickups = survivors
@@ -1038,6 +1087,106 @@ class Game:
                 # Reproducir sonido de objeto
                 if self.object_pickup_sound:
                     self.object_pickup_sound.play()
+
+    def _swap_weapon(self, new_pickup: LootPickup) -> None:
+        if not new_pickup or new_pickup.collected:
+            return
+
+        # 1. Obtener arma actual
+        old_weapon_id = getattr(self.player, "weapon_id", None)
+        
+        # 2. Aplicar nueva arma
+        # Nota: unlock_weapon devuelve False si ya la tenías, pero igual la equipa si auto_equip=True.
+        # Por tanto, ignoramos el valor de retorno 'applied' para la lógica de soltar la anterior,
+        # siempre y cuando sea un arma válida.
+        new_id = new_pickup.reward_data.get("id")
+        if not new_id:
+             return
+
+        # Forzamos el desbloqueo/equipado
+        self.player.unlock_weapon(new_id, auto_equip=True)
+        
+        new_pickup.collect()
+        
+        # 3. Soltar arma vieja (si existe y no es la default/inicial si aplica)
+        # Asumimos que siempre se suelta la anterior si es válida.
+        if old_weapon_id:
+            # Crear pickup para el arma vieja
+            old_reward = {"type": "weapon", "id": old_weapon_id}
+            sprite = self._sprite_for_reward(old_reward)
+            
+            if sprite:
+                # Posición del jugador con un pequeño offset aleatorio
+                cx, cy = self.player.rect().center
+                angle = random.uniform(0.0, math.tau)
+                speed = random.uniform(30.0, 60.0)
+                
+                old_pickup = LootPickup(
+                    cx - sprite.get_width() / 2,
+                    cy - sprite.get_height() / 2,
+                    sprite,
+                    old_reward,
+                    angle=angle,
+                    speed=speed
+                )
+                
+                # Añadir a la sala actual
+                room = self.dungeon.current_room
+                if not hasattr(room, "pickups"):
+                    room.pickups = []
+                room.pickups.append(old_pickup)
+
+        # 4. Feedback
+        self._notify_reward(new_pickup.reward_data, getattr(new_pickup, "sprite", None))
+        if self.object_pickup_sound:
+            self.object_pickup_sound.play()
+        self.hovered_weapon_pickup = None
+
+    def _handle_shop_weapon_purchase(self, reward_data: dict) -> None:
+        """Callback para cuando se compra un arma en la tienda."""
+        if not hasattr(self, "player"):
+            return
+            
+        # 1. Obtener arma actual
+        old_weapon_id = getattr(self.player, "weapon_id", None)
+        
+        # 2. Equipar nueva arma
+        new_id = reward_data.get("id")
+        if not new_id:
+            return
+            
+        self.player.unlock_weapon(new_id, auto_equip=True)
+        
+        # 3. Soltar arma vieja (si existe)
+        if old_weapon_id:
+            old_reward = {"type": "weapon", "id": old_weapon_id}
+            sprite = self._sprite_for_reward(old_reward)
+            
+            if sprite:
+                # Posición del jugador con un pequeño offset aleatorio
+                cx, cy = self.player.rect().center
+                angle = random.uniform(0.0, math.tau)
+                speed = random.uniform(30.0, 60.0)
+                
+                old_pickup = LootPickup(
+                    cx - sprite.get_width() / 2,
+                    cy - sprite.get_height() / 2,
+                    sprite,
+                    old_reward,
+                    angle=angle,
+                    speed=speed
+                )
+                
+                # Añadir a la sala actual
+                room = self.dungeon.current_room
+                if not hasattr(room, "pickups"):
+                    room.pickups = []
+                room.pickups.append(old_pickup)
+        
+        # Feedback
+        self._notify_reward(reward_data, self._sprite_for_reward(reward_data))
+        if self.object_pickup_sound:
+            self.object_pickup_sound.play()
 
     def _add_player_gold(self, amount: int) -> None:
         amount = int(amount)
@@ -1436,6 +1585,72 @@ class Game:
             return None
         return boss
 
+    def _draw_weapon_tooltip(self, pickup: LootPickup) -> None:
+        """Dibuja un tooltip con información del arma sobre el pickup."""
+        weapon_id = pickup.reward_data.get("id")
+        if not weapon_id or weapon_id not in self.weapon_factory:
+            return
+
+        spec = self.weapon_factory._registry[weapon_id]
+        name = self.WEAPON_NAMES.get(weapon_id, weapon_id.replace("_", " ").title())
+        
+        # Stats
+        damage = "N/A" # El daño depende del proyectil, no está directo en spec fácilmente sin instanciar
+        # Pero podemos estimar o mostrar otras cosas.
+        # Mostraremos: Cadencia (RPS), Cargador, Recarga
+        rps = 1.0 / max(0.01, spec.cooldown)
+        mag = spec.magazine_size
+        reload_t = spec.reload_time
+        
+        # Configuración visual
+        padding = 10
+        line_height = 18
+        bg_color = (20, 20, 30, 230)
+        border_color = (100, 100, 150)
+        text_color = (220, 220, 220)
+        accent_color = (255, 200, 50)
+
+        # Textos
+        title_surf = self.loot_font.render(name, True, accent_color)
+        stats_lines = [
+            f"Cadencia: {rps:.1f}/s",
+            f"Cargador: {mag}",
+            f"Recarga: {reload_t}s"
+        ]
+        
+        # Calcular tamaño
+        width = max(title_surf.get_width(), 140) + padding * 2
+        height = padding * 2 + title_surf.get_height() + 5 + len(stats_lines) * line_height + 25 # +25 para prompt
+        
+        # Posición (arriba del pickup)
+        px = (pickup.x + pickup.width / 2) * self.cfg.SCREEN_SCALE
+        py = pickup.y * self.cfg.SCREEN_SCALE
+        
+        rect = pygame.Rect(0, 0, width, height)
+        rect.midbottom = (int(px), int(py - 15))
+        
+        # Dibujar fondo
+        surf = pygame.Surface(rect.size, pygame.SRCALPHA)
+        pygame.draw.rect(surf, bg_color, surf.get_rect(), border_radius=8)
+        pygame.draw.rect(surf, border_color, surf.get_rect(), 2, border_radius=8)
+        
+        # Dibujar contenido
+        y_off = padding
+        surf.blit(title_surf, (padding, y_off))
+        y_off += title_surf.get_height() + 5
+        
+        for line in stats_lines:
+            txt = self.ui_font.render(line, True, text_color)
+            surf.blit(txt, (padding, y_off))
+            y_off += line_height
+            
+        # Prompt
+        prompt_txt = self.prompt_font.render("[F] Equipar", True, (255, 255, 255))
+        prompt_rect = prompt_txt.get_rect(centerx=width//2, top=y_off + 5)
+        surf.blit(prompt_txt, prompt_rect)
+        
+        self.screen.blit(surf, rect)
+
     def _render_ui(self) -> None:
         room = self.dungeon.current_room
         scaled = pygame.transform.scale(
@@ -1444,6 +1659,10 @@ class Game:
              self.cfg.SCREEN_H * self.cfg.SCREEN_SCALE)
         )
         self.screen.blit(scaled, (0, 0))
+
+        # --- Prompt de intercambio de arma ---
+        if self.hovered_weapon_pickup and not self.hovered_weapon_pickup.collected:
+            self._draw_weapon_tooltip(self.hovered_weapon_pickup)
 
         inventory_rect = self.hud_panels.blit_inventory_panel(self.screen)
         weapon_rect = self._draw_weapon_hud(inventory_rect)

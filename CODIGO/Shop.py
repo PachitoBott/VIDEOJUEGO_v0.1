@@ -40,7 +40,7 @@ class Shop:
     ARROW_BORDER = (136, 128, 220)
     ERROR_COLOR = (255, 120, 120)
 
-    def __init__(self, font=None, on_gold_spent: Callable[[int], None] | None = None):
+    def __init__(self, font=None, on_gold_spent: Callable[[int], None] | None = None, on_weapon_purchased: Callable[[dict], None] | None = None):
         self.catalog = self._build_catalog()
         self.items: list[ShopItem] = []
         self._purchased_ids: set[str] = set()
@@ -51,6 +51,7 @@ class Shop:
         self.font = self._load_font(18)
         self.title_font = self._load_font(28)
         self._on_gold_spent = on_gold_spent
+        self._on_weapon_purchased = on_weapon_purchased
 
         self.rect = pygame.Rect(0, 0, self.WIDTH, self.HEIGHT)
         self._arrow_left_rect = pygame.Rect(0, 0, 0, 0)
@@ -473,10 +474,10 @@ class Shop:
             self._set_message("No tienes suficientes microchips.", self.ERROR_COLOR)
             return False, "No tienes suficiente oro."
 
-        if item.payload.get("type") == "weapon" and hasattr(player, "has_weapon"):
-            if player.has_weapon(item.payload.get("id", "")):
-                self._set_message("Ya posees esta arma.", self.ERROR_COLOR)
-                return False, "Ya tienes esta arma."
+        # if item.payload.get("type") == "weapon" and hasattr(player, "has_weapon"):
+        #     if player.has_weapon(item.payload.get("id", "")):
+        #         self._set_message("Ya posees esta arma.", self.ERROR_COLOR)
+        #         return False, "Ya tienes esta arma."
 
         setattr(player, "gold", gold - price)
         if price > 0 and callable(self._on_gold_spent):
@@ -485,7 +486,11 @@ class Shop:
             except Exception:
                 pass
 
-        applied = apply_reward_entry(player, item.payload)
+        if item.payload.get("type") == "weapon" and callable(self._on_weapon_purchased):
+            self._on_weapon_purchased(item.payload)
+            applied = True
+        else:
+            applied = apply_reward_entry(player, item.payload)
         name = item.name
         purchase_key = self._item_key(item, item.name)
         if purchase_key:

@@ -101,6 +101,6 @@ ENEMY_LOOT_TABLE = {
         "enemy_heal_big_chance": 0.10,
         "enemy_upgrade_chance": 0.10,
         "enemy_bundle_chance": 0.05,
-        "enemy_weapon_rare_chance": 0.01,
+        "enemy_weapon_rare_chance": 0.015,
     },
 }
