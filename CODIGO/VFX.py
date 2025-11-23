@@ -1,6 +1,9 @@
 import math
 import random
 
+import math
+import random
+
 import pygame
 
 
@@ -135,6 +138,57 @@ class _EnemyDeathFlash(_WorldEffect):
         return self._flash_timer > 0.0 or bool(self._particles)
 
 
+class _CorruptionBurst(_WorldEffect):
+    def __init__(self, position: tuple[float, float]) -> None:
+        self._center = pygame.Vector2(position)
+        self._particles: list[dict[str, object]] = []
+        for _ in range(random.randint(10, 15)):
+            angle = random.uniform(0.0, math.tau)
+            speed = random.uniform(70.0, 150.0)
+            velocity = pygame.Vector2(math.cos(angle), math.sin(angle)) * speed
+            life = random.uniform(0.2, 0.35)
+            size = random.randint(3, 5)
+            self._particles.append(
+                {
+                    "pos": self._center.copy(),
+                    "vel": velocity,
+                    "life": life,
+                    "timer": life,
+                    "size": size,
+                }
+            )
+
+    def update(self, dt: float) -> None:
+        remaining: list[dict[str, object]] = []
+        for particle in self._particles:
+            timer = float(particle["timer"]) - dt
+            if timer <= 0.0:
+                continue
+            particle["timer"] = timer
+            pos: pygame.Vector2 = particle["pos"]  # type: ignore[assignment]
+            vel: pygame.Vector2 = particle["vel"]  # type: ignore[assignment]
+            pos.x += vel.x * dt
+            pos.y += vel.y * dt
+            remaining.append(particle)
+        self._particles = remaining
+
+    def draw(self, surface: pygame.Surface) -> None:
+        for particle in self._particles:
+            timer = float(particle["timer"])
+            life = float(particle["life"])
+            ratio = timer / life if life > 0 else 0
+            size = max(2, int(int(particle["size"]) * (0.6 + 0.4 * ratio)))
+            rect = pygame.Rect(0, 0, size, size)
+            pos: pygame.Vector2 = particle["pos"]  # type: ignore[assignment]
+            rect.center = (int(pos.x), int(pos.y))
+            alpha = int(160 * ratio)
+            color = (170, 80, 255, max(80, alpha))
+            pygame.draw.rect(surface, color, rect)
+
+    def is_alive(self) -> bool:
+        return bool(self._particles)
+
+
 class VFXManager:
     def __init__(self) -> None:
         self._damage_flash = _ScreenFlash((255, 40, 40), duration=0.18, max_alpha=120)
@@ -167,3 +221,6 @@ class VFXManager:
 
     def spawn_muzzle_flash(self, position: tuple[float, float], direction: tuple[float, float]) -> None:
         self._world_effects.append(_MuzzleFlash(position, direction))
+
+    def spawn_corruption_burst(self, position: tuple[float, float] | tuple[int, int]) -> None:
+        self._world_effects.append(_CorruptionBurst(position))

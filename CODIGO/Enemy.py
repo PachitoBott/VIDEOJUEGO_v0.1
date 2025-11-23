@@ -386,7 +386,10 @@ class ShooterEnemy(Enemy):
             spawn_y = ey + dir_y * 8
             bullet = Projectile(
                 spawn_x, spawn_y, dir_x, dir_y,
-                speed=self.bullet_speed, radius=3, color=(255, 90, 90)
+                speed=self.bullet_speed,
+                radius=3,
+                color=(255, 90, 90),
+                damage=getattr(self, "projectile_damage", 1),
             )
             if hasattr(out_bullets, "add"):
                 out_bullets.add(bullet)
@@ -404,7 +407,10 @@ class ShooterEnemy(Enemy):
             spawn_y = ey + dir_y * 10
             bullet = Projectile(
                 spawn_x, spawn_y, dir_x, dir_y,
-                speed=radial_speed, radius=3, color=(200, 70, 180)
+                speed=radial_speed,
+                radius=3,
+                color=(200, 70, 180),
+                damage=getattr(self, "projectile_damage", 1),
             )
             if hasattr(out_bullets, "add"):
                 out_bullets.add(bullet)
@@ -461,7 +467,10 @@ class BasicEnemy(Enemy):
             spawn_y = ey + dir_y * 6
             bullet = Projectile(
                 spawn_x, spawn_y, dir_x, dir_y,
-                speed=self.bullet_speed, radius=3, color=(240, 200, 120)
+                speed=self.bullet_speed,
+                radius=3,
+                color=(240, 200, 120),
+                damage=getattr(self, "projectile_damage", 1),
             )
             if hasattr(out_bullets, "add"):
                 out_bullets.add(bullet)
@@ -622,6 +631,7 @@ class TankEnemy(Enemy):
                 speed=self.bullet_speed,
                 radius=3,
                 color=(255, 120, 90),
+                damage=getattr(self, "projectile_damage", 1),
             )
             fired_any = True
             if hasattr(out_bullets, "add"):
@@ -646,6 +656,7 @@ class TankEnemy(Enemy):
                     speed=self.bullet_speed * 0.9,
                     radius=3,
                     color=(255, 160, 120),
+                    damage=getattr(self, "projectile_damage", 1),
                 )
                 if hasattr(out_bullets, "add"):
                     out_bullets.add(bullet)
