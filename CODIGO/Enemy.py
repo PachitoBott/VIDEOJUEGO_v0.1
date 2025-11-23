@@ -2,6 +2,7 @@
 import math
 import random
 import pygame
+from pathlib import Path
 
 from Entity import Entity
 from Config import CFG
@@ -83,6 +84,10 @@ class Enemy(Entity):
         self._movement_locked = False
         self.hit_flash_timer = 0.0
         self._hit_flash_duration = 0.1
+        
+        # Sonido de daño
+        self._damage_sound = None
+        self._load_damage_sound()
 
     def _center(self):
         return (self.x + self.w/2, self.y + self.h/2)
@@ -173,6 +178,9 @@ class Enemy(Entity):
         if amount > 0:
             self.hp -= amount
             self.hit_flash_timer = max(self.hit_flash_timer, self._hit_flash_duration)
+            # Reproducir sonido de daño
+            if self._damage_sound:
+                self._damage_sound.play()
         alive = self.hp > 0
         if alive:
             if stun_duration > 0.0:
@@ -290,6 +298,20 @@ class Enemy(Entity):
 
     def is_dying(self) -> bool:
         return self._is_dying
+    
+    def _load_damage_sound(self) -> None:
+        """Carga el sonido de daño del enemigo."""
+        try:
+            audio_path = Path("assets/audio/dmgenemy_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "dmgenemy_sfx.mp3"
+            if audio_path.exists():
+                self._damage_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self._damage_sound.set_volume(0.08)  # 8% del volumen
+            else:
+                self._damage_sound = None
+        except (pygame.error, FileNotFoundError):
+            self._damage_sound = None
 
 
 # ===== Tipos de enemigo =====
