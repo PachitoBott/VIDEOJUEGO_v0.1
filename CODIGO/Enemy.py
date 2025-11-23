@@ -312,7 +312,7 @@ class Enemy(Entity):
                 audio_path = Path(__file__).parent / "assets" / "audio" / "dmgenemy_sfx.mp3"
             if audio_path.exists():
                 self._damage_sound = pygame.mixer.Sound(audio_path.as_posix())
-                self._damage_sound.set_volume(0.08)  # 8% del volumen
+                self._damage_sound.set_volume(0.02)  # 2% del volumen
             else:
                 self._damage_sound = None
         except (pygame.error, FileNotFoundError):
