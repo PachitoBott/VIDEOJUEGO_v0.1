@@ -99,6 +99,7 @@ class Game:
     # Bucle principal
     # ------------------------------------------------------------------ #
     def run(self) -> None:
+        Cinematica(self.screen, self.cfg).play()
         self._frame_counter = 0
         while self.running:
             dt = self.clock.tick(self.cfg.FPS) / 1000.0
