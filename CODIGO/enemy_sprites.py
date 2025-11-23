@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List
 
+import numpy as np
 import pygame
 
 from asset_paths import assets_dir
@@ -580,6 +581,23 @@ def _strip_leg_region_from_torso(
     mask_surface = leg_mask.to_surface(
         setcolor=(0, 0, 0, 0), unsetcolor=(255, 255, 255, 255)
     ).convert_alpha()
+
+    # Limitar la máscara a la parte inferior del sprite para no borrar zonas
+    # altas del torso (cabina) cuando las piernas comparten imagen base con
+    # el cuerpo.
+    alpha = pygame.surfarray.array_alpha(mask_surface)
+    filled_rows = np.nonzero(alpha.max(axis=1))[0]
+    if filled_rows.size:
+        bottom_row = int(filled_rows.max())
+        # Mantener, como mínimo, el 45% inferior del sprite o desde el primer
+        # píxel detectado hacia abajo si las piernas están desplazadas.
+        min_height = max(1, int(alpha.shape[0] * 0.45))
+        top_row = max(int(filled_rows.min()), bottom_row - min_height)
+        if top_row > 0:
+            mask_surface.fill(
+                (255, 255, 255, 255),
+                (0, 0, mask_surface.get_width(), top_row),
+            )
 
     cropped: dict[str, list[pygame.Surface]] = {}
     for state, frames in torso_frames.items():
