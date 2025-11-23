@@ -694,6 +694,10 @@ class Game:
         return False
 
     def _handle_room_cleared(self, room) -> None:
+        # Reproducir sonido de puerta abierta cuando se eliminan todos los enemigos
+        if hasattr(room, 'play_door_open_sound'):
+            room.play_door_open_sound()
+        
         if getattr(room, "is_corrupted", False):
             self._handle_corrupted_room_cleared(room)
 
@@ -1302,12 +1306,21 @@ class Game:
         self.player.x, self.player.y = self.dungeon.entry_position(
             direction, self.player.w, self.player.h
         )
+        
+        # Reproducir sonido de puerta cerrada si es la primera vez que se visita
+        was_explored = (self.dungeon.i, self.dungeon.j) in self.dungeon.explored
         self.dungeon.explored.add((self.dungeon.i, self.dungeon.j))
+        
         self.door_cooldown = 0.25
         self.projectiles.clear()
         self.enemy_projectiles.clear()
 
         new_room = self.dungeon.current_room
+        
+        # Reproducir sonido de puerta cerrada para rooms no exploradas
+        if not was_explored and hasattr(new_room, 'play_door_closed_sound'):
+            new_room.play_door_closed_sound()
+        
         self._spawn_room_enemies(new_room)
         self._update_room_lock(new_room)
         self._start_room_fade()

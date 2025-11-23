@@ -633,6 +633,11 @@ class Room:
         # Sonido de cofre
         self._chest_sound = None
         self._load_chest_sound()
+        
+        # Sonidos de puerta
+        self._door_closed_sound = None
+        self._door_open_sound = None
+        self._load_door_sounds()
 
 
     # ------------------------------------------------------------------ #
@@ -652,6 +657,44 @@ class Room:
                 self._chest_sound = None
         except (pygame.error, FileNotFoundError):
             self._chest_sound = None
+    
+    def _load_door_sounds(self) -> None:
+        """Carga los sonidos de puerta (cerrada y abierta)."""
+        # Cargar sonido de puerta cerrada
+        try:
+            audio_path = Path("assets/audio/door_closed_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "door_closed_sfx.mp3"
+            if audio_path.exists():
+                self._door_closed_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self._door_closed_sound.set_volume(0.2)  # 20% del volumen
+            else:
+                self._door_closed_sound = None
+        except (pygame.error, FileNotFoundError):
+            self._door_closed_sound = None
+        
+        # Cargar sonido de puerta abierta
+        try:
+            audio_path = Path("assets/audio/door_open_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "door_open_sfx.mp3"
+            if audio_path.exists():
+                self._door_open_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self._door_open_sound.set_volume(0.2)  # 20% del volumen
+            else:
+                self._door_open_sound = None
+        except (pygame.error, FileNotFoundError):
+            self._door_open_sound = None
+    
+    def play_door_closed_sound(self) -> None:
+        """Reproduce el sonido de puerta cerrada al entrar a una room no explorada."""
+        if self._door_closed_sound:
+            self._door_closed_sound.play()
+    
+    def play_door_open_sound(self) -> None:
+        """Reproduce el sonido de puerta abierta cuando se eliminan todos los enemigos."""
+        if self._door_open_sound:
+            self._door_open_sound.play()
 
     def set_notification_callback(
         self, callback: Callable[[str, pygame.Surface | None], None] | None
