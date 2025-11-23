@@ -1711,7 +1711,12 @@ class Room:
         openings = self._door_opening_rects()
         for direction, rect in openings.items():
             opened = not self.locked
-            sprite = _load_door_sprite(opened, direction in ("N", "S"), rect.size, direction)
+            ts = CFG.TILE_SIZE
+            sprite_size = rect.size
+            if direction in ("E", "W"):
+                sprite_size = (ts, ts * 3)
+
+            sprite = _load_door_sprite(opened, direction in ("N", "S"), sprite_size, direction)
             if sprite is None:
                 color = (90, 200, 120) if opened else (180, 40, 40)
                 pygame.draw.rect(surf, color, rect)
