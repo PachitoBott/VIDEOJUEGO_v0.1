@@ -423,9 +423,9 @@ class ShooterEnemy(Enemy):
             angle = base_angle + (spread * offset / max(center, 1))
             dir_x = math.cos(angle)
             dir_y = math.sin(angle)
-                spawn_x = ex + dir_x * 8
-                spawn_y = ey + dir_y * 8
-                bullet = Projectile(
+            spawn_x = ex + dir_x * 8
+            spawn_y = ey + dir_y * 8
+            bullet = Projectile(
                     spawn_x, spawn_y, dir_x, dir_y,
                     speed=self.bullet_speed,
                     radius=3,
