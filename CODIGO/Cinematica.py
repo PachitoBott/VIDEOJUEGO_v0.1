@@ -44,6 +44,7 @@ class Cinematica:
 
         while True:
             dt = self.clock.tick(self.cfg.FPS) / 1000.0
+            pressed_keys = pygame.key.get_pressed()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return
@@ -58,11 +59,9 @@ class Cinematica:
                 finished = visible_characters >= len(self.text)
             else:
                 finished_timer += dt
-                pressed = pygame.key.get_pressed()
-                if finished_timer >= self.post_text_delay or any(pressed):
+                if finished_timer >= self.post_text_delay or any(pressed_keys):
                     return
 
-            pressed_keys = pygame.key.get_pressed()
             if pressed_keys[self.skip_key]:
                 skip_hold += dt
                 if skip_hold >= self.skip_hold_required:
