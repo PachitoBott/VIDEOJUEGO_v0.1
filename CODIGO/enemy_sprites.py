@@ -431,6 +431,13 @@ def load_boss_animation_layers(variant: str) -> BossAnimationLayers:
     for state, count in _BOSS_TORSO_COUNTS.items():
         torso_frames[state] = _load_layer_frames(base_dir, "torso", state, count, color)
 
+    # Las imágenes originales de torso incluyen las piernas completas, lo que
+    # provoca que se superpongan con la capa de piernas animadas y se vea un
+    # par de piernas estáticas debajo. Eliminamos la región ocupada por las
+    # piernas en todos los fotogramas de torso para que sólo se vea la capa
+    # inferior animada.
+    torso_frames = _strip_leg_region_from_torso(leg_frames, torso_frames)
+
     death_frames = _load_layer_frames(base_dir, "death", "", 9, color, allow_suffix=False)
 
     fallback = leg_frames.get("idle") or torso_frames.get("idle")
@@ -541,6 +548,47 @@ def _load_layer_frames(
 
     count = max(1, expected_count)
     return [_placeholder_surface(color) for _ in range(count)]
+
+
+def _strip_leg_region_from_torso(
+    leg_frames: dict[str, list[pygame.Surface]],
+    torso_frames: dict[str, list[pygame.Surface]],
+) -> dict[str, list[pygame.Surface]]:
+    """Recorta la zona de las piernas de los sprites de torso.
+
+    Esto evita que el boss muestre dos pares de piernas (unas animadas y otras
+    estáticas) cuando se usan las mismas imágenes de torso/legs para ambos
+    bosses.
+    """
+
+    # Calcular la unión de los rects ocupados por todas las piernas para saber
+    # qué zona borrar del torso.
+    leg_union: pygame.Rect | None = None
+    for frames in leg_frames.values():
+        for frame in frames:
+            mask = pygame.mask.from_surface(frame)
+            rect = mask.get_bounding_rect()
+            leg_union = rect if leg_union is None else leg_union.union(rect)
+
+    if leg_union is None:
+        return torso_frames
+
+    # Añadimos un pequeño margen para asegurarnos de borrar las rodillas incluso
+    # si la máscara tiene huecos.
+    leg_union = leg_union.inflate(4, 4)
+
+    cropped: dict[str, list[pygame.Surface]] = {}
+    for state, frames in torso_frames.items():
+        cropped_frames: list[pygame.Surface] = []
+        for frame in frames:
+            surface = frame.copy()
+            mask_rect = leg_union.clip(surface.get_rect())
+            if mask_rect.width > 0 and mask_rect.height > 0:
+                surface.fill((0, 0, 0, 0), mask_rect)
+            cropped_frames.append(surface)
+        cropped[state] = cropped_frames
+
+    return cropped
 
 
 def _existing_state_indices(base_dir: Path, state: str) -> list[int]:
