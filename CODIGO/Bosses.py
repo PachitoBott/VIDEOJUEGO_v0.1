@@ -20,6 +20,8 @@ class BossEnemy(Enemy):
     SPRITE_VARIANT = "boss_core"
     _CANONICAL_COLLIDER: tuple[float, float, float] | None = None
     _PUDDLE_SPRITES: list[pygame.Surface] = []
+    _AIRSTRIKE_SPRITE: pygame.Surface | None = None
+    _EXPLOSION_FRAMES: list[pygame.Surface] = []
 
     @classmethod
     def _load_puddle_sprites(cls) -> list[pygame.Surface]:
@@ -37,6 +39,35 @@ class BossEnemy(Enemy):
 
         cls._PUDDLE_SPRITES = sprites
         return sprites
+
+    @classmethod
+    def _load_airstrike_sprite(cls) -> pygame.Surface | None:
+        if cls._AIRSTRIKE_SPRITE is not None:
+            return cls._AIRSTRIKE_SPRITE
+
+        path = assets_dir("effects", "AirStrike.png")
+        try:
+            cls._AIRSTRIKE_SPRITE = pygame.image.load(path.as_posix()).convert_alpha()
+        except Exception:
+            cls._AIRSTRIKE_SPRITE = None
+        return cls._AIRSTRIKE_SPRITE
+
+    @classmethod
+    def _load_explosion_frames(cls) -> list[pygame.Surface]:
+        if cls._EXPLOSION_FRAMES:
+            return cls._EXPLOSION_FRAMES
+
+        frames: list[pygame.Surface] = []
+        for idx in range(1, 9):
+            path = assets_dir("effects", f"explosion-1-b-{idx}.png")
+            try:
+                surface = pygame.image.load(path.as_posix()).convert_alpha()
+            except Exception:
+                continue
+            frames.append(surface)
+
+        cls._EXPLOSION_FRAMES = frames
+        return frames
 
     def _choose_puddle_sprite(self, rect: pygame.Rect) -> pygame.Surface | None:
         sprites = self._load_puddle_sprites()
@@ -159,6 +190,7 @@ class BossEnemy(Enemy):
         self.reaction_delay = 0.0
         self.telegraphs: list[dict] = []
         self.puddles: list[dict] = []
+        self.explosions: list[dict] = []
         self._player_rect_cache: pygame.Rect | None = None
         self._phase_thresholds = (0.6, 0.3)
         self._tracked_room = None
@@ -242,6 +274,7 @@ class BossEnemy(Enemy):
         super().update(dt, player, room)
         self._update_telegraphs(dt, player)
         self._update_puddles(dt, player)
+        self._update_explosions(dt)
 
     def on_phase_changed(self, new_phase: int) -> None:  # pragma: no cover - gancho opcional
         self.enraged = new_phase >= 3
@@ -252,10 +285,14 @@ class BossEnemy(Enemy):
             duration = max(0.01, entry.get("duration", 0.8))
             alpha = int(60 + 160 * (entry["timer"] / duration))
             color = entry.get("color", (255, 80, 80, 140))
-            overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
-            overlay.fill((*color[:3], min(255, max(0, alpha))))
-            surface.blit(overlay, rect.topleft)
-            pygame.draw.rect(surface, (255, 200, 200), rect, 2)
+            sprite: pygame.Surface | None = entry.get("sprite")
+            if sprite is not None:
+                surface.blit(sprite, rect.topleft)
+            else:
+                overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
+                overlay.fill((*color[:3], min(255, max(0, alpha))))
+                surface.blit(overlay, rect.topleft)
+                pygame.draw.rect(surface, (255, 200, 200), rect, 2)
         for puddle in self.puddles:
             rect: pygame.Rect = puddle["rect"]
             sprite: pygame.Surface | None = puddle.get("sprite")
@@ -267,6 +304,12 @@ class BossEnemy(Enemy):
                 overlay.fill((*color[:3], color[3] if len(color) > 3 else 150))
                 surface.blit(overlay, rect.topleft)
                 pygame.draw.rect(surface, (255, 180, 120), rect, 1)
+        for explosion in self.explosions:
+            sprite: pygame.Surface | None = explosion.get("frame")
+            if sprite is None:
+                continue
+            rect: pygame.Rect = explosion["rect"]
+            surface.blit(sprite, rect.topleft)
 
     def draw(self, surf: pygame.Surface) -> None:
         legs, torso = self.animator.current_surfaces()
@@ -363,6 +406,7 @@ class BossEnemy(Enemy):
         damage: int = 1,
         color: tuple[int, int, int, int] = (255, 80, 80, 150),
     ) -> None:
+        sprite = self._get_airstrike_sprite(rect.size)
         self.telegraphs.append(
             {
                 "rect": rect,
@@ -370,6 +414,7 @@ class BossEnemy(Enemy):
                 "duration": delay,
                 "damage": max(1, damage),
                 "color": color,
+                "sprite": sprite,
             }
         )
 
@@ -434,6 +479,7 @@ class BossEnemy(Enemy):
         player_rect = self._player_rect_cache or self._player_rect(player)
         if player_rect.colliderect(rect):
             self._apply_damage_to_player(player, damage)
+        self._spawn_explosion_effect(rect)
 
     def _update_puddles(self, dt: float, player) -> None:
         if not self.puddles:
@@ -457,6 +503,60 @@ class BossEnemy(Enemy):
                         puddle["tick_timer"] = tick_interval
             survivors.append(puddle)
         self.puddles = survivors
+
+    def _update_explosions(self, dt: float) -> None:
+        if not self.explosions:
+            return
+
+        remaining: list[dict] = []
+        for explosion in self.explosions:
+            explosion["elapsed"] += dt
+            duration = explosion["duration"]
+            frame_duration = explosion["frame_duration"]
+            frames: list[pygame.Surface] = explosion["frames"]
+            if duration <= 0 or not frames:
+                continue
+            if explosion["elapsed"] < duration:
+                frame_index = min(len(frames) - 1, int(explosion["elapsed"] / frame_duration))
+                scaled_frames: list[pygame.Surface] = explosion["scaled_frames"]
+                explosion["frame"] = scaled_frames[frame_index]
+                remaining.append(explosion)
+        self.explosions = remaining
+
+    def _spawn_explosion_effect(self, rect: pygame.Rect) -> None:
+        frames = self._load_explosion_frames()
+        if not frames:
+            return
+
+        try:
+            scaled_frames = [pygame.transform.smoothscale(frame, rect.size) for frame in frames]
+        except Exception:
+            scaled_frames = [pygame.transform.scale(frame, rect.size) for frame in frames]
+
+        duration = max(0.01, 0.5)
+        frame_duration = duration / max(1, len(scaled_frames))
+        self.explosions.append(
+            {
+                "rect": rect.copy(),
+                "elapsed": 0.0,
+                "duration": duration,
+                "frame_duration": frame_duration,
+                "frames": frames,
+                "scaled_frames": scaled_frames,
+                "frame": scaled_frames[0],
+            }
+        )
+
+    def _get_airstrike_sprite(self, size: tuple[int, int]) -> pygame.Surface | None:
+        base = self._load_airstrike_sprite()
+        if base is None:
+            return None
+        if base.get_size() == size:
+            return base
+        try:
+            return pygame.transform.smoothscale(base, size)
+        except Exception:
+            return pygame.transform.scale(base, size)
 
     def _apply_damage_to_player(self, player, amount: int) -> None:
         taker: Callable[[int], bool] | None = getattr(player, "take_damage", None)
