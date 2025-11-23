@@ -454,6 +454,8 @@ class Game:
     def _update(self, dt: float, events: list) -> None:
         self.vfx.update(dt)
         room = self.dungeon.current_room
+        if hasattr(room, "update"):
+            room.update(dt)
         self._update_player(dt, room)
         self._spawn_room_enemies(room)
         self._update_enemies(dt, room)
@@ -564,16 +566,18 @@ class Game:
         if not hasattr(room, "enemies"):
             return False
         initial_enemy_count = len(getattr(room, "enemies", ()))
+        was_cleared = getattr(room, "cleared", False)
         for projectile in self.projectiles:
             if not projectile.alive:
                 continue
             r_proj = projectile.rect()
             for enemy in room.enemies:
                 if r_proj.colliderect(enemy.rect()):
+                    damage = getattr(projectile, "damage", 1)
                     if hasattr(enemy, "take_damage"):
-                        enemy.take_damage(1, (projectile.dx, projectile.dy))
+                        enemy.take_damage(damage, (projectile.dx, projectile.dy))
                     else:
-                        enemy.hp -= 1
+                        enemy.hp -= damage
                     self._apply_projectile_effects(projectile, enemy)
                     projectile.alive = False
                     break
@@ -618,8 +622,9 @@ class Game:
                 )
                 continue
             took_hit = False
+            damage = getattr(projectile, "damage", 1)
             if hasattr(self.player, "take_damage"):
-                took_hit = bool(self.player.take_damage(1))
+                took_hit = bool(self.player.take_damage(damage))
             if took_hit:
                 projectile.alive = False
                 self.vfx.trigger_damage_flash()
@@ -652,10 +657,56 @@ class Game:
         if hasattr(room, "refresh_lock_state"):
             room.refresh_lock_state()
         self._update_room_lock(room)
+        if getattr(room, "cleared", False) and not was_cleared:
+            self._handle_room_cleared(room)
         if getattr(self.player, "hp", 1) <= 0:
             self._handle_player_death(room)
             return True
         return False
+
+    def _handle_room_cleared(self, room) -> None:
+        if getattr(room, "is_corrupted", False):
+            self._handle_corrupted_room_cleared(room)
+
+    def _handle_corrupted_room_cleared(self, room) -> None:
+        center = room.center_px() if hasattr(room, "center_px") else (self.cfg.SCREEN_W // 2, self.cfg.SCREEN_H // 2)
+        drop_center = center
+        if hasattr(room, "find_clear_drop_center"):
+            try:
+                drop_center = room.find_clear_drop_center()
+            except Exception:
+                drop_center = center
+
+        if hasattr(self.vfx, "spawn_corruption_burst"):
+            self.vfx.spawn_corruption_burst(drop_center)
+
+        mode = str(getattr(room, "corrupted_loot_mode", "upgrade")).lower()
+        if mode == "chips":
+            total_value = int(getattr(room, "_microchips_dropped_total", 0))
+            bonus_multiplier = max(0.0, float(getattr(room, "corrupted_chip_bonus", 0.5)))
+            bonus_value = int(max(1, total_value * bonus_multiplier)) or 10
+            self._spawn_microchip_bonus(drop_center, bonus_value, room)
+            self._notify_microchips(bonus_value)
+            return
+
+        reward = self._pick_corrupted_upgrade_reward()
+        if reward:
+            self._spawn_reward_pickup_at(drop_center, reward, room)
+            self._notify_reward(reward)
+            return
+
+        total_value = int(getattr(room, "_microchips_dropped_total", 0))
+        bonus_value = int(total_value * max(0.0, float(getattr(room, "corrupted_chip_bonus", 0.5)))) or 10
+        self._spawn_microchip_bonus(drop_center, bonus_value, room)
+        self._notify_microchips(bonus_value)
+
+    def _pick_corrupted_upgrade_reward(self) -> dict | None:
+        loot_table = getattr(self.dungeon, "_treasure_loot_table", [])
+        upgrades = [entry for entry in loot_table if str(entry.get("type", "")).lower() == "upgrade"]
+        if not upgrades:
+            return None
+        weights = [float(entry.get("weight", 1.0)) for entry in upgrades]
+        return random.choices(upgrades, weights=weights, k=1)[0]
 
     def _drop_enemy_microchips(self, enemy, room) -> None:
         gold_chance = float(self._enemy_drop_rates.get("enemy_gold_chance", 1.0))
@@ -667,6 +718,7 @@ class Game:
             total_value = 1
         if total_value <= 0:
             return
+        room._microchips_dropped_total = getattr(room, "_microchips_dropped_total", 0) + total_value
         if not hasattr(room, "pickups"):
             room.pickups = []
 
@@ -695,6 +747,39 @@ class Game:
             pickup = MicrochipPickup(
                 center_x - sprite_w / 2.0 + jitter_x,
                 center_y - sprite_h / 2.0 + jitter_y,
+                value,
+                self._chip_pickup_sprite,
+                angle=angle,
+                speed=speed,
+            )
+            room.pickups.append(pickup)
+
+    def _spawn_microchip_bonus(self, center: tuple[float, float], total_value: int, room) -> None:
+        if total_value <= 0:
+            return
+        sprite_w = self._chip_pickup_sprite.get_width()
+        sprite_h = self._chip_pickup_sprite.get_height()
+        if not hasattr(room, "pickups"):
+            room.pickups = []
+
+        min_count, max_count = self._chip_count_for_reward(total_value)
+        max_count = max(1, min(total_value, max_count))
+        min_count = max(1, min(min_count, max_count))
+        count = random.randint(min_count, max_count)
+        base_value, remainder = divmod(total_value, count)
+        values = [base_value] * count
+        for idx in random.sample(range(count), remainder):
+            values[idx] += 1
+
+        cx, cy = center
+        for value in values:
+            angle = random.uniform(0.0, math.tau)
+            speed = random.uniform(55.0, 110.0)
+            jitter_x = math.cos(angle) * 6.0
+            jitter_y = math.sin(angle) * 6.0
+            pickup = MicrochipPickup(
+                cx - sprite_w / 2.0 + jitter_x,
+                cy - sprite_h / 2.0 + jitter_y,
                 value,
                 self._chip_pickup_sprite,
                 angle=angle,
@@ -750,6 +835,29 @@ class Game:
         pickup = LootPickup(
             center_x - sprite_w / 2.0 + jitter_x,
             center_y - sprite_h / 2.0 + jitter_y,
+            sprite,
+            reward,
+            angle=angle,
+            speed=speed,
+        )
+        room.pickups.append(pickup)
+
+    def _spawn_reward_pickup_at(self, center: tuple[float, float], reward: dict, room) -> None:
+        sprite = self._sprite_for_reward(reward)
+        if sprite is None:
+            apply_reward_entry(self.player, reward)
+            return
+        if not hasattr(room, "pickups"):
+            room.pickups = []
+
+        sprite_w = sprite.get_width()
+        sprite_h = sprite.get_height()
+        cx, cy = center
+        angle = random.uniform(0.0, math.tau)
+        speed = random.uniform(45.0, 85.0)
+        pickup = LootPickup(
+            cx - sprite_w / 2.0,
+            cy - sprite_h / 2.0,
             sprite,
             reward,
             angle=angle,
@@ -1209,6 +1317,7 @@ class Game:
 
         if hasattr(room, "enemies"):
             for enemy in room.enemies:
+                self._draw_corrupted_enemy_aura(self.world, enemy)
                 enemy.draw(self.world)
 
         for pickup in getattr(room, "pickups", ()): 
@@ -1223,6 +1332,21 @@ class Game:
         if hasattr(room, "draw_overlay"):
             room.draw_overlay(self.world, self.ui_font, self.player, self.shop)
         self.shop.draw(self.world)
+
+    def _draw_corrupted_enemy_aura(self, surface: pygame.Surface, enemy) -> None:
+        if not getattr(enemy, "corrupted_visual", False):
+            return
+        if not hasattr(enemy, "rect"):
+            return
+        rect = enemy.rect()
+        center = rect.center
+        radius = 24
+        aura_surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+        time_phase = getattr(self, "_elapsed_time", 0.0)
+        alpha = int(130 + 30 * math.sin(time_phase * 8.0))
+        color = (150, 60, 220, max(100, min(160, alpha)))
+        pygame.draw.ellipse(aura_surf, color, pygame.Rect(0, 6, radius * 2, radius * 2 - 8))
+        surface.blit(aura_surf, (center[0] - radius, center[1] - radius))
 
     def _draw_debug_door_triggers(self, room) -> None:
         for rect in room._door_trigger_rects().values():

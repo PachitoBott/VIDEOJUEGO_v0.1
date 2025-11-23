@@ -85,7 +85,12 @@ class Config:
     HUD_WEAPON_AMMO_OFFSET: Tuple[float, float] = (0.0, 10.0)
     HUD_WEAPON_AMMO_ALIGN_CENTER: bool = True
     HUD_WEAPON_TEXT_MARGIN: float = 12.0
-    
+
+    # --- Salas corruptas ---
+    CORRUPTED_ROOM_CHANCE: float = 0.08
+    CORRUPTED_BONUS_MODE: str = "upgrade"  # "upgrade" o "chips"
+    CORRUPTED_CHIP_BONUS: float = 0.5  # +50% microchips extra por defecto
+
     
     #################### APARECER EN BOSS ROOM AL INICIAR EL JUEGO ####################
     DEBUG_START_IN_BOSS_ROOM: bool = True
@@ -126,6 +131,9 @@ class Config:
             "branch_chance": 0.45,
             "branch_min": 2,
             "branch_max": 4,
+            "corrupted_room_chance": self.CORRUPTED_ROOM_CHANCE,
+            "corrupted_bonus_mode": self.CORRUPTED_BONUS_MODE,
+            "corrupted_chip_bonus": self.CORRUPTED_CHIP_BONUS,
         }
 
 CFG = Config()

@@ -25,7 +25,10 @@ class Dungeon:
                  branch_chance: float = 0.45,
                  branch_min: int = 2,
                  branch_max: int = 4,
-                 seed: int | None = None) -> None:
+                 seed: int | None = None,
+                 corrupted_room_chance: float = 0.08,
+                 corrupted_bonus_mode: str = "upgrade",
+                 corrupted_chip_bonus: float = 0.5) -> None:
         if seed is not None:
             random.seed(seed)
         if seed is None:
@@ -40,6 +43,11 @@ class Dungeon:
         self.explored: Set[Tuple[int, int]] = set()
         self.main_path: list[Tuple[int, int]] = []  # <<< NUEVO: orden del camino principal
         self.depth_map: Dict[Tuple[int, int], int] = {}
+
+        # Salas corruptas (glitch)
+        self.corrupted_room_chance = max(0.0, min(1.0, float(corrupted_room_chance)))
+        self.corrupted_bonus_mode = corrupted_bonus_mode
+        self.corrupted_chip_bonus = max(0.0, float(corrupted_chip_bonus))
 
 
         # 1) Camino principal
@@ -198,6 +206,12 @@ class Dungeon:
 
             r.build_centered(rw, rh)
 
+            # Probabilidad de sala corrupta (excepto inicio)
+            if (x, y) != self.start and random.random() < self.corrupted_room_chance:
+                r.is_corrupted = True
+                r.corrupted_loot_mode = getattr(self, "corrupted_bonus_mode", "upgrade")
+                r.corrupted_chip_bonus = getattr(self, "corrupted_chip_bonus", 0.5)
+
             # Puertas se setean luego cuando enlaces vecinos (si ya lo haces)
             self.rooms[(x, y)] = r
 
@@ -351,8 +365,9 @@ class Dungeon:
         # Marca de tipo (no rompe si Room no define 'type')
         setattr(room, "type", "shop")     # <<< etiqueta directa en Room
         self.shop_pos = (sx, sy)          # <<< guarda la coordenada para otras clases
+        room.is_corrupted = False
 
-    def _place_treasure_rooms(self, max_rooms: int = 1, base_chance: float = 0.12) -> None:
+    def _place_treasure_rooms(self, max_rooms: int = 2, base_chance: float = 0.12) -> None:
         """Selecciona algunas salas y las convierte en cuartos del tesoro."""
         if not self.rooms:
             return
@@ -372,19 +387,27 @@ class Dungeon:
         main_candidates.sort(key=depth_of)
         branch_candidates.sort(key=depth_of)
 
-        chosen: list[tuple[int, int]] = []
+        candidates = [pos for pos in main_candidates + branch_candidates if depth_of(pos) > 0]
+        if not candidates:
+            return
 
+        max_pickable = min(max_rooms, 2)
+        target_rooms = random.randint(1, min(max_pickable, len(candidates)))
+
+        chosen: list[tuple[int, int]] = []
         rng = random.random
-        for pos in main_candidates + branch_candidates:
-            if len(chosen) >= max_rooms:
+        for pos in candidates:
+            if len(chosen) >= target_rooms:
                 break
             depth = depth_of(pos)
-            if depth <= 0:
-                continue
             chance = base_chance + 0.04 * min(depth, 5)
-            if rng() > min(0.55, chance):
-                continue
-            chosen.append(pos)
+            if rng() <= min(0.55, chance):
+                chosen.append(pos)
+
+        if len(chosen) < target_rooms:
+            remaining = [pos for pos in candidates if pos not in chosen]
+            remaining.sort(key=depth_of, reverse=True)
+            chosen.extend(remaining[: target_rooms - len(chosen)])
 
         self.treasure_rooms: set[tuple[int, int]] = set()
         for pos in chosen:
@@ -400,7 +423,7 @@ class Dungeon:
             return
 
         salt = 0xC0BB1E
-        safe_types = {"shop", "treasure", "boss"}
+        safe_types = {"shop", "boss"}
 
         for pos, room in sorted(self.rooms.items()):
             if pos == self.start:
@@ -474,6 +497,7 @@ class Dungeon:
             room.carve_corridors(width_tiles=2, length_tiles=3)
         self.boss_pos = farthest
         setattr(room, "type", "boss")
+        room.is_corrupted = False
         room.no_spawn = True
         room.safe = False
         room.locked = False
