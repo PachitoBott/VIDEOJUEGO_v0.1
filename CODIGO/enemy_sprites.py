@@ -561,40 +561,35 @@ def _strip_leg_region_from_torso(
     bosses.
     """
 
-    # Calcular la unión de los rects ocupados por todas las piernas para saber
-    # qué zona borrar del torso.
-    leg_union: pygame.Rect | None = None
+    # Unificar las máscaras de las piernas para borrar sólo los píxeles que
+    # realmente pertenecen a esa capa, evitando recortar partes legítimas del
+    # torso (como la cabina) cuando los rects de máscara son demasiado altos.
+    leg_mask: pygame.mask.Mask | None = None
     for frames in leg_frames.values():
         for frame in frames:
-            mask = pygame.mask.from_surface(frame)
-            rect: pygame.Rect
-            # Compatibilidad con distintas versiones de pygame: algunas
-            # versiones no exponen ``get_bounding_rects`` y otras devuelven una
-            # lista. Normalizamos para obtener siempre un único rectángulo.
-            if hasattr(mask, "get_bounding_rect"):
-                rect = mask.get_bounding_rect()
-            elif hasattr(mask, "get_bounding_rects"):
-                rects = mask.get_bounding_rects()
-                rect = rects[0] if rects else pygame.Rect(0, 0, 0, 0)
-            else:
-                rect = frame.get_rect()
-            leg_union = rect if leg_union is None else leg_union.union(rect)
+            frame_mask = pygame.mask.from_surface(frame)
+            if leg_mask is None:
+                # ``Mask.copy`` no está en todas las versiones, así que usamos
+                # ``draw`` sobre un mask vacío para normalizar.
+                leg_mask = pygame.Mask(frame_mask.get_size())
+            leg_mask.draw(frame_mask, (0, 0))
 
-    if leg_union is None:
+    if leg_mask is None:
         return torso_frames
 
-    # Añadimos un pequeño margen para asegurarnos de borrar las rodillas incluso
-    # si la máscara tiene huecos.
-    leg_union = leg_union.inflate(4, 4)
+    mask_surface = leg_mask.to_surface(
+        setcolor=(0, 0, 0, 0), unsetcolor=(255, 255, 255, 255)
+    ).convert_alpha()
 
     cropped: dict[str, list[pygame.Surface]] = {}
     for state, frames in torso_frames.items():
         cropped_frames: list[pygame.Surface] = []
         for frame in frames:
             surface = frame.copy()
-            mask_rect = leg_union.clip(surface.get_rect())
-            if mask_rect.width > 0 and mask_rect.height > 0:
-                surface.fill((0, 0, 0, 0), mask_rect)
+            # Multiplicamos la capa con la máscara invertida: los píxeles de
+            # las piernas (setcolor alpha 0) quedan transparentes y el resto se
+            # conserva intacto.
+            surface.blit(mask_surface, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
             cropped_frames.append(surface)
         cropped[state] = cropped_frames
 
