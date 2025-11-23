@@ -307,7 +307,7 @@ class Dungeon:
             room.doors["W"] = (x-1, y) in self.rooms
             room.doors["E"] = (x+1, y) in self.rooms
             # Corredores visuales
-            room.carve_corridors(width_tiles=2, length_tiles=3)
+            room.carve_corridors(width_tiles=2, length_tiles=3, side_height_tiles=3)
             
     def _build_depth_map(self) -> None:
         """BFS desde la sala inicial para asignar una profundidad a cada habitación."""
@@ -494,7 +494,7 @@ class Dungeon:
         if hasattr(room, "build_centered"):
             room.build_centered(CFG.BOSS_ROOM_W, CFG.BOSS_ROOM_H)
         if hasattr(room, "carve_corridors"):
-            room.carve_corridors(width_tiles=2, length_tiles=3)
+            room.carve_corridors(width_tiles=2, length_tiles=3, side_height_tiles=3)
         self.boss_pos = farthest
         setattr(room, "type", "boss")
         room.is_corrupted = False

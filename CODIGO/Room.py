@@ -69,7 +69,7 @@ ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
 _OBSTACLE_ASSET_DIR = assets_dir("obstacles")
 
 _DOOR_RAW_CACHE: dict[str, pygame.Surface | None] = {}
-_DOOR_SPRITE_CACHE: dict[tuple[str, tuple[int, int]], pygame.Surface | None] = {}
+_DOOR_SPRITE_CACHE: dict[tuple[str, tuple[int, int], str], pygame.Surface | None] = {}
 
 # Sprite opcional para cofres personalizados (``assets/cofre.png`` o
 # ``assets/obstacles/cofre.png``). Se escala al tamaño del rectángulo del cofre
@@ -525,11 +525,14 @@ def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = Non
     return _load_obstacle_frames(size_tiles, variant)[0]
 
 
-def _load_door_sprite(opened: bool, vertical: bool, size: tuple[int, int]) -> pygame.Surface | None:
-    """Carga y escala el sprite de la puerta según su orientación y estado."""
+def _load_door_sprite(
+    opened: bool, vertical: bool, size: tuple[int, int], direction: str | None = None
+) -> pygame.Surface | None:
+    """Carga y escala el sprite de la puerta según su orientación, estado y dirección."""
 
     variant = ("opened" if opened else "closed") + ("_vertical" if vertical else "_side")
-    cache_key = (variant, size)
+    direction_key = (direction or "").upper()
+    cache_key = (variant, size, direction_key)
     if cache_key in _DOOR_SPRITE_CACHE:
         return _DOOR_SPRITE_CACHE[cache_key]
 
@@ -552,6 +555,8 @@ def _load_door_sprite(opened: bool, vertical: bool, size: tuple[int, int]) -> py
     sprite = raw_sprite
     if sprite is not None and sprite.get_size() != size:
         sprite = pygame.transform.smoothscale(sprite, size)
+    if sprite is not None and direction_key == "W" and not vertical:
+        sprite = pygame.transform.rotate(sprite, 180)
 
     _DOOR_SPRITE_CACHE[cache_key] = sprite
     return sprite
@@ -576,6 +581,7 @@ class Room:
         self.pickups: list = []
         self._spawn_done: bool = False
         self._door_width_tiles = 2
+        self._door_side_height_tiles = 3
         self._door_corridor_length_tiles = 3
         self._door_block_tiles: set[tuple[int, int]] = set()
         self._locked: bool = False
@@ -926,7 +932,9 @@ class Room:
     # ------------------------------------------------------------------ #
     # Corredores cortos (visuales) hacia las puertas
     # ------------------------------------------------------------------ #
-    def carve_corridors(self, width_tiles: int = 2, length_tiles: int = 3) -> None:
+    def carve_corridors(
+        self, width_tiles: int = 2, length_tiles: int = 3, side_height_tiles: int | None = None
+    ) -> None:
         """
         Talla la abertura/“corredor” exactamente centrado en tiles.
         Guarda el ancho para que _door_trigger_rects use el mismo valor.
@@ -934,6 +942,8 @@ class Room:
         assert self.bounds is not None
         rx, ry, rw, rh = self.bounds
         self._door_width_tiles = max(1, int(width_tiles))
+        # Mantén la altura lateral igual al ancho del pasillo para no cambiar el corredor.
+        self._door_side_height_tiles = self._door_width_tiles
         self._door_corridor_length_tiles = max(1, int(length_tiles))
 
         def carve_rect(x: int, y: int, w: int, h: int) -> None:
@@ -944,13 +954,14 @@ class Room:
                             self.tiles[yy][xx] = 0
 
         W = self._door_width_tiles
+        side_height = self._door_side_height_tiles
         # centro “en medios tiles” (evita perder la mitad cuando rw es par)
         center_tx2 = rx * 2 + rw   # = 2*(rx + rw/2)
         center_ty2 = ry * 2 + rh
 
         # izquierda superior del hueco (en tiles), usando la misma aritmética para N/S y E/W
         left_tile   = (center_tx2 - W) // 2  # N y S
-        top_tile    = (center_ty2 - W) // 2  # E y W
+        top_tile    = (center_ty2 - side_height) // 2  # E y W
 
         # Norte (arriba)
         if self.doors.get("N"):
@@ -960,10 +971,10 @@ class Room:
             carve_rect(left_tile, ry + rh, W, length_tiles)
         # Este (derecha)
         if self.doors.get("E"):
-            carve_rect(rx + rw, top_tile, length_tiles, W)
+            carve_rect(rx + rw, top_tile, length_tiles, side_height)
         # Oeste (izquierda)
         if self.doors.get("W"):
-            carve_rect(rx - length_tiles, top_tile, length_tiles, W)
+            carve_rect(rx - length_tiles, top_tile, length_tiles, side_height)
 
         self._refresh_door_block_tiles()
 
@@ -979,16 +990,19 @@ class Room:
         bottom_px = (ry + rh) * ts
 
         W = max(1, getattr(self, "_door_width_tiles", 2))
+        side_height = max(1, getattr(self, "_door_side_height_tiles", W))
         opening_px = W * ts
+        side_opening_px = side_height * ts
 
         # mismos centros que usaste para tallar
         center_tx2 = rx * 2 + rw
         center_ty2 = ry * 2 + rh
         left_tile  = (center_tx2 - W) // 2
-        top_tile   = (center_ty2 - W) // 2
+        top_tile   = (center_ty2 - side_height) // 2
 
         left_open_px = left_tile * ts
         top_open_px  = top_tile * ts
+        side_top_open_px = top_tile * ts
 
         rects: dict[str, pygame.Rect] = {}
         if self.doors.get("N"):
@@ -996,9 +1010,9 @@ class Room:
         if self.doors.get("S"):
             rects["S"] = pygame.Rect(left_open_px, bottom_px, opening_px, ts)
         if self.doors.get("E"):
-            rects["E"] = pygame.Rect(right_px, top_open_px, ts, opening_px)
+            rects["E"] = pygame.Rect(right_px, side_top_open_px, ts, side_opening_px)
         if self.doors.get("W"):
-            rects["W"] = pygame.Rect(left_px - ts, top_open_px, ts, opening_px)
+            rects["W"] = pygame.Rect(left_px - ts, side_top_open_px, ts, side_opening_px)
         return rects
 
 
@@ -1020,11 +1034,12 @@ class Room:
 
         rx, ry, rw, rh = self.bounds
         W = max(1, getattr(self, "_door_width_tiles", 2))
+        side_height = max(1, getattr(self, "_door_side_height_tiles", W))
 
         center_tx2 = rx * 2 + rw
         center_ty2 = ry * 2 + rh
         left_tile = (center_tx2 - W) // 2
-        top_tile = (center_ty2 - W) // 2
+        top_tile = (center_ty2 - side_height) // 2
 
         max_x = CFG.MAP_W - 1
         max_y = CFG.MAP_H - 1
@@ -1042,13 +1057,13 @@ class Room:
                 if 0 <= tx <= max_x and 0 <= ty <= max_y:
                     self._door_block_tiles.add((tx, ty))
         if self.doors.get("E"):
-            for dy in range(W):
+            for dy in range(side_height):
                 ty = top_tile + dy
                 tx = rx + rw
                 if 0 <= tx <= max_x and 0 <= ty <= max_y:
                     self._door_block_tiles.add((tx, ty))
         if self.doors.get("W"):
-            for dy in range(W):
+            for dy in range(side_height):
                 ty = top_tile + dy
                 tx = rx - 1
                 if 0 <= tx <= max_x and 0 <= ty <= max_y:
@@ -1491,7 +1506,9 @@ class Room:
         bottom_px = (ry + rh) * ts
 
         W = max(1, getattr(self, "_door_width_tiles", 2))
+        side_height = max(1, getattr(self, "_door_side_height_tiles", W))
         opening_px = W * ts
+        side_opening_px = side_height * ts
         thickness  = max(10, ts // 2)  # profundidad del trigger (hacia fuera/dentro del room)
         length_tiles = max(1, getattr(self, "_door_corridor_length_tiles", 3))
         corridor_px = length_tiles * ts
@@ -1502,11 +1519,12 @@ class Room:
         center_tx2 = rx * 2 + rw
         center_ty2 = ry * 2 + rh
         left_tile  = (center_tx2 - W) // 2
-        top_tile   = (center_ty2 - W) // 2
+        top_tile   = (center_ty2 - side_height) // 2
 
         # convertir a píxeles esas posiciones de tile
         left_open_px = left_tile * ts
         top_open_px  = top_tile * ts
+        side_top_open_px = top_tile * ts
         cx_px = (left_px + right_px) // 2
         cy_px = (top_px + bottom_px) // 2
 
@@ -1530,16 +1548,16 @@ class Room:
         if self.doors.get("E"):
             rects["E"] = pygame.Rect(
                 right_px + ts + offset_px,
-                top_open_px,
+                side_top_open_px,
                 thickness,
-                opening_px,
+                side_opening_px,
             )
         if self.doors.get("W"):
             rects["W"] = pygame.Rect(
                 left_px - ts - thickness - offset_px,
-                top_open_px,
+                side_top_open_px,
                 thickness,
-                opening_px,
+                side_opening_px,
             )
         return rects
 
@@ -1693,7 +1711,12 @@ class Room:
         openings = self._door_opening_rects()
         for direction, rect in openings.items():
             opened = not self.locked
-            sprite = _load_door_sprite(opened, direction in ("N", "S"), rect.size)
+            ts = CFG.TILE_SIZE
+            sprite_size = rect.size
+            if direction in ("E", "W"):
+                sprite_size = (ts, ts * 3)
+
+            sprite = _load_door_sprite(opened, direction in ("N", "S"), sprite_size, direction)
             if sprite is None:
                 color = (90, 200, 120) if opened else (180, 40, 40)
                 pygame.draw.rect(surf, color, rect)
@@ -1702,6 +1725,8 @@ class Room:
                 continue
 
             target_rect = sprite.get_rect(center=rect.center)
+            if direction in ("E", "W"):
+                target_rect.move_ip(0, -CFG.TILE_SIZE // 2)
             surf.blit(sprite, target_rect)
 
     # ------------------------------------------------------------------ #
