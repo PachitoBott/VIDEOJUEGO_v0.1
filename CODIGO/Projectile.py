@@ -14,6 +14,7 @@ class Projectile:
         radius=3,
         color=(255,230,140),
         effects: list[dict] | tuple[dict, ...] | None = None,
+        damage: float = 1.0,
     ):
         self.x, self.y = x, y
         self.dx, self.dy = dx, dy
@@ -25,6 +26,7 @@ class Projectile:
         # Temporizador para ignorar colisiones con el jugador tras un dash.
         self.ignore_player_timer = 0.0
         self.effects: tuple[dict, ...] = tuple(effects) if effects else ()
+        self.damage: float = damage
 
     def rect(self) -> pygame.Rect:
         r = self.radius

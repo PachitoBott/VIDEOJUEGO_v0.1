@@ -991,24 +991,50 @@ class Room:
         enemy.corrupted_visual = True
         enemy._corruption_buffed = True
 
+        speed_multiplier = 1.35
         if hasattr(enemy, "chase_speed"):
-            enemy.chase_speed *= 1.12
+            enemy.chase_speed *= speed_multiplier
         if hasattr(enemy, "wander_speed"):
-            enemy.wander_speed *= 1.12
+            enemy.wander_speed *= speed_multiplier
+
+        if hasattr(enemy, "detect_radius"):
+            enemy.detect_radius *= 1.2
+        if hasattr(enemy, "lose_radius"):
+            enemy.lose_radius *= 1.2
+        if hasattr(enemy, "reaction_delay"):
+            enemy.reaction_delay *= 0.65
 
         try:
-            enemy.hp = int(enemy.hp * 1.15)
+            enemy.hp = max(1, int(enemy.hp * 1.6))
         except Exception:
             pass
 
-        cooldown_attrs = ("fire_cooldown", "attack_cooldown")
+        if hasattr(enemy, "bullet_speed"):
+            try:
+                enemy.bullet_speed *= 1.2
+            except Exception:
+                pass
+
+        cooldown_attrs = ("fire_cooldown", "attack_cooldown", "shoot_windup")
         for attr in cooldown_attrs:
             if hasattr(enemy, attr):
                 value = getattr(enemy, attr)
                 try:
-                    setattr(enemy, attr, float(value) * 0.9)
+                    setattr(enemy, attr, float(value) * 0.7)
                 except Exception:
                     continue
+
+        contact_damage = getattr(enemy, "contact_damage", 0)
+        if contact_damage > 0:
+            enemy.contact_damage = max(contact_damage + 1, int(round(contact_damage * 1.75)))
+        else:
+            enemy.contact_damage = max(1, contact_damage + 1)
+
+        projectile_damage = getattr(enemy, "projectile_damage", 1.0)
+        try:
+            enemy.projectile_damage = max(1.0, projectile_damage * 1.75)
+        except Exception:
+            enemy.projectile_damage = 2.0
 
             
             

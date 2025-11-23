@@ -570,10 +570,11 @@ class Game:
             r_proj = projectile.rect()
             for enemy in room.enemies:
                 if r_proj.colliderect(enemy.rect()):
+                    damage = getattr(projectile, "damage", 1)
                     if hasattr(enemy, "take_damage"):
-                        enemy.take_damage(1, (projectile.dx, projectile.dy))
+                        enemy.take_damage(damage, (projectile.dx, projectile.dy))
                     else:
-                        enemy.hp -= 1
+                        enemy.hp -= damage
                     self._apply_projectile_effects(projectile, enemy)
                     projectile.alive = False
                     break
@@ -618,8 +619,9 @@ class Game:
                 )
                 continue
             took_hit = False
+            damage = getattr(projectile, "damage", 1)
             if hasattr(self.player, "take_damage"):
-                took_hit = bool(self.player.take_damage(1))
+                took_hit = bool(self.player.take_damage(damage))
             if took_hit:
                 projectile.alive = False
                 self.vfx.trigger_damage_flash()
