@@ -9,6 +9,7 @@ from Minimap import Minimap
 from Projectile import ProjectileGroup
 from Shop import Shop
 from Shopkeeper import Shopkeeper
+from Cinematica import Cinematica
 
 
 class Game:
@@ -98,6 +99,7 @@ class Game:
     # Bucle principal
     # ------------------------------------------------------------------ #
     def run(self) -> None:
+        Cinematica(self.screen, self.cfg).play()
         self._frame_counter = 0
         while self.running:
             dt = self.clock.tick(self.cfg.FPS) / 1000.0
@@ -107,7 +109,6 @@ class Game:
             self._update_fps_counter()
             self._update(dt, events)
             self._render()
-
         pygame.quit()
         sys.exit(0)
 
