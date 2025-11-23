@@ -245,13 +245,17 @@ class ObstacleSpriteInfo:
     filename: str | Path | None = None
     scale: tuple[float, float] = (1.0, 1.0)
     offset: tuple[int, int] = (0, 0)
+    frame_count: int = 1
+    fps: float = 0.0
 
 
-_OBSTACLE_SPRITE_CACHE: dict[tuple[tuple[int, int], str], pygame.Surface] = {}
+_OBSTACLE_FRAME_CACHE: dict[tuple[tuple[int, int], str], list[pygame.Surface]] = {}
 _OBSTACLE_SPRITE_OFFSETS: dict[tuple[tuple[int, int], str], tuple[int, int]] = {}
 
 _GLOBAL_OBSTACLE_SCALE: tuple[float, float] = (1.0, 1.0)
 _OBSTACLE_SCALE_OVERRIDES: dict[str, tuple[float, float]] = {}
+
+_DEFAULT_OBSTACLE_ANIMATION_FPS = 6.0
 
 _OBSTACLE_LIBRARY: dict[tuple[int, int], dict[str, ObstacleSpriteInfo]] = {
     (1, 1): {
@@ -260,17 +264,29 @@ _OBSTACLE_LIBRARY: dict[tuple[int, int], dict[str, ObstacleSpriteInfo]] = {
         "caneca": ObstacleSpriteInfo("caneca.png", scale=(2, 2)),
     },
     (1, 2): {
-        "tubo_verde": ObstacleSpriteInfo("tubo_verde_1x2.png", scale=(1, 1)),
+        "tubo_verde": ObstacleSpriteInfo(
+            "tubo_verde_1x2.png", scale=(1, 1), frame_count=4, fps=_DEFAULT_OBSTACLE_ANIMATION_FPS
+        ),
+        "tubo_verde_vacio": ObstacleSpriteInfo("tubo_verde_vacio_1x2.png", scale=(1, 1)),
+        "tubo_verde_singular": ObstacleSpriteInfo(
+            "tubo_verde_singular_1x2.png", scale=(1, 1), frame_count=4, fps=_DEFAULT_OBSTACLE_ANIMATION_FPS
+        ),
     },
     (2, 1): {
-        "pantalla": ObstacleSpriteInfo("pantalla_2x1.png"),
-        "impresora": ObstacleSpriteInfo("impresora_2x1.png"),
+        "pantalla": ObstacleSpriteInfo(
+            "pantalla_2x1.png", frame_count=5, fps=_DEFAULT_OBSTACLE_ANIMATION_FPS
+        ),
+        "impresora": ObstacleSpriteInfo(
+            "impresora_2x1.png", frame_count=2, fps=_DEFAULT_OBSTACLE_ANIMATION_FPS
+        ),
     },
     (2, 2): {
         "pantallas": ObstacleSpriteInfo("pantallas_2x2.png"),
     },
     (4, 2): {
-        "pantallas_azules": ObstacleSpriteInfo("pantallas_azules_4x2.png", scale=(1, 1)),
+        "pantallas_azules": ObstacleSpriteInfo(
+            "pantallas_azules_4x2.png", scale=(1, 1), frame_count=5, fps=_DEFAULT_OBSTACLE_ANIMATION_FPS
+        ),
     },
 }
 
@@ -291,6 +307,8 @@ _OBSTACLE_FALLBACK_COLORS: dict[str, tuple[tuple[int, int, int], tuple[int, int,
     "hoyo": ((28, 28, 32), (10, 10, 12)),
     "caneca": ((54, 102, 176), (32, 62, 118)),
     "tubo_verde": ((56, 142, 60), (32, 82, 36)),
+    "tubo_verde_vacio": ((56, 142, 60), (32, 82, 36)),
+    "tubo_verde_singular": ((56, 142, 60), (32, 82, 36)),
     "pantalla": ((82, 188, 242), (36, 90, 126)),
     "impresora": ((210, 210, 210), (128, 128, 128)),
     "pantallas": ((120, 160, 196), (70, 100, 132)),
@@ -343,7 +361,7 @@ def set_global_obstacle_scale(scale: float | tuple[float, float] | list[float] |
 def clear_obstacle_sprite_cache() -> None:
     """Vacia el caché interno para volver a cargar sprites personalizados."""
 
-    _OBSTACLE_SPRITE_CACHE.clear()
+    _OBSTACLE_FRAME_CACHE.clear()
     _OBSTACLE_SPRITE_OFFSETS.clear()
 
 
@@ -376,49 +394,79 @@ def _resolve_offset(
     return (offset_x, offset_y)
 
 
-def _find_sprite_candidate(
+def _candidate_stems(
     size_tiles: tuple[int, int], variant_slug: str, info: ObstacleSpriteInfo
-) -> Path | None:
+) -> list[tuple[Path, str]]:
+    width_tiles, height_tiles = size_tiles
+    stems: list[tuple[Path, str]] = []
+
     if info.filename:
         path = Path(info.filename)
         if not path.is_absolute():
             path = _OBSTACLE_ASSET_DIR / path
-        if path.exists():
-            return path
-    width_tiles, height_tiles = size_tiles
-    candidates: list[str] = []
+        stems.append((path.parent, path.stem))
+
     if variant_slug and variant_slug != "default":
-        candidates.extend(
+        stems.extend(
             [
-                f"{variant_slug}_{width_tiles}x{height_tiles}.png",
-                f"obstacle_{variant_slug}_{width_tiles}x{height_tiles}.png",
-                f"obstacle_{variant_slug}.png",
-                f"{variant_slug}.png",
+                (_OBSTACLE_ASSET_DIR, f"{variant_slug}_{width_tiles}x{height_tiles}"),
+                (
+                    _OBSTACLE_ASSET_DIR,
+                    f"obstacle_{variant_slug}_{width_tiles}x{height_tiles}",
+                ),
+                (_OBSTACLE_ASSET_DIR, f"obstacle_{variant_slug}"),
+                (_OBSTACLE_ASSET_DIR, variant_slug),
             ]
         )
-    candidates.extend(
+
+    stems.extend(
         [
-            f"crate_{width_tiles}x{height_tiles}.png",
-            "crate.png",
+            (_OBSTACLE_ASSET_DIR, f"crate_{width_tiles}x{height_tiles}"),
+            (_OBSTACLE_ASSET_DIR, "crate"),
         ]
     )
-    for name in candidates:
-        candidate = _OBSTACLE_ASSET_DIR / name
-        if candidate.exists():
-            return candidate
-    return None
+
+    unique: list[tuple[Path, str]] = []
+    seen: set[tuple[Path, str]] = set()
+    for stem in stems:
+        if stem not in seen:
+            unique.append(stem)
+            seen.add(stem)
+    return unique
 
 
-def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = None) -> pygame.Surface:
+def _build_placeholder_sprite(
+    size_tiles: tuple[int, int], target_size: tuple[int, int], variant_slug: str
+) -> pygame.Surface:
+    width_tiles, height_tiles = size_tiles
+    ts = CFG.TILE_SIZE
+    base_color, border_color = _OBSTACLE_FALLBACK_COLORS.get(
+        variant_slug,
+        ((124, 92, 64), (90, 60, 38)),
+    )
+    surface = pygame.Surface(target_size, pygame.SRCALPHA)
+    surface.fill(base_color)
+    pygame.draw.rect(surface, border_color, surface.get_rect(), 3)
+    if width_tiles >= 2 or height_tiles >= 2:
+        inner = surface.get_rect().inflate(-ts // 2, -ts // 2)
+        if inner.width > 0 and inner.height > 0:
+            pygame.draw.rect(surface, border_color, inner, 1)
+    return surface
+
+
+def _load_obstacle_frames(
+    size_tiles: tuple[int, int], variant: str | None = None
+) -> list[pygame.Surface]:
     width_tiles, height_tiles = size_tiles
     variant_slug = (variant or "").lower().strip() or "default"
     key = (size_tiles, variant_slug)
-    cached = _OBSTACLE_SPRITE_CACHE.get(key)
+    cached = _OBSTACLE_FRAME_CACHE.get(key)
     if cached is not None:
         return cached
 
     ts = CFG.TILE_SIZE
     info = _resolve_sprite_info(size_tiles, variant_slug)
+    expected_frames = max(1, int(info.frame_count))
     scale_x, scale_y = _resolve_scale(variant_slug, info.scale)
     width_px = width_tiles * ts
     height_px = height_tiles * ts
@@ -427,33 +475,51 @@ def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = Non
         max(1, int(round(height_px * scale_y))),
     )
 
-    surface: pygame.Surface | None = None
-    candidate = _find_sprite_candidate(size_tiles, variant_slug, info)
-    if candidate is not None:
+    def _load_scaled_surface(path: Path) -> pygame.Surface | None:
         try:
-            surface = pygame.image.load(candidate.as_posix()).convert_alpha()
+            surface = pygame.image.load(path.as_posix()).convert_alpha()
         except pygame.error:
-            surface = None
-    if surface is not None and surface.get_size() != target_size:
-        surface = pygame.transform.smoothscale(surface, target_size)
+            return None
+        if surface.get_size() != target_size:
+            surface = pygame.transform.smoothscale(surface, target_size)
+        return surface
 
-    if surface is None:
-        base_color, border_color = _OBSTACLE_FALLBACK_COLORS.get(
-            variant_slug,
-            ((124, 92, 64), (90, 60, 38)),
-        )
-        surface = pygame.Surface(target_size, pygame.SRCALPHA)
-        surface.fill(base_color)
-        pygame.draw.rect(surface, border_color, surface.get_rect(), 3)
-        if width_tiles >= 2 or height_tiles >= 2:
-            inner = surface.get_rect().inflate(-ts // 2, -ts // 2)
-            if inner.width > 0 and inner.height > 0:
-                pygame.draw.rect(surface, border_color, inner, 1)
+    frames: list[pygame.Surface] = []
+    stems = _candidate_stems(size_tiles, variant_slug, info)
+    for directory, stem in stems:
+        frame_paths: list[Path] = []
+        if expected_frames > 1:
+            frame_paths = [directory / f"{stem}_{i}.png" for i in range(expected_frames)]
+            frame_paths = [path for path in frame_paths if path.exists()]
+        if frame_paths:
+            for path in frame_paths:
+                surface = _load_scaled_surface(path)
+                if surface is not None:
+                    frames.append(surface)
+            break
 
-    offset = _resolve_offset(size_tiles, surface, info.offset)
+        candidate = directory / f"{stem}.png"
+        if candidate.exists():
+            surface = _load_scaled_surface(candidate)
+            if surface is not None:
+                frames.append(surface)
+                break
+
+    if not frames:
+        frames.append(_build_placeholder_sprite(size_tiles, target_size, variant_slug))
+
+    if len(frames) < expected_frames and frames:
+        repeats = (expected_frames + len(frames) - 1) // len(frames)
+        frames = (frames * repeats)[:expected_frames]
+
+    offset = _resolve_offset(size_tiles, frames[0], info.offset)
     _OBSTACLE_SPRITE_OFFSETS[key] = offset
-    _OBSTACLE_SPRITE_CACHE[key] = surface
-    return surface
+    _OBSTACLE_FRAME_CACHE[key] = frames
+    return frames
+
+
+def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = None) -> pygame.Surface:
+    return _load_obstacle_frames(size_tiles, variant)[0]
 
 class Room:
     """
@@ -516,6 +582,8 @@ class Room:
 
         self.obstacles: list[dict] = []
         self._obstacle_tiles: set[tuple[int, int]] = set()
+        self._shop_decorated: bool = False
+        self._shop_decor_seed: int | None = None
 
         # Bosses
         self.boss_blueprint = getattr(self, "boss_blueprint", None)
@@ -588,7 +656,14 @@ class Room:
         self._obstacle_tiles.clear()
         self._boss_corner_obstacles_placed = False
 
-    def _can_place_obstacle(self, tx: int, ty: int, w_tiles: int, h_tiles: int) -> bool:
+    def _can_place_obstacle(
+        self,
+        tx: int,
+        ty: int,
+        w_tiles: int,
+        h_tiles: int,
+        forbidden_tiles: set[tuple[int, int]] | None = None,
+    ) -> bool:
         if self.bounds is None:
             return False
         rx, ry, rw, rh = self.bounds
@@ -598,6 +673,7 @@ class Room:
         max_ty = ry + rh - h_tiles - 1
         if tx < min_tx or ty < min_ty or tx > max_tx or ty > max_ty:
             return False
+        forbidden_tiles = forbidden_tiles or set()
         for dy in range(h_tiles):
             for dx in range(w_tiles):
                 cx = tx + dx
@@ -607,6 +683,8 @@ class Room:
                 if self.tiles[cy][cx] != CFG.FLOOR:
                     return False
                 if (cx, cy) in self._obstacle_tiles or (cx, cy) in self._treasure_tiles or (cx, cy) in self._rune_chest_tiles:
+                    return False
+                if (cx, cy) in forbidden_tiles:
                     return False
         return True
 
@@ -620,20 +698,38 @@ class Room:
     ) -> None:
         ts = CFG.TILE_SIZE
         rect = pygame.Rect(tx * ts, ty * ts, w_tiles * ts, h_tiles * ts)
+        variant_slug = (variant or "").lower().strip() or "default"
+        info = _resolve_sprite_info((w_tiles, h_tiles), variant_slug)
+        frame_count_hint = max(1, int(info.frame_count))
+        start_phase = random.random()
+        start_frame = int(start_phase * frame_count_hint) % frame_count_hint
+        speed_jitter = random.uniform(0.85, 1.15)
         tiles = {(tx + dx, ty + dy) for dy in range(h_tiles) for dx in range(w_tiles)}
         self.obstacles.append({
             "rect": rect,
             "tiles": tiles,
             "size": (w_tiles, h_tiles),
-            "variant": (variant or "").lower().strip() or "default",
+            "variant": variant_slug,
+            "frame_index": start_frame,
+            "frame_timer": start_phase % 1.0,
+            "animation_fps": max(0.0, float(info.fps)),
+            "animation_speed": speed_jitter,
+            "expected_frames": frame_count_hint,
         })
         self._obstacle_tiles.update(tiles)
 
-    def generate_obstacles(self, rng: random.Random | None = None, max_density: float = 0.08) -> None:
+    def generate_obstacles(
+        self,
+        rng: random.Random | None = None,
+        max_density: float = 0.08,
+        forbidden_tiles: set[tuple[int, int]] | None = None,
+        max_obstacles_override: int | None = None,
+    ) -> None:
         if self.bounds is None:
             return
         self.clear_obstacles()
         rng = rng or random
+        forbidden_tiles = forbidden_tiles or set()
 
         rx, ry, rw, rh = self.bounds
         interior_w = max(0, rw - 2)
@@ -643,6 +739,8 @@ class Room:
 
         interior_area = interior_w * interior_h
         max_obstacles = max(0, int(interior_area * max_density))
+        if max_obstacles_override is not None:
+            max_obstacles = max(0, int(max_obstacles_override))
         if max_obstacles <= 0:
             max_obstacles = 1 if interior_area >= 6 else 0
         if max_obstacles <= 0:
@@ -670,7 +768,9 @@ class Room:
                 continue
             tx = rng.randint(min_tx, max_tx)
             ty = rng.randint(min_ty, max_ty)
-            if not self._can_place_obstacle(tx, ty, w_tiles, h_tiles):
+            if not self._can_place_obstacle(
+                tx, ty, w_tiles, h_tiles, forbidden_tiles=forbidden_tiles
+            ):
                 continue
             variant_choices = _OBSTACLE_VARIANTS.get((w_tiles, h_tiles), ["default"])
             variant = rng.choice(variant_choices)
@@ -808,9 +908,38 @@ class Room:
             return
         rx, ry, rw, rh = self.bounds
         ts = cfg.TILE_SIZE
-        cx = (rx + rw // 2) * ts + ts // 2
-        cy = (ry + rh // 2) * ts + ts // 2
+        cx = (rx + rw // 2) * ts + ts // 2 - ts
+        cy = (ry + rh // 2) * ts + ts // 2 - ts
         self.shopkeeper = ShopkeeperCls((cx, cy))
+
+    def _decorate_shop(self) -> None:
+        if self._shop_decorated or self.bounds is None or self.shopkeeper is None:
+            return
+
+        if self._shop_decor_seed is None:
+            rx, ry, rw, rh = self.bounds
+            self._shop_decor_seed = (
+                (rx * 73856093) ^ (ry * 19349663) ^ (rw * 83492791) ^ (rh * 2971215073)
+            ) & 0xFFFFFFFF
+
+        ts = CFG.TILE_SIZE
+        sk_center = (
+            self.shopkeeper.rect.centerx // ts,
+            self.shopkeeper.rect.centery // ts,
+        )
+        forbidden_tiles: set[tuple[int, int]] = set()
+        for dy in range(-3, 4):
+            for dx in range(-3, 4):
+                forbidden_tiles.add((sk_center[0] + dx, sk_center[1] + dy))
+
+        rng = random.Random(self._shop_decor_seed)
+        self.generate_obstacles(
+            rng=rng,
+            max_density=0.03,
+            forbidden_tiles=forbidden_tiles,
+            max_obstacles_override=3,
+        )
+        self._shop_decorated = True
 
     def on_enter(self, player, cfg, ShopkeeperCls=None):
         """
@@ -827,6 +956,7 @@ class Room:
             self.locked = False
             if ShopkeeperCls:
                 self._ensure_shopkeeper(cfg, ShopkeeperCls)
+            self._decorate_shop()
         elif self.type == "boss":
             self.safe = False
             self.no_spawn = True
@@ -1309,7 +1439,31 @@ class Room:
             self.cleared = True
             self.locked = False
 
+    def _update_obstacle_animations(self, dt: float) -> None:
+        if not self.obstacles:
+            return
+        for obstacle in self.obstacles:
+            fps = float(obstacle.get("animation_fps", 0.0))
+            speed_mult = float(obstacle.get("animation_speed", 1.0))
+            fps *= speed_mult
+            frames = _load_obstacle_frames(obstacle["size"], obstacle.get("variant"))
+            frame_count = max(1, len(frames), int(obstacle.get("expected_frames", 1)))
+            obstacle["expected_frames"] = frame_count
+
+            frame_index = int(obstacle.get("frame_index", 0)) % frame_count
+            if fps <= 0 or frame_count <= 1:
+                obstacle["frame_index"] = frame_index
+                obstacle["frame_timer"] = 0.0
+                continue
+
+            obstacle["frame_timer"] = float(obstacle.get("frame_timer", 0.0)) + dt * fps
+            while obstacle["frame_timer"] >= 1.0:
+                obstacle["frame_timer"] -= 1.0
+                frame_index = (frame_index + 1) % frame_count
+            obstacle["frame_index"] = frame_index
+
     def update(self, dt: float) -> None:
+        self._update_obstacle_animations(dt)
         if not self.is_corrupted:
             return
         self._glitch_timer += dt
@@ -1439,7 +1593,11 @@ class Room:
 
         if self.obstacles:
             for obstacle in self.obstacles:
-                sprite = _load_obstacle_sprite(obstacle["size"], obstacle.get("variant"))
+                frames = _load_obstacle_frames(obstacle["size"], obstacle.get("variant"))
+                frame_index = obstacle.get("frame_index", 0)
+                if len(frames) == 0:
+                    continue
+                sprite = frames[min(frame_index % len(frames), len(frames) - 1)]
                 variant_slug = (obstacle.get("variant") or "").lower().strip() or "default"
                 offset = _OBSTACLE_SPRITE_OFFSETS.get((obstacle["size"], variant_slug), (0, 0))
                 surf.blit(
