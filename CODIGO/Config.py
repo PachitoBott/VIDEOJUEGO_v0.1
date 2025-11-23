@@ -93,7 +93,7 @@ class Config:
 
     
     #################### APARECER EN BOSS ROOM AL INICIAR EL JUEGO ####################
-    DEBUG_START_IN_BOSS_ROOM: bool = True
+    DEBUG_START_IN_BOSS_ROOM: bool = False
     ###################################################################################
 
     # --- Tesoro ---

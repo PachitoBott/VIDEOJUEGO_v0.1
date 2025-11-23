@@ -85,9 +85,11 @@ class Enemy(Entity):
         self.hit_flash_timer = 0.0
         self._hit_flash_duration = 0.1
         
-        # Sonido de daño
+        # Sonidos
         self._damage_sound = None
         self._load_damage_sound()
+        self._elimination_sound = None
+        self._load_elimination_sound()
 
     def _center(self):
         return (self.x + self.w/2, self.y + self.h/2)
@@ -210,6 +212,9 @@ class Enemy(Entity):
         self._is_dying = True
         self.hp = 0
         self.animator.trigger_death()
+        # Reproducir sonido de eliminación
+        if self._elimination_sound:
+            self._elimination_sound.play()
 
     def _movement_speed_factor(self) -> float:
         return self._slow_multiplier if self._slow_timer > 0.0 else 1.0
@@ -312,6 +317,20 @@ class Enemy(Entity):
                 self._damage_sound = None
         except (pygame.error, FileNotFoundError):
             self._damage_sound = None
+    
+    def _load_elimination_sound(self) -> None:
+        """Carga el sonido de eliminación del enemigo."""
+        try:
+            audio_path = Path("assets/audio/enemy_elimination_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "enemy_elimination_sfx.mp3"
+            if audio_path.exists():
+                self._elimination_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self._elimination_sound.set_volume(0.15)  # 15% del volumen
+            else:
+                self._elimination_sound = None
+        except (pygame.error, FileNotFoundError):
+            self._elimination_sound = None
 
 
 # ===== Tipos de enemigo =====
