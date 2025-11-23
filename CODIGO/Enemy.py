@@ -509,8 +509,8 @@ class BasicEnemy(Enemy):
             bullet = Projectile(
                 spawn_x, spawn_y, dir_x, dir_y,
                 speed=self.bullet_speed,
-                radius=4,
-                color=(240, 200, 120),
+                radius=3,
+                color=(120, 230, 140),
                 damage=getattr(self, "projectile_damage", 1),
             )
             if hasattr(out_bullets, "add"):
