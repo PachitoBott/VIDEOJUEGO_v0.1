@@ -944,7 +944,8 @@ class Room:
         self._door_width_tiles = max(1, int(width_tiles))
         # Mantén la altura lateral igual al ancho del pasillo para no cambiar el corredor.
         self._door_side_height_tiles = self._door_width_tiles
-        self._door_corridor_length_tiles = max(1, int(length_tiles))
+        base_length = max(1, int(length_tiles))
+        self._door_corridor_length_tiles = base_length
 
         def carve_rect(x: int, y: int, w: int, h: int) -> None:
             for yy in range(y, y + h):
@@ -963,18 +964,28 @@ class Room:
         left_tile   = (center_tx2 - W) // 2  # N y S
         top_tile    = (center_ty2 - side_height) // 2  # E y W
 
+        # Longitudes dinámicas hasta el borde del mapa.
+        north_length = ry
+        south_length = CFG.MAP_H - (ry + rh)
+        east_length = CFG.MAP_W - (rx + rw)
+        west_length = rx
+
         # Norte (arriba)
         if self.doors.get("N"):
-            carve_rect(left_tile, ry - length_tiles, W, length_tiles)
+            length = max(base_length, north_length)
+            carve_rect(left_tile, ry - length, W, length)
         # Sur (abajo)
         if self.doors.get("S"):
-            carve_rect(left_tile, ry + rh, W, length_tiles)
+            length = max(base_length, south_length)
+            carve_rect(left_tile, ry + rh, W, length)
         # Este (derecha)
         if self.doors.get("E"):
-            carve_rect(rx + rw, top_tile, length_tiles, side_height)
+            length = max(base_length, east_length)
+            carve_rect(rx + rw, top_tile, length, side_height)
         # Oeste (izquierda)
         if self.doors.get("W"):
-            carve_rect(rx - length_tiles, top_tile, length_tiles, side_height)
+            length = max(base_length, west_length)
+            carve_rect(rx - length, top_tile, length, side_height)
 
         self._refresh_door_block_tiles()
 
