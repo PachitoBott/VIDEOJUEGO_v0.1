@@ -194,6 +194,7 @@ class BossEnemy(Enemy):
         self._player_rect_cache: pygame.Rect | None = None
         self._phase_thresholds = (0.6, 0.3)
         self._tracked_room = None
+        self._prev_anim_pos: tuple[float, float] = (x, y)
         # Animación en capas (piernas/torso + muerte completa)
         self.animations = load_boss_animation_layers(self.sprite_variant)
         self.animator = LayeredBossAnimator(
@@ -268,6 +269,7 @@ class BossEnemy(Enemy):
         self._tracked_room = room
 
     def update(self, dt: float, player, room) -> None:
+        self._prev_anim_pos = (self.x, self.y)
         self._tracked_room = room
         self._player_rect_cache = self._player_rect(player)
         self._update_phase_state()
@@ -564,12 +566,14 @@ class BossEnemy(Enemy):
             taker(amount)
 
     def _update_animation(self, dt: float) -> None:
-        base_state = "idle"
-        if not self._movement_locked and self.state in (WANDER, CHASE):
-            base_state = "run"
+        prev_x, prev_y = getattr(self, "_prev_anim_pos", (self.x, self.y))
+        moved_dist = math.hypot(self.x - prev_x, self.y - prev_y)
+
+        base_state = "run" if moved_dist > 0.1 else "idle"
         self.animator.set_leg_state(base_state)
         self.animator.set_torso_base_state("idle")
         self.animator.update(dt)
+        self._prev_anim_pos = (self.x, self.y)
 
     def trigger_shoot_animation(self, variant: str = "shoot1") -> None:
         if self._is_dying:
@@ -651,7 +655,7 @@ class CorruptedServerBoss(BossEnemy):
                 self.trigger_shoot_animation("shoot1")
                 fired = True
             if self._line_timer <= 0.0:
-                self._fire_line(player, out_bullets, speed=200.0, bullets=7)
+                self._fire_line(player, out_bullets, speed=140.0, bullets=7)
                 self._line_timer = self.line_cooldown
                 self.trigger_shoot_animation("shoot2")
                 fired = True
@@ -662,7 +666,7 @@ class CorruptedServerBoss(BossEnemy):
                 self.trigger_shoot_animation("shoot1")
                 fired = True
             if self._line_timer <= 0.0:
-                self._fire_line(player, out_bullets, speed=260.0, bullets=5)
+                self._fire_line(player, out_bullets, speed=182.0, bullets=5)
                 self._line_timer = max(1.2, self.line_cooldown * 0.7)
                 self.trigger_shoot_animation("shoot2")
                 fired = True
@@ -927,7 +931,7 @@ class SecurityManagerBoss(BossEnemy):
         base_angle = math.atan2(base_dy, base_dx)
         spread = math.radians(55)
         pellets = 9
-        speed = 210.0 if self.phase == 1 else 260.0
+        speed = 168.0 if self.phase == 1 else 208.0
         for i in range(pellets):
             if pellets == 1:
                 angle = base_angle
