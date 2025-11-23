@@ -20,10 +20,26 @@ Los sprites incluidos por defecto son:
 - `hoyo.png`
 - `caneca.png`
 - `tubo_verde_1x2.png`
+- `tubo_verde_vacio_1x2.png`
+- `tubo_verde_singular_1x2.png`
 - `pantalla_2x1.png`
 - `impresora_2x1.png`
 - `pantallas_2x2.png`
 - `pantallas_azules_4x2.png`
+
+## Animaciones
+
+Las variantes animadas buscan frames numerados siguiendo el patrón descrito
+arriba: `<nombre_base>_0.png`, `<nombre_base>_1.png`, etc. Si faltan frames, el
+juego repetirá los disponibles para completar la animación.
+
+Las animaciones predeterminadas esperan los siguientes recuentos de frames:
+
+- `impresora_2x1` → 2 frames
+- `pantalla_2x1` → 5 frames
+- `pantallas_azules_4x2` → 5 frames
+- `tubo_verde_1x2` → 4 frames
+- `tubo_verde_singular_1x2` → 4 frames
 
 Si quieres un sprite dedicado para el Cofre Rúnico, colócalo manualmente como
 `cofre_runico.png` en esta carpeta. Si el archivo no existe, el juego usará el
