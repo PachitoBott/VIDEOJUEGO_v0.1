@@ -582,6 +582,8 @@ class Room:
 
         self.obstacles: list[dict] = []
         self._obstacle_tiles: set[tuple[int, int]] = set()
+        self._shop_decorated: bool = False
+        self._shop_decor_seed: int | None = None
 
         # Bosses
         self.boss_blueprint = getattr(self, "boss_blueprint", None)
@@ -654,7 +656,14 @@ class Room:
         self._obstacle_tiles.clear()
         self._boss_corner_obstacles_placed = False
 
-    def _can_place_obstacle(self, tx: int, ty: int, w_tiles: int, h_tiles: int) -> bool:
+    def _can_place_obstacle(
+        self,
+        tx: int,
+        ty: int,
+        w_tiles: int,
+        h_tiles: int,
+        forbidden_tiles: set[tuple[int, int]] | None = None,
+    ) -> bool:
         if self.bounds is None:
             return False
         rx, ry, rw, rh = self.bounds
@@ -664,6 +673,7 @@ class Room:
         max_ty = ry + rh - h_tiles - 1
         if tx < min_tx or ty < min_ty or tx > max_tx or ty > max_ty:
             return False
+        forbidden_tiles = forbidden_tiles or set()
         for dy in range(h_tiles):
             for dx in range(w_tiles):
                 cx = tx + dx
@@ -673,6 +683,8 @@ class Room:
                 if self.tiles[cy][cx] != CFG.FLOOR:
                     return False
                 if (cx, cy) in self._obstacle_tiles or (cx, cy) in self._treasure_tiles or (cx, cy) in self._rune_chest_tiles:
+                    return False
+                if (cx, cy) in forbidden_tiles:
                     return False
         return True
 
@@ -688,24 +700,36 @@ class Room:
         rect = pygame.Rect(tx * ts, ty * ts, w_tiles * ts, h_tiles * ts)
         variant_slug = (variant or "").lower().strip() or "default"
         info = _resolve_sprite_info((w_tiles, h_tiles), variant_slug)
+        frame_count_hint = max(1, int(info.frame_count))
+        start_phase = random.random()
+        start_frame = int(start_phase * frame_count_hint) % frame_count_hint
+        speed_jitter = random.uniform(0.85, 1.15)
         tiles = {(tx + dx, ty + dy) for dy in range(h_tiles) for dx in range(w_tiles)}
         self.obstacles.append({
             "rect": rect,
             "tiles": tiles,
             "size": (w_tiles, h_tiles),
             "variant": variant_slug,
-            "frame_index": 0,
-            "frame_timer": 0.0,
+            "frame_index": start_frame,
+            "frame_timer": start_phase % 1.0,
             "animation_fps": max(0.0, float(info.fps)),
-            "expected_frames": max(1, int(info.frame_count)),
+            "animation_speed": speed_jitter,
+            "expected_frames": frame_count_hint,
         })
         self._obstacle_tiles.update(tiles)
 
-    def generate_obstacles(self, rng: random.Random | None = None, max_density: float = 0.08) -> None:
+    def generate_obstacles(
+        self,
+        rng: random.Random | None = None,
+        max_density: float = 0.08,
+        forbidden_tiles: set[tuple[int, int]] | None = None,
+        max_obstacles_override: int | None = None,
+    ) -> None:
         if self.bounds is None:
             return
         self.clear_obstacles()
         rng = rng or random
+        forbidden_tiles = forbidden_tiles or set()
 
         rx, ry, rw, rh = self.bounds
         interior_w = max(0, rw - 2)
@@ -715,6 +739,8 @@ class Room:
 
         interior_area = interior_w * interior_h
         max_obstacles = max(0, int(interior_area * max_density))
+        if max_obstacles_override is not None:
+            max_obstacles = max(0, int(max_obstacles_override))
         if max_obstacles <= 0:
             max_obstacles = 1 if interior_area >= 6 else 0
         if max_obstacles <= 0:
@@ -742,7 +768,9 @@ class Room:
                 continue
             tx = rng.randint(min_tx, max_tx)
             ty = rng.randint(min_ty, max_ty)
-            if not self._can_place_obstacle(tx, ty, w_tiles, h_tiles):
+            if not self._can_place_obstacle(
+                tx, ty, w_tiles, h_tiles, forbidden_tiles=forbidden_tiles
+            ):
                 continue
             variant_choices = _OBSTACLE_VARIANTS.get((w_tiles, h_tiles), ["default"])
             variant = rng.choice(variant_choices)
@@ -880,9 +908,38 @@ class Room:
             return
         rx, ry, rw, rh = self.bounds
         ts = cfg.TILE_SIZE
-        cx = (rx + rw // 2) * ts + ts // 2
-        cy = (ry + rh // 2) * ts + ts // 2
+        cx = (rx + rw // 2) * ts + ts // 2 - ts
+        cy = (ry + rh // 2) * ts + ts // 2 - ts
         self.shopkeeper = ShopkeeperCls((cx, cy))
+
+    def _decorate_shop(self) -> None:
+        if self._shop_decorated or self.bounds is None or self.shopkeeper is None:
+            return
+
+        if self._shop_decor_seed is None:
+            rx, ry, rw, rh = self.bounds
+            self._shop_decor_seed = (
+                (rx * 73856093) ^ (ry * 19349663) ^ (rw * 83492791) ^ (rh * 2971215073)
+            ) & 0xFFFFFFFF
+
+        ts = CFG.TILE_SIZE
+        sk_center = (
+            self.shopkeeper.rect.centerx // ts,
+            self.shopkeeper.rect.centery // ts,
+        )
+        forbidden_tiles: set[tuple[int, int]] = set()
+        for dy in range(-3, 4):
+            for dx in range(-3, 4):
+                forbidden_tiles.add((sk_center[0] + dx, sk_center[1] + dy))
+
+        rng = random.Random(self._shop_decor_seed)
+        self.generate_obstacles(
+            rng=rng,
+            max_density=0.03,
+            forbidden_tiles=forbidden_tiles,
+            max_obstacles_override=3,
+        )
+        self._shop_decorated = True
 
     def on_enter(self, player, cfg, ShopkeeperCls=None):
         """
@@ -899,6 +956,7 @@ class Room:
             self.locked = False
             if ShopkeeperCls:
                 self._ensure_shopkeeper(cfg, ShopkeeperCls)
+            self._decorate_shop()
         elif self.type == "boss":
             self.safe = False
             self.no_spawn = True
@@ -1386,6 +1444,8 @@ class Room:
             return
         for obstacle in self.obstacles:
             fps = float(obstacle.get("animation_fps", 0.0))
+            speed_mult = float(obstacle.get("animation_speed", 1.0))
+            fps *= speed_mult
             frames = _load_obstacle_frames(obstacle["size"], obstacle.get("variant"))
             frame_count = max(1, len(frames), int(obstacle.get("expected_frames", 1)))
             obstacle["expected_frames"] = frame_count
