@@ -942,9 +942,8 @@ class Room:
         assert self.bounds is not None
         rx, ry, rw, rh = self.bounds
         self._door_width_tiles = max(1, int(width_tiles))
-        self._door_side_height_tiles = max(
-            1, int(side_height_tiles if side_height_tiles is not None else self._door_width_tiles)
-        )
+        # Mantén la altura lateral igual al ancho del pasillo para no cambiar el corredor.
+        self._door_side_height_tiles = self._door_width_tiles
         self._door_corridor_length_tiles = max(1, int(length_tiles))
 
         def carve_rect(x: int, y: int, w: int, h: int) -> None:
@@ -1035,6 +1034,7 @@ class Room:
 
         rx, ry, rw, rh = self.bounds
         W = max(1, getattr(self, "_door_width_tiles", 2))
+        side_height = max(1, getattr(self, "_door_side_height_tiles", W))
 
         center_tx2 = rx * 2 + rw
         center_ty2 = ry * 2 + rh
