@@ -1067,6 +1067,7 @@ class Room:
             if ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_e and can_interact:
                     if not shop_ui.active:
+                        self.shopkeeper.play_interaction_sound()
                         shop_ui.open(
                             world_surface.get_width() // 2,
                             world_surface.get_height() // 2,

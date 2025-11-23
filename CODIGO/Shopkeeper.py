@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+import random
 
 import pygame
 
@@ -52,6 +53,30 @@ class Shopkeeper(pygame.sprite.Sprite):
 
         self.image = self._animations[self._current_animation].current_frame()
         self.rect = self.image.get_rect(center=pos)
+        
+        self._interaction_sounds = self._load_interaction_sounds()
+
+    def _load_interaction_sounds(self) -> list[pygame.mixer.Sound]:
+        sounds = []
+        for i in range(3):
+            try:
+                path = Path(assets_dir("audio")) / f"shopkeeper_sfx_{i}.mp3"
+                if not path.exists():
+                     path = Path(__file__).parent / "assets" / "audio" / f"shopkeeper_sfx_{i}.mp3"
+                
+                if path.exists():
+                    snd = pygame.mixer.Sound(path.as_posix())
+                    snd.set_volume(0.35) # Volumen ajustado
+                    sounds.append(snd)
+            except Exception:
+                pass
+        return sounds
+
+    def play_interaction_sound(self) -> None:
+        if not self._interaction_sounds:
+            return
+        sound = random.choice(self._interaction_sounds)
+        sound.play()
 
     # ------------------------------------------------------------------
     # Animaciones y orientación
