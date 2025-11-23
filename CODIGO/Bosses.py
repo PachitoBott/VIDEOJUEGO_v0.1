@@ -651,7 +651,7 @@ class CorruptedServerBoss(BossEnemy):
                 self.trigger_shoot_animation("shoot1")
                 fired = True
             if self._line_timer <= 0.0:
-                self._fire_line(player, out_bullets, speed=200.0, bullets=7)
+                self._fire_line(player, out_bullets, speed=140.0, bullets=7)
                 self._line_timer = self.line_cooldown
                 self.trigger_shoot_animation("shoot2")
                 fired = True
@@ -662,7 +662,7 @@ class CorruptedServerBoss(BossEnemy):
                 self.trigger_shoot_animation("shoot1")
                 fired = True
             if self._line_timer <= 0.0:
-                self._fire_line(player, out_bullets, speed=260.0, bullets=5)
+                self._fire_line(player, out_bullets, speed=182.0, bullets=5)
                 self._line_timer = max(1.2, self.line_cooldown * 0.7)
                 self.trigger_shoot_animation("shoot2")
                 fired = True
@@ -927,7 +927,7 @@ class SecurityManagerBoss(BossEnemy):
         base_angle = math.atan2(base_dy, base_dx)
         spread = math.radians(55)
         pellets = 9
-        speed = 210.0 if self.phase == 1 else 260.0
+        speed = 168.0 if self.phase == 1 else 208.0
         for i in range(pellets):
             if pellets == 1:
                 angle = base_angle
