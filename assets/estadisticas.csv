@@ -1,6 +1,2 @@
 total_runs,total_duration_seconds,total_rooms_explored,total_gold_obtained,total_gold_spent,total_kills,total_deaths
-<<<<<<< HEAD
-14,3181.64,47,14000001498,690,100,3
-=======
-20,1769.86,65,20000002120,342,119,2
->>>>>>> 3a55caf73415cda22f453e8a5d931893dcf3faa9
+1,384.56,10,1000000217,342,0,0
