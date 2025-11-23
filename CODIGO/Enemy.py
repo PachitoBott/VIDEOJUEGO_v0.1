@@ -426,12 +426,12 @@ class ShooterEnemy(Enemy):
             spawn_x = ex + dir_x * 8
             spawn_y = ey + dir_y * 8
             bullet = Projectile(
-                spawn_x, spawn_y, dir_x, dir_y,
-                speed=self.bullet_speed,
-                radius=3,
-                color=(255, 90, 90),
-                damage=getattr(self, "projectile_damage", 1),
-            )
+                 spawn_x, spawn_y, dir_x, dir_y,
+                 speed=self.bullet_speed,
+                 radius=3,
+                 color=(255, 90, 90),
+                 damage=getattr(self, "projectile_damage", 1),
+                )
             if hasattr(out_bullets, "add"):
                 out_bullets.add(bullet)
             else:
@@ -449,7 +449,7 @@ class ShooterEnemy(Enemy):
             bullet = Projectile(
                 spawn_x, spawn_y, dir_x, dir_y,
                 speed=radial_speed,
-                radius=3,
+                radius=4,
                 color=(200, 70, 180),
                 damage=getattr(self, "projectile_damage", 1),
             )
@@ -509,7 +509,7 @@ class BasicEnemy(Enemy):
             bullet = Projectile(
                 spawn_x, spawn_y, dir_x, dir_y,
                 speed=self.bullet_speed,
-                radius=3,
+                radius=4,
                 color=(240, 200, 120),
                 damage=getattr(self, "projectile_damage", 1),
             )
@@ -670,7 +670,7 @@ class TankEnemy(Enemy):
                 vx,
                 vy,
                 speed=self.bullet_speed,
-                radius=3,
+                radius=4,
                 color=(255, 120, 90),
                 damage=getattr(self, "projectile_damage", 1),
             )
@@ -695,7 +695,7 @@ class TankEnemy(Enemy):
                     vx,
                     vy,
                     speed=self.bullet_speed * 0.9,
-                    radius=3,
+                    radius=4,
                     color=(255, 160, 120),
                     damage=getattr(self, "projectile_damage", 1),
                 )

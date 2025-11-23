@@ -18,7 +18,7 @@ class WeaponSpec:
     cooldown: float
     spread_deg: float
     bullet_speed: float
-    projectile_radius: int = 3
+    projectile_radius: int = 4
     offsets: Sequence[float] = field(default_factory=lambda: (0.0,))
     forward_spawn: float = 8.0
     magazine_size: int = 10
@@ -262,7 +262,7 @@ class WeaponFactory:
                 spread_deg=36.0,
                 bullet_speed=280.0,
                 offsets=(-12.0, -6.0, 0.0, 6.0, 12.0),
-                projectile_radius=4,
+                projectile_radius=5,
                 magazine_size=8,
                 reload_time=1.85,
             ),
@@ -287,7 +287,7 @@ class WeaponFactory:
                 cooldown=0.24,
                 spread_deg=28.0,
                 bullet_speed=240.0,
-                projectile_radius=5,
+                projectile_radius=6,
                 offsets=(-4.0, 4.0),
                 forward_spawn=4.0,
                 magazine_size=9,

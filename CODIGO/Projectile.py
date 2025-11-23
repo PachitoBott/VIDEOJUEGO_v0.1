@@ -11,10 +11,11 @@ class Projectile:
         dx,
         dy,
         speed=320.0,
-        radius=3,
+        radius=4,
         color=(255,230,140),
         effects: list[dict] | tuple[dict, ...] | None = None,
         damage: float = 1.0,
+        is_boss_projectile: bool = False,
     ):
         self.x, self.y = x, y
         self.dx, self.dy = dx, dy
@@ -27,6 +28,7 @@ class Projectile:
         self.ignore_player_timer = 0.0
         self.effects: tuple[dict, ...] = tuple(effects) if effects else ()
         self.damage: float = damage
+        self.is_boss_projectile = is_boss_projectile
 
     def rect(self) -> pygame.Rect:
         r = self.radius
@@ -69,7 +71,24 @@ class Projectile:
         return False
 
     def draw(self, surf):
-        pygame.draw.circle(surf, self.color, (int(self.x), int(self.y)), self.radius)
+        cx, cy = int(self.x), int(self.y)
+        core_r = max(1, int(self.radius))
+        rim_r = core_r + 1
+        if self.is_boss_projectile:
+            rim_r += 1
+
+        base_color = self.color
+        outline_color = tuple(min(255, int(c * 0.88) + 26) for c in base_color)
+        highlight_color = tuple(min(255, int(c * 0.7) + 55) for c in base_color)
+
+        pygame.draw.circle(surf, base_color, (cx, cy), core_r)
+        pygame.draw.circle(surf, outline_color, (cx, cy), rim_r, width=1)
+        pygame.draw.circle(
+            surf,
+            highlight_color,
+            (cx - core_r // 4, cy - core_r // 4),
+            max(1, core_r // 3),
+        )
 
 
 class ProjectileGroup:
