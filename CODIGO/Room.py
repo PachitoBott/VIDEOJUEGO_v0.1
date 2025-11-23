@@ -606,7 +606,7 @@ class Room:
                     return False
                 if self.tiles[cy][cx] != CFG.FLOOR:
                     return False
-                if (cx, cy) in self._obstacle_tiles:
+                if (cx, cy) in self._obstacle_tiles or (cx, cy) in self._treasure_tiles or (cx, cy) in self._rune_chest_tiles:
                     return False
         return True
 
@@ -837,13 +837,10 @@ class Room:
             self._spawn_boss_corner_obstacles()
             self._populated_once = True
             self._spawn_done = True
-        elif self.type == "treasure":
-            self.safe = True
-            self.no_spawn = True
-            self.no_combat = True
-            self.locked = False
         else:
-            # Poblar enemigos SOLO una vez (si no es shop)
+            # Salas normales/tesoro: poblar enemigos una vez si aplica
+            self.safe = False
+            self.no_combat = False
             if not self._populated_once and not self.no_spawn:
                 # TODO: aquí tu lógica real de spawn por sala
                 # e.g., self.enemies = spawn_enemies_for(self)
@@ -1685,9 +1682,9 @@ class Room:
     def setup_treasure_room(self, loot_table: list[dict]) -> None:
         self.type = "treasure"
         self.is_corrupted = False
-        self.safe = True
-        self.no_spawn = True
-        self.no_combat = True
+        self.safe = False
+        self.no_spawn = False
+        self.no_combat = False
         self.locked = False
         self.treasure_message = ""
         self.treasure_message_until = 0

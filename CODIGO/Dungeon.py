@@ -367,7 +367,7 @@ class Dungeon:
         self.shop_pos = (sx, sy)          # <<< guarda la coordenada para otras clases
         room.is_corrupted = False
 
-    def _place_treasure_rooms(self, max_rooms: int = 1, base_chance: float = 0.12) -> None:
+    def _place_treasure_rooms(self, max_rooms: int = 2, base_chance: float = 0.12) -> None:
         """Selecciona algunas salas y las convierte en cuartos del tesoro."""
         if not self.rooms:
             return
@@ -387,19 +387,27 @@ class Dungeon:
         main_candidates.sort(key=depth_of)
         branch_candidates.sort(key=depth_of)
 
-        chosen: list[tuple[int, int]] = []
+        candidates = [pos for pos in main_candidates + branch_candidates if depth_of(pos) > 0]
+        if not candidates:
+            return
 
+        max_pickable = min(max_rooms, 2)
+        target_rooms = random.randint(1, min(max_pickable, len(candidates)))
+
+        chosen: list[tuple[int, int]] = []
         rng = random.random
-        for pos in main_candidates + branch_candidates:
-            if len(chosen) >= max_rooms:
+        for pos in candidates:
+            if len(chosen) >= target_rooms:
                 break
             depth = depth_of(pos)
-            if depth <= 0:
-                continue
             chance = base_chance + 0.04 * min(depth, 5)
-            if rng() > min(0.55, chance):
-                continue
-            chosen.append(pos)
+            if rng() <= min(0.55, chance):
+                chosen.append(pos)
+
+        if len(chosen) < target_rooms:
+            remaining = [pos for pos in candidates if pos not in chosen]
+            remaining.sort(key=depth_of, reverse=True)
+            chosen.extend(remaining[: target_rooms - len(chosen)])
 
         self.treasure_rooms: set[tuple[int, int]] = set()
         for pos in chosen:
@@ -415,7 +423,7 @@ class Dungeon:
             return
 
         salt = 0xC0BB1E
-        safe_types = {"shop", "treasure", "boss"}
+        safe_types = {"shop", "boss"}
 
         for pos, room in sorted(self.rooms.items()):
             if pos == self.start:
