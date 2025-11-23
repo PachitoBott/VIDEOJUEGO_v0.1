@@ -9,6 +9,7 @@ from Minimap import Minimap
 from Projectile import ProjectileGroup
 from Shop import Shop
 from Shopkeeper import Shopkeeper
+from Cinematica import Cinematica
 
 
 class Game:
@@ -108,6 +109,7 @@ class Game:
             self._update(dt, events)
             self._render()
 
+        Cinematica(self.screen, self.cfg).play()
         pygame.quit()
         sys.exit(0)
 
