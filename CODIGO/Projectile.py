@@ -72,23 +72,33 @@ class Projectile:
 
     def draw(self, surf):
         cx, cy = int(self.x), int(self.y)
-        core_r = max(1, int(self.radius))
-        rim_r = core_r + 1
-        if self.is_boss_projectile:
-            rim_r += 1
+        core_r = max(2, int(self.radius))
+        boss_bonus = 1 if self.is_boss_projectile else 0
+        rim_r = core_r + 2 + boss_bonus
+        glow_r = rim_r + 3 + boss_bonus
 
-        base_color = self.color
-        outline_color = tuple(min(255, int(c * 0.88) + 26) for c in base_color)
-        highlight_color = tuple(min(255, int(c * 0.7) + 55) for c in base_color)
+        # Colours tuned for a luminous white core with a coloured rim and halo
+        rim_color = self.color
+        glow_color = (*rim_color, 80)
+        bright_rim_color = (*rim_color, 180)
+        core_color = (255, 255, 255, 245)
+        highlight_color = (255, 255, 255, 200)
 
-        pygame.draw.circle(surf, base_color, (cx, cy), core_r)
-        pygame.draw.circle(surf, outline_color, (cx, cy), rim_r, width=1)
+        size = glow_r * 2 + 2
+        temp_surf = pygame.Surface((size, size), pygame.SRCALPHA)
+        center = (glow_r + 1, glow_r + 1)
+
+        pygame.draw.circle(temp_surf, glow_color, center, glow_r)
+        pygame.draw.circle(temp_surf, bright_rim_color, center, rim_r)
+        pygame.draw.circle(temp_surf, core_color, center, core_r)
         pygame.draw.circle(
-            surf,
+            temp_surf,
             highlight_color,
-            (cx - core_r // 4, cy - core_r // 4),
-            max(1, core_r // 3),
+            (center[0] - core_r // 3, center[1] - core_r // 3),
+            max(1, core_r // 2),
         )
+
+        surf.blit(temp_surf, (cx - glow_r - 1, cy - glow_r - 1))
 
 
 class ProjectileGroup:
