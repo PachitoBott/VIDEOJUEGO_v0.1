@@ -524,11 +524,29 @@ class Room:
         self.boss_defeated = False
         self._boss_spawned = False
         self._boss_corner_obstacles_placed = False
+        
+        # Sonido de cofre
+        self._chest_sound = None
+        self._load_chest_sound()
 
 
     # ------------------------------------------------------------------ #
     # API estática para sprites de obstáculos
     # ------------------------------------------------------------------ #
+    
+    def _load_chest_sound(self) -> None:
+        """Carga el sonido de cofre."""
+        try:
+            audio_path = Path("assets/audio/chest_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "chest_sfx.mp3"
+            if audio_path.exists():
+                self._chest_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self._chest_sound.set_volume(0.15)  # 15% del volumen
+            else:
+                self._chest_sound = None
+        except (pygame.error, FileNotFoundError):
+            self._chest_sound = None
 
     def set_notification_callback(
         self, callback: Callable[[str, pygame.Surface | None], None] | None
@@ -1600,6 +1618,9 @@ class Room:
             message = f"Obtuviste: {name}" if applied else f"Encontraste: {name}"
         self.rune_chest["opened"] = True
         self._show_rune_message(message, duration=4400)
+        # Reproducir sonido de cofre
+        if self._chest_sound:
+            self._chest_sound.play()
 
     def _pick_rune_reward(self, player) -> dict | None:
         if not self.rune_chest:
@@ -1814,6 +1835,10 @@ class Room:
             message = f"Obtuviste: {name}" if applied else f"Encontraste: {name}"
 
         self.treasure["opened"] = True
+        # Reproducir sonido de cofre
+        if self._chest_sound:
+            self._chest_sound.play()
+        
         if self._notification_callback:
             self._notification_callback(message)
             self.treasure_message = ""

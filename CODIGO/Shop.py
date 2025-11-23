@@ -73,6 +73,10 @@ class Shop:
         self._rng = random.Random()
         self._inventory_generated = False
         self._restock_random()
+        
+        # Sonido de compra
+        self._buy_sound = None
+        self._load_buy_sound()
 
     def _scaled(self, value: float) -> int:
         return int(value * self.UI_SCALE)
@@ -496,6 +500,9 @@ class Shop:
             self.hover_index = None
         if applied:
             self._set_message(f"Compraste: {name}", self.ACCENT_COLOR)
+            # Reproducir sonido de compra
+            if self._buy_sound:
+                self._buy_sound.play()
         else:
             self._set_message("No se pudo aplicar el artículo.", self.ERROR_COLOR)
         return applied, f"Compraste: {name}"
@@ -837,4 +844,18 @@ class Shop:
         txt = self.font.render(label[:10], True, self.TITLE_COLOR)
         surf.blit(txt, txt.get_rect(center=surf.get_rect().center))
         return surf
+
+    def _load_buy_sound(self) -> None:
+        """Carga el sonido de compra."""
+        try:
+            audio_path = Path("assets/audio/buy_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "buy_sfx.mp3"
+            if audio_path.exists():
+                self._buy_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self._buy_sound.set_volume(0.15)  # 15% del volumen
+            else:
+                self._buy_sound = None
+        except (pygame.error, FileNotFoundError):
+            self._buy_sound = None
 
