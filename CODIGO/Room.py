@@ -1355,6 +1355,33 @@ class Room:
         cy = (ry + rh // 2) * ts + ts // 2
         return cx, cy
 
+    def find_clear_drop_center(self) -> Tuple[int, int]:
+        """Devuelve un punto céntrico libre de obstáculos para botines."""
+        if not self.bounds:
+            return self.center_px()
+
+        rx, ry, rw, rh = self.bounds
+        ts = CFG.TILE_SIZE
+        cx_tile = rx + rw // 2
+        cy_tile = ry + rh // 2
+
+        candidates: list[tuple[float, float, int, int]] = []
+        for ty in range(ry + 1, ry + rh - 1):
+            for tx in range(rx + 1, rx + rw - 1):
+                dx = tx - cx_tile
+                dy = ty - cy_tile
+                dist2 = dx * dx + dy * dy
+                candidates.append((dist2, random.random(), tx, ty))
+
+        candidates.sort(key=lambda entry: (entry[0], entry[1]))
+        for _, _, tx, ty in candidates:
+            if not self.is_blocked(tx, ty):
+                drop_x = tx * ts + ts // 2
+                drop_y = ty * ts + ts // 2
+                return drop_x, drop_y
+
+        return self.center_px()
+
     # ------------------------------------------------------------------ #
     # Dibujo
     # ------------------------------------------------------------------ #
@@ -1387,6 +1414,26 @@ class Room:
                     if row[tx] != CFG.FLOOR and self._wall_adjacent_to_floor(tx, ty):
                         pygame.draw.rect(surf, wall, pygame.Rect(tx * ts, ty * ts, ts, ts))
 
+        if self.is_corrupted and self.bounds is not None:
+            rx, ry, rw, rh = self.bounds
+            overlay_rect = pygame.Rect(rx * ts, ry * ts, rw * ts, rh * ts)
+            overlay = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
+            overlay.fill((90, 0, 120, 100))
+            surf.blit(overlay, overlay_rect.topleft)
+
+            if self._glitch_offset != (0, 0):
+                ghost = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
+                ghost.fill((70, 20, 110, 55))
+                surf.blit(ghost, (overlay_rect.x + self._glitch_offset[0], overlay_rect.y + self._glitch_offset[1]))
+
+            if self._glitch_lines:
+                lines_surf = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
+                for rect, color in self._glitch_lines:
+                    local_rect = rect.move(-overlay_rect.x, -overlay_rect.y)
+                    pygame.draw.rect(lines_surf, color, local_rect)
+                surf.blit(lines_surf, overlay_rect.topleft)
+                self._glitch_lines.clear()
+
         if self.is_start_room:
             graffiti = _load_start_graffiti_sprite()
             if graffiti is not None and self.bounds is not None:
@@ -1410,26 +1457,6 @@ class Room:
             self._draw_rune_chest(surf)
         if self.treasure:
             self._draw_treasure(surf)
-
-        if self.is_corrupted and self.bounds is not None:
-            rx, ry, rw, rh = self.bounds
-            overlay_rect = pygame.Rect(rx * ts, ry * ts, rw * ts, rh * ts)
-            overlay = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
-            overlay.fill((90, 0, 120, 100))
-            surf.blit(overlay, overlay_rect.topleft)
-
-            if self._glitch_offset != (0, 0):
-                ghost = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
-                ghost.fill((70, 20, 110, 55))
-                surf.blit(ghost, (overlay_rect.x + self._glitch_offset[0], overlay_rect.y + self._glitch_offset[1]))
-
-            if self._glitch_lines:
-                lines_surf = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
-                for rect, color in self._glitch_lines:
-                    local_rect = rect.move(-overlay_rect.x, -overlay_rect.y)
-                    pygame.draw.rect(lines_surf, color, local_rect)
-                surf.blit(lines_surf, overlay_rect.topleft)
-                self._glitch_lines.clear()
 
         # Puertas bloqueadas: dibuja “rejas” rojas en las aberturas
         if self.locked:

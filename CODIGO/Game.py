@@ -667,27 +667,34 @@ class Game:
 
     def _handle_corrupted_room_cleared(self, room) -> None:
         center = room.center_px() if hasattr(room, "center_px") else (self.cfg.SCREEN_W // 2, self.cfg.SCREEN_H // 2)
+        drop_center = center
+        if hasattr(room, "find_clear_drop_center"):
+            try:
+                drop_center = room.find_clear_drop_center()
+            except Exception:
+                drop_center = center
+
         if hasattr(self.vfx, "spawn_corruption_burst"):
-            self.vfx.spawn_corruption_burst(center)
+            self.vfx.spawn_corruption_burst(drop_center)
 
         mode = str(getattr(room, "corrupted_loot_mode", "upgrade")).lower()
         if mode == "chips":
             total_value = int(getattr(room, "_microchips_dropped_total", 0))
             bonus_multiplier = max(0.0, float(getattr(room, "corrupted_chip_bonus", 0.5)))
             bonus_value = int(max(1, total_value * bonus_multiplier)) or 10
-            self._spawn_microchip_bonus(center, bonus_value, room)
+            self._spawn_microchip_bonus(drop_center, bonus_value, room)
             self._notify_microchips(bonus_value)
             return
 
         reward = self._pick_corrupted_upgrade_reward()
         if reward:
-            self._spawn_reward_pickup_at(center, reward, room)
+            self._spawn_reward_pickup_at(drop_center, reward, room)
             self._notify_reward(reward)
             return
 
         total_value = int(getattr(room, "_microchips_dropped_total", 0))
         bonus_value = int(total_value * max(0.0, float(getattr(room, "corrupted_chip_bonus", 0.5)))) or 10
-        self._spawn_microchip_bonus(center, bonus_value, room)
+        self._spawn_microchip_bonus(drop_center, bonus_value, room)
         self._notify_microchips(bonus_value)
 
     def _pick_corrupted_upgrade_reward(self) -> dict | None:
