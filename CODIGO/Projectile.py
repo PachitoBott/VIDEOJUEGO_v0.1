@@ -74,15 +74,15 @@ class Projectile:
         cx, cy = int(self.x), int(self.y)
         core_r = max(2, int(self.radius))
         boss_bonus = 1 if self.is_boss_projectile else 0
-        rim_r = core_r + 2 + boss_bonus
-        glow_r = rim_r + 3 + boss_bonus
+        rim_r = core_r + 1 + boss_bonus
+        glow_r = rim_r + 1 + boss_bonus
 
         # Colours tuned for a luminous white core with a coloured rim and halo
         rim_color = self.color
-        glow_color = (*rim_color, 80)
-        bright_rim_color = (*rim_color, 180)
+        glow_color = (*rim_color, 55)
+        bright_rim_color = (*rim_color, 155)
         core_color = (255, 255, 255, 245)
-        highlight_color = (255, 255, 255, 200)
+        highlight_color = (255, 255, 255, 180)
 
         size = glow_r * 2 + 2
         temp_surf = pygame.Surface((size, size), pygame.SRCALPHA)
