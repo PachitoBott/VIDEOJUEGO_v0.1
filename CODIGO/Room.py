@@ -949,13 +949,13 @@ class Room:
 
         rects: dict[str, pygame.Rect] = {}
         if self.doors.get("N"):
-            rects["N"] = pygame.Rect(left_open_px, top_px, opening_px, ts)         # una “faja” de 1 tile
+            rects["N"] = pygame.Rect(left_open_px, top_px - ts, opening_px, ts)
         if self.doors.get("S"):
-            rects["S"] = pygame.Rect(left_open_px, bottom_px - ts, opening_px, ts)
+            rects["S"] = pygame.Rect(left_open_px, bottom_px, opening_px, ts)
         if self.doors.get("E"):
-            rects["E"] = pygame.Rect(right_px - ts, top_open_px, ts, opening_px)
+            rects["E"] = pygame.Rect(right_px, top_open_px, ts, opening_px)
         if self.doors.get("W"):
-            rects["W"] = pygame.Rect(left_px, top_open_px, ts, opening_px)
+            rects["W"] = pygame.Rect(left_px - ts, top_open_px, ts, opening_px)
         return rects
 
 
@@ -989,25 +989,27 @@ class Room:
         if self.doors.get("N"):
             for dx in range(W):
                 tx = left_tile + dx
-                if 0 <= tx <= max_x and 0 <= ry <= max_y:
-                    self._door_block_tiles.add((tx, ry))
+                ty = ry - 1
+                if 0 <= tx <= max_x and 0 <= ty <= max_y:
+                    self._door_block_tiles.add((tx, ty))
         if self.doors.get("S"):
             for dx in range(W):
                 tx = left_tile + dx
-                ty = ry + rh - 1
+                ty = ry + rh
                 if 0 <= tx <= max_x and 0 <= ty <= max_y:
                     self._door_block_tiles.add((tx, ty))
         if self.doors.get("E"):
             for dy in range(W):
                 ty = top_tile + dy
-                tx = rx + rw - 1
+                tx = rx + rw
                 if 0 <= tx <= max_x and 0 <= ty <= max_y:
                     self._door_block_tiles.add((tx, ty))
         if self.doors.get("W"):
             for dy in range(W):
                 ty = top_tile + dy
-                if 0 <= rx <= max_x and 0 <= ty <= max_y:
-                    self._door_block_tiles.add((rx, ty))
+                tx = rx - 1
+                if 0 <= tx <= max_x and 0 <= ty <= max_y:
+                    self._door_block_tiles.add((tx, ty))
 
     
     # ---------- TIENDA ----------
@@ -1470,28 +1472,28 @@ class Room:
         if self.doors.get("N"):
             rects["N"] = pygame.Rect(
                 left_open_px,
-                top_px - thickness - offset_px,
+                top_px - ts - thickness - offset_px,
                 opening_px,
                 thickness,
             )
         if self.doors.get("S"):
             rects["S"] = pygame.Rect(
                 left_open_px,
-                bottom_px + offset_px,
+                bottom_px + ts + offset_px,
                 opening_px,
                 thickness,
             )
         # Este y Oeste: vertical, centrado
         if self.doors.get("E"):
             rects["E"] = pygame.Rect(
-                right_px + offset_px,
+                right_px + ts + offset_px,
                 top_open_px,
                 thickness,
                 opening_px,
             )
         if self.doors.get("W"):
             rects["W"] = pygame.Rect(
-                left_px - thickness - offset_px,
+                left_px - ts - thickness - offset_px,
                 top_open_px,
                 thickness,
                 opening_px,
