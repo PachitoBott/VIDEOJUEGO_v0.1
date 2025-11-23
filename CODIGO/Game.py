@@ -1542,6 +1542,9 @@ class Game:
         surface.blit(aura_surf, (center[0] - radius, center[1] - radius))
 
     def _draw_debug_door_triggers(self, room) -> None:
+        if not self.debug_draw_doors:
+            return
+
         for rect in room._door_trigger_rects().values():
             pygame.draw.rect(self.world, (0, 255, 0), rect, 1)
 
