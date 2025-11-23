@@ -1295,6 +1295,12 @@ class Game:
                 self.door_cooldown = 0.45
                 return
 
+        # Verificar si la room de destino ya fue explorada ANTES de moverse
+        # (dungeon.move() añade automáticamente a explored)
+        di, dj = {"N": (0, -1), "S": (0, 1), "E": (1, 0), "W": (-1, 0)}[direction]
+        target_pos = (self.dungeon.i + di, self.dungeon.j + dj)
+        was_explored = target_pos in self.dungeon.explored
+
         if hasattr(self.dungeon, "move_and_enter"):
             moved = self.dungeon.move_and_enter(direction, self.player, self.cfg, ShopkeeperCls=Shopkeeper)
         else:
@@ -1306,10 +1312,6 @@ class Game:
         self.player.x, self.player.y = self.dungeon.entry_position(
             direction, self.player.w, self.player.h
         )
-        
-        # Reproducir sonido de puerta cerrada si es la primera vez que se visita
-        was_explored = (self.dungeon.i, self.dungeon.j) in self.dungeon.explored
-        self.dungeon.explored.add((self.dungeon.i, self.dungeon.j))
         
         self.door_cooldown = 0.25
         self.projectiles.clear()
