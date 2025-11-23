@@ -1,4 +1,4 @@
-from typing import Iterator, List
+from typing import Callable, Iterator, List
 
 import pygame
 from Config import CFG
@@ -16,6 +16,7 @@ class Projectile:
         effects: list[dict] | tuple[dict, ...] | None = None,
         damage: float = 1.0,
         is_boss_projectile: bool = False,
+        on_impact: Callable[["Projectile", tuple[float, float], tuple[float, float]], None] | None = None,
     ):
         self.x, self.y = x, y
         self.dx, self.dy = dx, dy
@@ -29,6 +30,7 @@ class Projectile:
         self.effects: tuple[dict, ...] = tuple(effects) if effects else ()
         self.damage: float = damage
         self.is_boss_projectile = is_boss_projectile
+        self.on_impact = on_impact
 
     def rect(self) -> pygame.Rect:
         r = self.radius
@@ -52,12 +54,26 @@ class Projectile:
         if self._collides(room):
             self.x -= step_x
             self.alive = False
+            self._trigger_impact()
             return
 
         self.y += step_y
         if self._collides(room):
             self.y -= step_y
             self.alive = False
+            self._trigger_impact()
+
+    def _trigger_impact(self) -> None:
+        if not callable(self.on_impact):
+            return
+
+        direction = pygame.Vector2(self.dx, self.dy)
+        if direction.length_squared() > 0.0:
+            direction = direction.normalize()
+        else:
+            direction = pygame.Vector2(1, 0)
+
+        self.on_impact(self, (self.x, self.y), (direction.x, direction.y))
 
     def _collides(self, room) -> bool:
         r = self.rect()
@@ -106,8 +122,16 @@ class ProjectileGroup:
 
     def __init__(self) -> None:
         self._items: List[Projectile] = []
+        self.on_impact: Callable[[Projectile, tuple[float, float], tuple[float, float]], None] | None = None
+
+    def set_impact_callback(
+        self, callback: Callable[[Projectile, tuple[float, float], tuple[float, float]], None] | None
+    ) -> None:
+        self.on_impact = callback
 
     def add(self, projectile: Projectile) -> None:
+        if getattr(projectile, "on_impact", None) is None and callable(self.on_impact):
+            projectile.on_impact = self.on_impact
         self._items.append(projectile)
 
     def clear(self) -> None:

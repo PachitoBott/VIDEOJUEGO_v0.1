@@ -1,9 +1,6 @@
 import math
 import random
 
-import math
-import random
-
 import pygame
 
 
@@ -78,6 +75,104 @@ class _MuzzleFlash(_WorldEffect):
 
     def is_alive(self) -> bool:
         return self._timer > 0.0
+
+
+class _BulletImpact(_WorldEffect):
+    def __init__(self, position: tuple[float, float], direction: tuple[float, float]) -> None:
+        self._center = pygame.Vector2(position)
+        dir_vec = pygame.Vector2(direction)
+        if dir_vec.length_squared() <= 0.0001:
+            dir_vec = pygame.Vector2(1, 0)
+        else:
+            dir_vec = dir_vec.normalize()
+        self._normal = dir_vec * -1
+        self._timer = 0.16
+        self._sparks: list[dict[str, object]] = []
+        self._smoke: list[dict[str, object]] = []
+
+        base_angle = math.atan2(self._normal.y, self._normal.x)
+        for _ in range(5):
+            angle = base_angle + random.uniform(-0.75, 0.75)
+            speed = random.uniform(120.0, 190.0)
+            vel = pygame.Vector2(math.cos(angle), math.sin(angle)) * speed
+            life = random.uniform(0.08, 0.18)
+            self._sparks.append(
+                {"pos": self._center.copy(), "vel": vel, "life": life, "timer": life}
+            )
+
+        for _ in range(3):
+            offset = pygame.Vector2(random.uniform(-2.0, 2.0), random.uniform(-2.0, 2.0))
+            life = random.uniform(0.12, 0.22)
+            self._smoke.append(
+                {"pos": self._center + offset, "vel": self._normal * 40.0, "life": life, "timer": life}
+            )
+
+    def update(self, dt: float) -> None:
+        self._timer = max(0.0, self._timer - dt)
+        active_sparks: list[dict[str, object]] = []
+        for spark in self._sparks:
+            timer = float(spark["timer"]) - dt
+            if timer <= 0.0:
+                continue
+            spark["timer"] = timer
+            pos: pygame.Vector2 = spark["pos"]  # type: ignore[assignment]
+            vel: pygame.Vector2 = spark["vel"]  # type: ignore[assignment]
+            pos.x += vel.x * dt
+            pos.y += vel.y * dt
+            active_sparks.append(spark)
+        self._sparks = active_sparks
+
+        active_smoke: list[dict[str, object]] = []
+        for puff in self._smoke:
+            timer = float(puff["timer"]) - dt
+            if timer <= 0.0:
+                continue
+            puff["timer"] = timer
+            pos: pygame.Vector2 = puff["pos"]  # type: ignore[assignment]
+            vel: pygame.Vector2 = puff["vel"]  # type: ignore[assignment]
+            pos.x += vel.x * dt
+            pos.y += vel.y * dt
+            active_smoke.append(puff)
+        self._smoke = active_smoke
+
+    def draw(self, surface: pygame.Surface) -> None:
+        if self._timer > 0.0:
+            ratio = self._timer / 0.16
+            flash_size = max(2, int(5 * ratio))
+            flash_rect = pygame.Rect(0, 0, flash_size, flash_size)
+            flash_rect.center = (int(self._center.x), int(self._center.y))
+            flash_color = (255, 240, 200)
+            pygame.draw.rect(surface, flash_color, flash_rect)
+
+        for spark in self._sparks:
+            timer = float(spark["timer"])
+            life = float(spark["life"])
+            ratio = timer / life if life > 0 else 0
+            width = max(1, int(2 * ratio))
+            pos: pygame.Vector2 = spark["pos"]  # type: ignore[assignment]
+            vel: pygame.Vector2 = spark["vel"]  # type: ignore[assignment]
+            end_pos = pos - vel * 0.015
+            pygame.draw.line(
+                surface,
+                (255, 210, 120),
+                (int(pos.x), int(pos.y)),
+                (int(end_pos.x), int(end_pos.y)),
+                width,
+            )
+
+        for puff in self._smoke:
+            timer = float(puff["timer"])
+            life = float(puff["life"])
+            ratio = timer / life if life > 0 else 0
+            size = max(2, int(4 * ratio))
+            rect = pygame.Rect(0, 0, size, size)
+            pos: pygame.Vector2 = puff["pos"]  # type: ignore[assignment]
+            rect.center = (int(pos.x), int(pos.y))
+            alpha = int(90 * ratio)
+            pygame.draw.rect(surface, (120, 120, 120, alpha), rect)
+
+    def is_alive(self) -> bool:
+        return self._timer > 0.0 or bool(self._sparks) or bool(self._smoke)
 
 
 class _EnemyDeathFlash(_WorldEffect):
@@ -224,3 +319,6 @@ class VFXManager:
 
     def spawn_corruption_burst(self, position: tuple[float, float] | tuple[int, int]) -> None:
         self._world_effects.append(_CorruptionBurst(position))
+
+    def spawn_bullet_impact(self, position: tuple[float, float], direction: tuple[float, float]) -> None:
+        self._world_effects.append(_BulletImpact(position, direction))
