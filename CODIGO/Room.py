@@ -68,6 +68,9 @@ ENCOUNTER_TABLE: list[tuple[int, list[list[Type[Enemy]]]]] = [
 
 _OBSTACLE_ASSET_DIR = assets_dir("obstacles")
 
+_DOOR_RAW_CACHE: dict[str, pygame.Surface | None] = {}
+_DOOR_SPRITE_CACHE: dict[tuple[str, tuple[int, int]], pygame.Surface | None] = {}
+
 # Sprite opcional para cofres personalizados (``assets/cofre.png`` o
 # ``assets/obstacles/cofre.png``). Se escala al tamaño del rectángulo del cofre
 # y se oscurece ligeramente cuando el cofre está abierto.
@@ -521,6 +524,38 @@ def _load_obstacle_frames(
 def _load_obstacle_sprite(size_tiles: tuple[int, int], variant: str | None = None) -> pygame.Surface:
     return _load_obstacle_frames(size_tiles, variant)[0]
 
+
+def _load_door_sprite(opened: bool, vertical: bool, size: tuple[int, int]) -> pygame.Surface | None:
+    """Carga y escala el sprite de la puerta según su orientación y estado."""
+
+    variant = ("opened" if opened else "closed") + ("_vertical" if vertical else "_side")
+    cache_key = (variant, size)
+    if cache_key in _DOOR_SPRITE_CACHE:
+        return _DOOR_SPRITE_CACHE[cache_key]
+
+    filename = "DoorOpened.png" if opened else "DoorClosed.png"
+    if not vertical:
+        filename = "DoorOpenedSide.png" if opened else "DoorClosedSide.png"
+
+    raw_sprite = _DOOR_RAW_CACHE.get(filename)
+    if filename not in _DOOR_RAW_CACHE:
+        path = assets_dir("obstacles", filename)
+        if path.exists():
+            try:
+                raw_sprite = pygame.image.load(path.as_posix()).convert_alpha()
+            except pygame.error:
+                raw_sprite = None
+        else:
+            raw_sprite = None
+        _DOOR_RAW_CACHE[filename] = raw_sprite
+
+    sprite = raw_sprite
+    if sprite is not None and sprite.get_size() != size:
+        sprite = pygame.transform.smoothscale(sprite, size)
+
+    _DOOR_SPRITE_CACHE[cache_key] = sprite
+    return sprite
+
 class Room:
     """
     Un cuarto sobre una grilla MAP_W x MAP_H (en tiles).
@@ -542,9 +577,11 @@ class Room:
         self._spawn_done: bool = False
         self._door_width_tiles = 2
         self._door_corridor_length_tiles = 3
+        self._door_block_tiles: set[tuple[int, int]] = set()
+        self._locked: bool = False
 
         # 🔒 estado de puertas
-        self.locked: bool = False
+        self.locked = getattr(self, "locked", False)
         self.cleared: bool = False
 
         # Salas corruptas (glitch)
@@ -884,7 +921,9 @@ class Room:
         # Oeste (izquierda)
         if self.doors.get("W"):
             carve_rect(rx - length_tiles, top_tile, length_tiles, W)
-            
+
+        self._refresh_door_block_tiles()
+
     def _door_opening_rects(self) -> dict[str, pygame.Rect]:
         """Rectángulos EXACTOS de la abertura de cada puerta (en px)."""
         assert self.bounds is not None
@@ -910,15 +949,68 @@ class Room:
 
         rects: dict[str, pygame.Rect] = {}
         if self.doors.get("N"):
-            rects["N"] = pygame.Rect(left_open_px, top_px, opening_px, ts)         # una “faja” de 1 tile
+            rects["N"] = pygame.Rect(left_open_px, top_px - ts, opening_px, ts)
         if self.doors.get("S"):
-            rects["S"] = pygame.Rect(left_open_px, bottom_px - ts, opening_px, ts)
+            rects["S"] = pygame.Rect(left_open_px, bottom_px, opening_px, ts)
         if self.doors.get("E"):
-            rects["E"] = pygame.Rect(right_px - ts, top_open_px, ts, opening_px)
+            rects["E"] = pygame.Rect(right_px, top_open_px, ts, opening_px)
         if self.doors.get("W"):
-            rects["W"] = pygame.Rect(left_px, top_open_px, ts, opening_px)
+            rects["W"] = pygame.Rect(left_px - ts, top_open_px, ts, opening_px)
         return rects
-    
+
+
+    @property
+    def locked(self) -> bool:
+        return getattr(self, "_locked", False)
+
+    @locked.setter
+    def locked(self, value: bool) -> None:
+        self._locked = bool(value)
+        self._refresh_door_block_tiles()
+
+    def _refresh_door_block_tiles(self) -> None:
+        self._door_block_tiles.clear()
+        if not getattr(self, "_locked", False):
+            return
+        if self.bounds is None:
+            return
+
+        rx, ry, rw, rh = self.bounds
+        W = max(1, getattr(self, "_door_width_tiles", 2))
+
+        center_tx2 = rx * 2 + rw
+        center_ty2 = ry * 2 + rh
+        left_tile = (center_tx2 - W) // 2
+        top_tile = (center_ty2 - W) // 2
+
+        max_x = CFG.MAP_W - 1
+        max_y = CFG.MAP_H - 1
+
+        if self.doors.get("N"):
+            for dx in range(W):
+                tx = left_tile + dx
+                ty = ry - 1
+                if 0 <= tx <= max_x and 0 <= ty <= max_y:
+                    self._door_block_tiles.add((tx, ty))
+        if self.doors.get("S"):
+            for dx in range(W):
+                tx = left_tile + dx
+                ty = ry + rh
+                if 0 <= tx <= max_x and 0 <= ty <= max_y:
+                    self._door_block_tiles.add((tx, ty))
+        if self.doors.get("E"):
+            for dy in range(W):
+                ty = top_tile + dy
+                tx = rx + rw
+                if 0 <= tx <= max_x and 0 <= ty <= max_y:
+                    self._door_block_tiles.add((tx, ty))
+        if self.doors.get("W"):
+            for dy in range(W):
+                ty = top_tile + dy
+                tx = rx - 1
+                if 0 <= tx <= max_x and 0 <= ty <= max_y:
+                    self._door_block_tiles.add((tx, ty))
+
     
     # ---------- TIENDA ----------
     def _ensure_shopkeeper(self, cfg, ShopkeeperCls):
@@ -1266,6 +1358,8 @@ class Room:
             return True
         if self.tiles[ty][tx] == CFG.WALL:
             return True
+        if (tx, ty) in self._door_block_tiles:
+            return True
         return (tx, ty) in self._obstacle_tiles or (tx, ty) in self._treasure_tiles or (tx, ty) in self._rune_chest_tiles
     
     def has_line_of_sight(self, x0_px: float, y0_px: float, x1_px: float, y1_px: float) -> bool:
@@ -1378,28 +1472,28 @@ class Room:
         if self.doors.get("N"):
             rects["N"] = pygame.Rect(
                 left_open_px,
-                top_px - thickness - offset_px,
+                top_px - ts - thickness - offset_px,
                 opening_px,
                 thickness,
             )
         if self.doors.get("S"):
             rects["S"] = pygame.Rect(
                 left_open_px,
-                bottom_px + offset_px,
+                bottom_px + ts + offset_px,
                 opening_px,
                 thickness,
             )
         # Este y Oeste: vertical, centrado
         if self.doors.get("E"):
             rects["E"] = pygame.Rect(
-                right_px + offset_px,
+                right_px + ts + offset_px,
                 top_open_px,
                 thickness,
                 opening_px,
             )
         if self.doors.get("W"):
             rects["W"] = pygame.Rect(
-                left_px - thickness - offset_px,
+                left_px - ts - thickness - offset_px,
                 top_open_px,
                 thickness,
                 opening_px,
@@ -1552,6 +1646,21 @@ class Room:
 
         return self.center_px()
 
+    def _draw_doors(self, surf: pygame.Surface) -> None:
+        openings = self._door_opening_rects()
+        for direction, rect in openings.items():
+            opened = not self.locked
+            sprite = _load_door_sprite(opened, direction in ("N", "S"), rect.size)
+            if sprite is None:
+                color = (90, 200, 120) if opened else (180, 40, 40)
+                pygame.draw.rect(surf, color, rect)
+                if not opened:
+                    pygame.draw.rect(surf, (255, 90, 90), rect, 1)
+                continue
+
+            target_rect = sprite.get_rect(center=rect.center)
+            surf.blit(sprite, target_rect)
+
     # ------------------------------------------------------------------ #
     # Dibujo
     # ------------------------------------------------------------------ #
@@ -1632,12 +1741,7 @@ class Room:
         if self.treasure:
             self._draw_treasure(surf)
 
-        # Puertas bloqueadas: dibuja “rejas” rojas en las aberturas
-        if self.locked:
-            bars = self._door_opening_rects()
-            for d, r in bars.items():
-                pygame.draw.rect(surf, (180, 40, 40), r)         # relleno rojo
-                pygame.draw.rect(surf, (255, 90, 90), r, 1)      # borde claro
+        self._draw_doors(surf)
 
     # ------------------------------------------------------------------ #
     # Cofre rúnico especial
