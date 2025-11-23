@@ -567,7 +567,17 @@ def _strip_leg_region_from_torso(
     for frames in leg_frames.values():
         for frame in frames:
             mask = pygame.mask.from_surface(frame)
-            rect = mask.get_bounding_rect()
+            rect: pygame.Rect
+            # Compatibilidad con distintas versiones de pygame: algunas
+            # versiones no exponen ``get_bounding_rects`` y otras devuelven una
+            # lista. Normalizamos para obtener siempre un único rectángulo.
+            if hasattr(mask, "get_bounding_rect"):
+                rect = mask.get_bounding_rect()
+            elif hasattr(mask, "get_bounding_rects"):
+                rects = mask.get_bounding_rects()
+                rect = rects[0] if rects else pygame.Rect(0, 0, 0, 0)
+            else:
+                rect = frame.get_rect()
             leg_union = rect if leg_union is None else leg_union.union(rect)
 
     if leg_union is None:
