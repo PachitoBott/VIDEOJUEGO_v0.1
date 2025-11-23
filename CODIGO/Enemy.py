@@ -428,7 +428,7 @@ class ShooterEnemy(Enemy):
                 bullet = Projectile(
                     spawn_x, spawn_y, dir_x, dir_y,
                     speed=self.bullet_speed,
-                    radius=4,
+                    radius=3,
                     color=(255, 90, 90),
                     damage=getattr(self, "projectile_damage", 1),
                 )

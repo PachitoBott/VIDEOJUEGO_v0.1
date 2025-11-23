@@ -73,26 +73,21 @@ class Projectile:
     def draw(self, surf):
         cx, cy = int(self.x), int(self.y)
         core_r = max(1, int(self.radius))
-        outline_r = core_r + 1
-        glow_r = outline_r + 1 + (1 if self.is_boss_projectile else 0)
+        rim_r = core_r + 1
+        if self.is_boss_projectile:
+            rim_r += 1
 
         base_color = self.color
-        shadow_color = tuple(max(0, int(c * 0.35)) for c in base_color)
-        outline_color = tuple(min(255, int(c * 0.9) + 40) for c in base_color)
-        highlight_color = tuple(min(255, int(c * 0.8) + 70) for c in base_color)
+        outline_color = tuple(min(255, int(c * 0.88) + 26) for c in base_color)
+        highlight_color = tuple(min(255, int(c * 0.7) + 55) for c in base_color)
 
-        # Halo suave (sombra)
-        pygame.draw.circle(surf, shadow_color, (cx + 1, cy + 1), glow_r)
-        # Núcleo principal
         pygame.draw.circle(surf, base_color, (cx, cy), core_r)
-        # Borde brillante
-        pygame.draw.circle(surf, outline_color, (cx, cy), outline_r, width=1)
-        # Brillo desplazado para simular luz
+        pygame.draw.circle(surf, outline_color, (cx, cy), rim_r, width=1)
         pygame.draw.circle(
             surf,
             highlight_color,
-            (cx - core_r // 3, cy - core_r // 3),
-            max(1, core_r // 2),
+            (cx - core_r // 4, cy - core_r // 4),
+            max(1, core_r // 3),
         )
 
 

@@ -701,7 +701,7 @@ class CorruptedServerBoss(BossEnemy):
                 dx,
                 dy,
                 speed=speed,
-                radius=6,
+                radius=5,
                 color=(180, 220, 255),
                 is_boss_projectile=True,
             )
@@ -725,7 +725,7 @@ class CorruptedServerBoss(BossEnemy):
                 dx,
                 dy,
                 speed=speed,
-                radius=6,
+                radius=5,
                 color=(255, 160, 80),
                 is_boss_projectile=True,
             )
@@ -780,7 +780,7 @@ class CorruptedServerBoss(BossEnemy):
                 dx,
                 dy,
                 speed=320.0,
-                radius=5,
+                radius=4,
                 color=(255, 255, 120),
                 is_boss_projectile=True,
             )
