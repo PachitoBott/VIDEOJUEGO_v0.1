@@ -74,6 +74,7 @@ class Game:
 
         # Indicadores globales
         self.camera_shake = 0.0
+        self._camera_recoil = pygame.Vector2(0.0, 0.0)
         self._fade_surface = pygame.Surface(self.screen.get_size())
         self._fade_surface.fill((0, 0, 0))
         self._fade_alpha = 255.0
@@ -149,6 +150,8 @@ class Game:
         # ---------- Estado runtime ----------
         self.projectiles = ProjectileGroup()          # balas del jugador
         self.enemy_projectiles = ProjectileGroup()    # balas de enemigos
+        self.projectiles.set_impact_callback(self._handle_projectile_impact)
+        self.enemy_projectiles.set_impact_callback(self._handle_projectile_impact)
         self.door_cooldown = 0.0
         self.running = True
         self.debug_draw_doors = cfg.DEBUG_DRAW_DOOR_TRIGGERS
@@ -475,6 +478,11 @@ class Game:
             if self.camera_shake < 0.1:
                 self.camera_shake = 0.0
 
+        if self._camera_recoil.length_squared() > 0.0:
+            self._camera_recoil *= 0.85
+            if self._camera_recoil.length_squared() < 0.01:
+                self._camera_recoil.update(0.0, 0.0)
+
         if self._fade_direction != 0:
             self._fade_alpha += self._fade_speed * self._fade_direction * dt
             if self._fade_direction > 0 and self._fade_alpha >= 255.0:
@@ -490,6 +498,18 @@ class Game:
 
     def _start_camera_shake(self, strength: float = 4.0) -> None:
         self.camera_shake = max(self.camera_shake, float(strength))
+
+    def _apply_camera_recoil(self, direction: tuple[float, float], strength: float = 3.0) -> None:
+        dir_vec = pygame.Vector2(direction)
+        if dir_vec.length_squared() > 0.0:
+            dir_vec = dir_vec.normalize()
+        else:
+            dir_vec = pygame.Vector2(1, 0)
+
+        recoil = dir_vec * -float(strength)
+        self._camera_recoil += recoil
+        if self._camera_recoil.length() > strength * 3:
+            self._camera_recoil.scale_to_length(strength * 3)
 
     def _start_room_fade(self) -> None:
         duration = random.uniform(0.15, 0.25)
@@ -525,6 +545,15 @@ class Game:
         direction: tuple[float, float],
     ) -> None:
         self.vfx.spawn_muzzle_flash(position, direction)
+        self._apply_camera_recoil(direction)
+
+    def _handle_projectile_impact(
+        self,
+        projectile,
+        position: tuple[float, float],
+        direction: tuple[float, float],
+    ) -> None:
+        self.vfx.spawn_bullet_impact(position, direction)
 
     def _spawn_room_enemies(self, room) -> None:
         if getattr(room, "no_spawn", False):
@@ -1546,9 +1575,16 @@ class Game:
         label_rect = label_surface.get_rect(center=(x + bar_width // 2, y + bar_height // 2))
         surface.blit(label_surface, label_rect)
     def _apply_screen_overlays(self) -> None:
+        offset_x = offset_y = 0
         if self.camera_shake > 0.0:
-            offset_x = int(round(random.uniform(-self.camera_shake, self.camera_shake)))
-            offset_y = int(round(random.uniform(-self.camera_shake, self.camera_shake)))
+            offset_x += int(round(random.uniform(-self.camera_shake, self.camera_shake)))
+            offset_y += int(round(random.uniform(-self.camera_shake, self.camera_shake)))
+
+        if self._camera_recoil.length_squared() > 0.0:
+            offset_x += int(round(self._camera_recoil.x))
+            offset_y += int(round(self._camera_recoil.y))
+
+        if offset_x or offset_y:
             frame = self.screen.copy()
             self.screen.fill(self.cfg.COLOR_BG)
             self.screen.blit(frame, (offset_x, offset_y))
