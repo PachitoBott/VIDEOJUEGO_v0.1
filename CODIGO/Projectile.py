@@ -11,7 +11,7 @@ class Projectile:
         dx,
         dy,
         speed=320.0,
-        radius=3,
+        radius=4,
         color=(255,230,140),
         effects: list[dict] | tuple[dict, ...] | None = None,
         damage: float = 1.0,
