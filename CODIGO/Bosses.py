@@ -213,6 +213,13 @@ class BossEnemy(Enemy):
         fallback_w, fallback_h = self.animations.fallback.get_size()
         if fallback_w > 0 and fallback_h > 0:
             self._fit_collider_to_sprite(fallback_w, fallback_h)
+        
+        # Sonidos del boss
+        self._boss_projectile_sound = None
+        self._telegraph_trigger_sound = None
+        self._telegraph_explosion_sound = None
+        self._puddle_sound = None
+        self._load_boss_sounds()
 
     def take_damage(
         self,
@@ -231,6 +238,62 @@ class BossEnemy(Enemy):
             stun_duration=stun_duration,
             knockback_strength=knockback_strength,
         )
+    
+    def _load_boss_sounds(self) -> None:
+        """Carga los sonidos de ataque del boss."""
+        from pathlib import Path
+        
+        # Boss projectile sound
+        try:
+            audio_path = Path("assets/audio/boss_projectile_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "boss_projectile_sfx.mp3"
+            if audio_path.exists():
+                self._boss_projectile_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self._boss_projectile_sound.set_volume(0.15)
+            else:
+                self._boss_projectile_sound = None
+        except (pygame.error, FileNotFoundError):
+            self._boss_projectile_sound = None
+        
+        # Telegraph trigger sound
+        try:
+            audio_path = Path("assets/audio/telegraph_trigger_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "telegraph_trigger_sfx.mp3"
+            if audio_path.exists():
+                self._telegraph_trigger_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self._telegraph_trigger_sound.set_volume(0.20)
+            else:
+                self._telegraph_trigger_sound = None
+        except (pygame.error, FileNotFoundError):
+            self._telegraph_trigger_sound = None
+        
+        # Telegraph explosion sound
+        try:
+            audio_path = Path("assets/audio/telegraph_explosion_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "telegraph_explosion_sfx.mp3"
+            if audio_path.exists():
+                self._telegraph_explosion_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self._telegraph_explosion_sound.set_volume(0.25)
+            else:
+                self._telegraph_explosion_sound = None
+        except (pygame.error, FileNotFoundError):
+            self._telegraph_explosion_sound = None
+        
+        # Puddle sound
+        try:
+            audio_path = Path("assets/audio/puddle_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "puddle_sfx.mp3"
+            if audio_path.exists():
+                self._puddle_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self._puddle_sound.set_volume(0.18)
+            else:
+                self._puddle_sound = None
+        except (pygame.error, FileNotFoundError):
+            self._puddle_sound = None
 
     def _fit_collider_to_sprite(self, sprite_w: int, sprite_h: int) -> None:
         """Redimensiona el hitbox según el sprite actual.
@@ -419,6 +482,9 @@ class BossEnemy(Enemy):
                 "sprite": sprite,
             }
         )
+        # Reproducir sonido al crear telegraph
+        if self._telegraph_trigger_sound:
+            self._telegraph_trigger_sound.play()
 
     def add_puddle(
         self,
@@ -440,6 +506,9 @@ class BossEnemy(Enemy):
                 "sprite": sprite,
             }
         )
+        # Reproducir sonido al crear puddle
+        if self._puddle_sound:
+            self._puddle_sound.play()
 
     def _update_phase_state(self) -> None:
         ratio = 1.0 if self.max_hp <= 0 else max(0.0, self.hp / self.max_hp)
@@ -481,6 +550,9 @@ class BossEnemy(Enemy):
         player_rect = self._player_rect_cache or self._player_rect(player)
         if player_rect.colliderect(rect):
             self._apply_damage_to_player(player, damage)
+        # Reproducir sonido de explosión
+        if self._telegraph_explosion_sound:
+            self._telegraph_explosion_sound.play()
         self._spawn_explosion_effect(rect)
 
     def _update_puddles(self, dt: float, player) -> None:
@@ -706,6 +778,9 @@ class CorruptedServerBoss(BossEnemy):
                 is_boss_projectile=True,
             )
             out_bullets.add(proj)
+        # Reproducir sonido de proyectil
+        if self._boss_projectile_sound:
+            self._boss_projectile_sound.play()
 
     def _fire_line(self, player, out_bullets, *, speed: float, bullets: int) -> None:
         cx = self.x + self.w / 2
@@ -730,6 +805,9 @@ class CorruptedServerBoss(BossEnemy):
                 is_boss_projectile=True,
             )
             out_bullets.add(proj)
+        # Reproducir sonido de proyectil
+        if self._boss_projectile_sound:
+            self._boss_projectile_sound.play()
 
     def _spawn_minions(self, room) -> None:
         if not hasattr(room, "enemies"):
@@ -785,6 +863,9 @@ class CorruptedServerBoss(BossEnemy):
                 is_boss_projectile=True,
             )
             out_bullets.add(proj)
+        # Reproducir sonido de proyectil
+        if self._boss_projectile_sound:
+            self._boss_projectile_sound.play()
 
 
 class SecurityManagerBoss(BossEnemy):
@@ -953,6 +1034,9 @@ class SecurityManagerBoss(BossEnemy):
                 color=(255, 120, 90),
             )
             out_bullets.add(proj)
+        # Reproducir sonido de proyectil
+        if self._boss_projectile_sound:
+            self._boss_projectile_sound.play()
 
     def draw(self, surf: pygame.Surface) -> None:
         self._draw_dash_trail(surf)

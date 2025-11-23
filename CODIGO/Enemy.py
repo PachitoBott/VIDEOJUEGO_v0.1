@@ -586,6 +586,9 @@ class TankEnemy(Enemy):
             "shoot": 5.0,
         })
         self._load_attack_sound("tank_enemy_sfx.mp3")
+        # Aumentar volumen para TankEnemy
+        if self._attack_sound:
+            self._attack_sound.set_volume(0.20)  # 20% del volumen
 
     def take_damage(
         self,
