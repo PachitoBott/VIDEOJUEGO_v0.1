@@ -431,6 +431,8 @@ def load_boss_animation_layers(variant: str) -> BossAnimationLayers:
     for state, count in _BOSS_TORSO_COUNTS.items():
         torso_frames[state] = _load_layer_frames(base_dir, "torso", state, count, color)
 
+    torso_frames = _strip_torso_leg_overlap(leg_frames, torso_frames)
+
     death_frames = _load_layer_frames(base_dir, "death", "", 9, color, allow_suffix=False)
 
     fallback = leg_frames.get("idle") or torso_frames.get("idle")
@@ -493,6 +495,47 @@ def expected_boss_filenames(variant: str) -> dict[str, dict[str, list[str]] | li
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _strip_torso_leg_overlap(
+    leg_frames: dict[str, list[pygame.Surface]],
+    torso_frames: dict[str, list[pygame.Surface]],
+) -> dict[str, list[pygame.Surface]]:
+    """Remove the leg portion from torso sprites to avoid double-drawing legs.
+
+    The shipped torso sprites include a static copy of the legs. When combined
+    with the animated leg layer this caused a ghost pair of legs to remain in
+    place. We blank out the lower area of each torso frame based on the leg
+    mask height so only the upper body is drawn.
+    """
+
+    sample_leg = None
+    for frames in leg_frames.values():
+        if frames:
+            sample_leg = frames[0]
+            break
+
+    if sample_leg is None:
+        return torso_frames
+
+    leg_mask = pygame.mask.from_surface(sample_leg)
+    leg_rect = leg_mask.get_bounding_rect()
+    overlap_height = max(0, leg_rect.height - 2)
+
+    cleaned: dict[str, list[pygame.Surface]] = {}
+    for state, frames in torso_frames.items():
+        stripped_frames: list[pygame.Surface] = []
+        for frame in frames:
+            surface = frame.copy()
+            height = surface.get_height()
+            width = surface.get_width()
+            strip_start = max(0, height - overlap_height)
+            if strip_start < height:
+                surface.fill((0, 0, 0, 0), pygame.Rect(0, strip_start, width, height - strip_start))
+            stripped_frames.append(surface)
+        cleaned[state] = stripped_frames
+
+    return cleaned
 
 def _load_state_frames(
     base_dir: Path,
