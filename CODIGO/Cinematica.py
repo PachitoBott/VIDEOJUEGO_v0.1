@@ -32,19 +32,15 @@ class Cinematica:
         self.bg_color = (0, 0, 0)
         self.chars_per_second = 45
         self.post_text_delay = 2.0
-        self.skip_key = pygame.K_o
-        self.skip_hold_required = 3.0
 
     def play(self) -> None:
         visible_characters = 0
         accumulator = 0.0
         finished = False
         finished_timer = 0.0
-        skip_hold = 0.0
 
         while True:
             dt = self.clock.tick(self.cfg.FPS) / 1000.0
-            pressed_keys = pygame.key.get_pressed()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return
@@ -59,15 +55,9 @@ class Cinematica:
                 finished = visible_characters >= len(self.text)
             else:
                 finished_timer += dt
-                if finished_timer >= self.post_text_delay or any(pressed_keys):
+                pressed = pygame.key.get_pressed()
+                if finished_timer >= self.post_text_delay or any(pressed):
                     return
-
-            if pressed_keys[self.skip_key]:
-                skip_hold += dt
-                if skip_hold >= self.skip_hold_required:
-                    return
-            else:
-                skip_hold = 0.0
 
             self._render_text(self.text[:visible_characters])
 

@@ -109,6 +109,8 @@ class Game:
             self._update_fps_counter()
             self._update(dt, events)
             self._render()
+
+        Cinematica(self.screen, self.cfg).play()
         pygame.quit()
         sys.exit(0)
 
