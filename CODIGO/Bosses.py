@@ -194,6 +194,7 @@ class BossEnemy(Enemy):
         self._player_rect_cache: pygame.Rect | None = None
         self._phase_thresholds = (0.6, 0.3)
         self._tracked_room = None
+        self._prev_anim_pos: tuple[float, float] = (x, y)
         # Animación en capas (piernas/torso + muerte completa)
         self.animations = load_boss_animation_layers(self.sprite_variant)
         self.animator = LayeredBossAnimator(
@@ -268,6 +269,7 @@ class BossEnemy(Enemy):
         self._tracked_room = room
 
     def update(self, dt: float, player, room) -> None:
+        self._prev_anim_pos = (self.x, self.y)
         self._tracked_room = room
         self._player_rect_cache = self._player_rect(player)
         self._update_phase_state()
@@ -564,12 +566,14 @@ class BossEnemy(Enemy):
             taker(amount)
 
     def _update_animation(self, dt: float) -> None:
-        base_state = "idle"
-        if not self._movement_locked and self.state in (WANDER, CHASE):
-            base_state = "run"
+        prev_x, prev_y = getattr(self, "_prev_anim_pos", (self.x, self.y))
+        moved_dist = math.hypot(self.x - prev_x, self.y - prev_y)
+
+        base_state = "run" if moved_dist > 0.1 else "idle"
         self.animator.set_leg_state(base_state)
         self.animator.set_torso_base_state("idle")
         self.animator.update(dt)
+        self._prev_anim_pos = (self.x, self.y)
 
     def trigger_shoot_animation(self, variant: str = "shoot1") -> None:
         if self._is_dying:
