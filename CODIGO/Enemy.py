@@ -90,6 +90,7 @@ class Enemy(Entity):
         self._load_damage_sound()
         self._elimination_sound = None
         self._load_elimination_sound()
+        self._attack_sound = None  # Será cargado por subclases que ataquen
 
     def _center(self):
         return (self.x + self.w/2, self.y + self.h/2)
@@ -331,6 +332,20 @@ class Enemy(Entity):
                 self._elimination_sound = None
         except (pygame.error, FileNotFoundError):
             self._elimination_sound = None
+    
+    def _load_attack_sound(self, filename: str) -> None:
+        """Carga el sonido de ataque específico del enemigo."""
+        try:
+            audio_path = Path(f"assets/audio/{filename}")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / filename
+            if audio_path.exists():
+                self._attack_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self._attack_sound.set_volume(0.10)  # % del volumen
+            else:
+                self._attack_sound = None
+        except (pygame.error, FileNotFoundError):
+            self._attack_sound = None
 
 
 # ===== Tipos de enemigo =====
@@ -389,6 +404,7 @@ class ShooterEnemy(Enemy):
         self.fire_range    = 260.0
         self.bullet_speed  = 160.0 * ENEMY_PROJECTILE_SPEED_SCALE
         self.reaction_delay = 0.55
+        self._load_attack_sound("shooter_enemy_sfx.mp3")
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
@@ -458,6 +474,9 @@ class ShooterEnemy(Enemy):
             else:
                 out_bullets.append(bullet)
         self._fire_timer = self.fire_cooldown
+        # Reproducir sonido de ataque
+        if hasattr(self, '_attack_sound') and self._attack_sound:
+            self._attack_sound.play()
         self.trigger_shoot_animation(dx)
         return True
 
@@ -474,6 +493,10 @@ class BasicEnemy(Enemy):
         self.fire_range = 210.0
         self.bullet_speed = 192.0 * ENEMY_PROJECTILE_SPEED_SCALE
         self.reaction_delay = 0.45
+        self._load_attack_sound("basic_enemy_sfx.mp3")
+        # Reducir volumen del BasicEnemy en 75%
+        if self._attack_sound:
+            self._attack_sound.set_volume(0.025)  # 25% del volumen base (0.10)
 
     def update(self, dt, player, room):
         super().update(dt, player, room)
@@ -518,6 +541,9 @@ class BasicEnemy(Enemy):
             else:
                 out_bullets.append(bullet)
         self._fire_timer = self.fire_cooldown
+        # Reproducir sonido de ataque
+        if hasattr(self, '_attack_sound') and self._attack_sound:
+            self._attack_sound.play()
         self.trigger_shoot_animation(dx)
         return True
 
@@ -559,6 +585,7 @@ class TankEnemy(Enemy):
             "run": 6.0,
             "shoot": 5.0,
         })
+        self._load_attack_sound("tank_enemy_sfx.mp3")
 
     def take_damage(
         self,
@@ -640,6 +667,9 @@ class TankEnemy(Enemy):
         self._update_facing(dir_x)
         fired_any = self._emit_barrage(ex, ey, dir_x, dir_y, out_bullets)
         self._fire_timer = self.fire_cooldown
+        # Reproducir sonido de ataque
+        if hasattr(self, '_attack_sound') and self._attack_sound:
+            self._attack_sound.play()
         self.trigger_shoot_animation(dir_x)
         self.lock_movement(self.post_shoot_pause)
         return fired_any
