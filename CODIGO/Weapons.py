@@ -41,10 +41,9 @@ class Weapon:
         self._time_since_last_shot = 999.0
         self._continuous_fire_time = 0.0
         
-        # Cargar sonido de disparo para arma por defecto
+        # Cargar sonido de disparo para el arma
         self._gun_sound = None
-        if spec.weapon_id == "short_rifle":
-            self._load_gun_sound()
+        self._load_gun_sound()
 
     # ------------------------- Temporización -------------------------
     def tick(self, dt: float) -> None:
@@ -168,17 +167,44 @@ class Weapon:
 
     # -------------------------- Especiales --------------------------
     def _load_gun_sound(self) -> None:
-        """Carga el sonido de disparo del arma."""
+        """Carga el sonido de disparo del arma basado en su weapon_id."""
         try:
-            audio_path = Path("assets/audio/default_gun_sfx.mp3")
+            # Mapeo de armas a archivos de sonido específicos
+            sound_file_mapping = {
+                "arcane_salvo": "shotgun_sfx.mp3",
+            }
+            
+            # Volúmenes personalizados por arma (default: 0.1)
+            volume_settings = {
+                "light_rifle": 0.05,
+            }
+            
+            # Determinar archivo de sonido a usar
+            sound_filename = sound_file_mapping.get(
+                self.spec.weapon_id,
+                f"{self.spec.weapon_id}_sfx.mp3"
+            )
+            
+            audio_path = Path("assets/audio") / sound_filename
+            
             if not audio_path.exists():
                 # Intentar ruta relativa desde CODIGO
-                audio_path = Path(__file__).parent / "assets" / "audio" / "default_gun_sfx.mp3"
+                audio_path = Path(__file__).parent / "assets" / "audio" / sound_filename
+            
             if audio_path.exists():
                 self._gun_sound = pygame.mixer.Sound(audio_path.as_posix())
-                self._gun_sound.set_volume(0.1)  # 10% del volumen
+                # Aplicar volumen personalizado o default (10%)
+                volume = volume_settings.get(self.spec.weapon_id, 0.1)
+                self._gun_sound.set_volume(volume)
             else:
-                self._gun_sound = None
+                # Fallback a sonido por defecto si no existe sonido específico
+                fallback_path = Path(__file__).parent / "assets" / "audio" / "default_gun_sfx.mp3"
+                if fallback_path.exists():
+                    self._gun_sound = pygame.mixer.Sound(fallback_path.as_posix())
+                    volume = volume_settings.get(self.spec.weapon_id, 0.1)
+                    self._gun_sound.set_volume(volume)
+                else:
+                    self._gun_sound = None
         except (pygame.error, FileNotFoundError):
             self._gun_sound = None
     
