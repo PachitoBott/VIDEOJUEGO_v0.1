@@ -1710,6 +1710,7 @@ class Game:
         self.hud_panels.blit_minimap_panel(self.screen, minimap_surface, minimap_position)
 
         self.hud_panels.blit_corner_panel(self.screen)
+        self.hud_panels.blit_corner_inverse_panel(self.screen)
 
         self.loot_notifications.draw(self.screen)
 

@@ -36,6 +36,7 @@ class HudPanels:
     INVENTORY_FILENAME = "panel_inventario.png"
     MINIMAP_FILENAME = "panel_minimapa.png"
     CORNER_FILENAME = "panel_esquina.png"
+    CORNER_INVERSE_FILENAME = "panel_esquina_inverso.png"
 
     def __init__(self, *, scale: float = 1.0, assets_dir: str | Path | None = None) -> None:
         self.scale = scale
@@ -51,14 +52,17 @@ class HudPanels:
         self.minimap_margin = pygame.Vector2(16, 100)
         self.minimap_anchor = "top-right"
         self.corner_panel_margin = pygame.Vector2(-70, 70)
+        self.corner_inverse_panel_margin = pygame.Vector2(-120, 70)
 
         self._inventory_original: pygame.Surface | None = None
         self._minimap_original: pygame.Surface | None = None
         self._corner_original: pygame.Surface | None = None
+        self._corner_inverse_original: pygame.Surface | None = None
 
         self.inventory_panel: pygame.Surface | None = None
         self.minimap_panel: pygame.Surface | None = None
         self.corner_panel: pygame.Surface | None = None
+        self.corner_inverse_panel: pygame.Surface | None = None
 
         self._load_assets()
         self._apply_scale()
@@ -70,6 +74,7 @@ class HudPanels:
         self._inventory_original = self._load_surface(self.assets_dir / self.INVENTORY_FILENAME)
         self._minimap_original = self._load_surface(self.assets_dir / self.MINIMAP_FILENAME)
         self._corner_original = self._load_surface(self.assets_dir / self.CORNER_FILENAME)
+        self._corner_inverse_original = self._load_surface(self.assets_dir / self.CORNER_INVERSE_FILENAME)
 
     def _load_surface(self, path: Path) -> pygame.Surface | None:
         try:
@@ -122,6 +127,7 @@ class HudPanels:
         self.inventory_panel = self._scale_surface(self._inventory_original, self.inventory_scale)
         self.minimap_panel = self._scale_surface(self._minimap_original, self.minimap_scale)
         self.corner_panel = self._scale_surface(self._corner_original, self.corner_scale)
+        self.corner_inverse_panel = self._scale_surface(self._corner_inverse_original, self.corner_scale)
 
     def _scale_surface(self, surface: pygame.Surface | None, scale: float) -> pygame.Surface | None:
         if surface is None:
@@ -184,6 +190,20 @@ class HudPanels:
         rect = self.corner_panel_rect(surface)
         if rect.width and rect.height and self.corner_panel is not None:
             surface.blit(self.corner_panel, rect.topleft)
+        return rect
+
+    def corner_inverse_panel_rect(self, surface: pygame.Surface) -> pygame.Rect:
+        panel_surface = self.corner_inverse_panel
+        if panel_surface is None:
+            return pygame.Rect(0, 0, 0, 0)
+        x = surface.get_width() - panel_surface.get_width() - int(self.corner_inverse_panel_margin.x)
+        y = surface.get_height() - panel_surface.get_height() - int(self.corner_inverse_panel_margin.y)
+        return panel_surface.get_rect(topleft=(x, y))
+
+    def blit_corner_inverse_panel(self, surface: pygame.Surface) -> pygame.Rect:
+        rect = self.corner_inverse_panel_rect(surface)
+        if rect.width and rect.height and self.corner_inverse_panel is not None:
+            surface.blit(self.corner_inverse_panel, rect.topleft)
         return rect
 
     def compute_minimap_position(
