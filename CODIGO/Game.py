@@ -10,6 +10,7 @@ import pygame
 
 from Config import Config
 from StartMenu import StartMenu
+from Cinematic import Cinematic
 from Tileset import Tileset
 from Player import Player
 from Dungeon import Dungeon
@@ -371,6 +372,10 @@ class Game:
             self.running = False
             return False
         pygame.mouse.set_visible(False)
+        cinematic = Cinematic(self.screen, self.cfg)
+        if not cinematic.run():
+            self.running = False
+            return False
         self.selected_skin_path = menu_result.skin_path or self.cfg.PLAYER_SPRITES_PATH
         self.start_new_run(seed=menu_result.seed)
         self._skip_frame = True
@@ -1542,6 +1547,9 @@ class Game:
         surface.blit(aura_surf, (center[0] - radius, center[1] - radius))
 
     def _draw_debug_door_triggers(self, room) -> None:
+        if not self.debug_draw_doors:
+            return
+
         for rect in room._door_trigger_rects().values():
             pygame.draw.rect(self.world, (0, 255, 0), rect, 1)
 
