@@ -143,20 +143,17 @@ class Cinematic:
 
     def _draw_skip_hint(self, hold_timer: float) -> None:
         width, height = self.screen.get_size()
-        text = "Oprime O 3s para omitir"
+        text = "Mantén O 3s para omitir"
         label = self.small_font.render(text, True, self.TEXT_COLOR)
         padding = 18
-        key_radius = 14
+        x = width - label.get_width() - padding - 40
+        y = height - label.get_height() - padding
+        self.screen.blit(label, (x + 38, y))
 
-        x = width - padding - key_radius * 2 - label.get_width() - 14
-        y = height - padding - max(label.get_height(), key_radius * 2)
-
-        # Texto a la derecha del indicador
-        self.screen.blit(label, (x + key_radius * 2 + 14, y + (key_radius * 2 - label.get_height()) // 2))
-
-        center = (x + key_radius, y + key_radius)
-        pygame.draw.circle(self.screen, (60, 60, 90), center, key_radius)
-        pygame.draw.circle(self.screen, self.TEXT_COLOR, center, key_radius, 2)
+        center = (x + 18, y + label.get_height() // 2)
+        radius = 14
+        pygame.draw.circle(self.screen, (60, 60, 90), center, radius)
+        pygame.draw.circle(self.screen, self.TEXT_COLOR, center, radius, 2)
 
         ratio = max(0.0, min(hold_timer / self.SKIP_HOLD_TIME, 1.0))
         if ratio > 0:
@@ -165,7 +162,7 @@ class Cinematic:
             pygame.draw.arc(
                 self.screen,
                 self.ACCENT_COLOR,
-                pygame.Rect(center[0] - key_radius, center[1] - key_radius, key_radius * 2, key_radius * 2),
+                pygame.Rect(center[0] - radius, center[1] - radius, radius * 2, radius * 2),
                 start_angle,
                 end_angle,
                 3,
