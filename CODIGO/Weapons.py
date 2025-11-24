@@ -41,9 +41,11 @@ class Weapon:
         self._time_since_last_shot = 999.0
         self._continuous_fire_time = 0.0
         
-        # Cargar sonido de disparo para el arma
+        # Cargar sonidos para el arma
         self._gun_sound = None
+        self._reload_sound = None
         self._load_gun_sound()
+        self._load_reload_sound()
 
     # ------------------------- Temporización -------------------------
     def tick(self, dt: float) -> None:
@@ -100,6 +102,11 @@ class Weapon:
         self._reload_timer = self.spec.reload_time
         self._shots_in_mag = 0
         self._shots_since_reload = 0
+        
+        # Reproducir sonido de recarga
+        if self._reload_sound:
+            self._reload_sound.play()
+        
         return True
 
     # ------------------------ Generación balas -----------------------
@@ -151,6 +158,9 @@ class Weapon:
         if self._shots_in_mag <= 0:
             self._shots_in_mag = 0
             self._reload_timer = self.spec.reload_time
+            # Reproducir sonido de recarga automática
+            if self._reload_sound:
+                self._reload_sound.play()
         self._shots_since_reload += 1
         self._time_since_last_shot = 0.0
         
@@ -207,6 +217,23 @@ class Weapon:
                     self._gun_sound = None
         except (pygame.error, FileNotFoundError):
             self._gun_sound = None
+    
+    def _load_reload_sound(self) -> None:
+        """Carga el sonido de recarga universal para todas las armas."""
+        try:
+            audio_path = Path("assets/audio/reload_sfx.mp3")
+            
+            if not audio_path.exists():
+                # Intentar ruta relativa desde CODIGO
+                audio_path = Path(__file__).parent / "assets" / "audio" / "reload_sfx.mp3"
+            
+            if audio_path.exists():
+                self._reload_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self._reload_sound.set_volume(0.15)  # 15% del volumen
+            else:
+                self._reload_sound = None
+        except (pygame.error, FileNotFoundError):
+            self._reload_sound = None
     
     def _effective_spread_deg(self) -> float:
         base = self.spec.spread_deg
