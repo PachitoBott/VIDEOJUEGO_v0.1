@@ -556,7 +556,7 @@ def _load_door_sprite(
     if sprite is not None and sprite.get_size() != size:
         sprite = pygame.transform.smoothscale(sprite, size)
     if sprite is not None and direction_key == "W" and not vertical:
-        sprite = pygame.transform.rotate(sprite, 180)
+        sprite = pygame.transform.flip(sprite, True, False)
 
     _DOOR_SPRITE_CACHE[cache_key] = sprite
     return sprite
