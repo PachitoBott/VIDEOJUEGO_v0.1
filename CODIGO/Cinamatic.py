@@ -8,6 +8,10 @@ import pygame
 
 from Config import Config
 
+# Nota: Esta es la única implementación activa de la cinemática.
+# Se eliminaron versiones previas (Cinematic, Cinematica) para evitar duplicados.
+__all__ = ["Cinamatic"]
+
 
 class Cinamatic:
     """Reproduce una breve cinemática con efecto de máquina de escribir."""
@@ -154,22 +158,28 @@ class Cinamatic:
 
     def _draw_skip_hint(self, hold_timer: float) -> None:
         width, height = self.screen.get_size()
-        text = "Oprime O 3s para omitir"
+        padding = 20
+        key_radius = 16
+
+        # Copia clara y siempre visible
+        text = "Mantén O 3s para omitir"
         label = self.small_font.render(text, True, self.TEXT_COLOR)
-        padding = 18
-        key_radius = 14
 
-        x = width - padding - key_radius * 2 - label.get_width() - 16
-        y = height - padding - max(label.get_height(), key_radius * 2)
+        # Posición fija en la esquina inferior derecha
+        x = width - padding - (key_radius * 2 + 18 + label.get_width())
+        y = height - padding - max(label.get_height(), key_radius * 2) - 6
 
-        hint_height = max(label.get_height(), key_radius * 2) + 10
-        hint_width = key_radius * 2 + 16 + label.get_width()
-        hint_rect = pygame.Rect(x - 8, y - 5, hint_width + 16, hint_height + 10)
-        pygame.draw.rect(self.screen, (8, 10, 22), hint_rect, border_radius=10)
-        pygame.draw.rect(self.screen, (32, 34, 60), hint_rect, width=1, border_radius=10)
+        hint_height = max(label.get_height(), key_radius * 2) + 12
+        hint_width = key_radius * 2 + 18 + label.get_width()
+        hint_rect = pygame.Rect(x - 10, y - 6, hint_width + 20, hint_height + 12)
+
+        # Panel contrastado para que siempre se lea
+        pygame.draw.rect(self.screen, (10, 12, 26), hint_rect, border_radius=12)
+        pygame.draw.rect(self.screen, self.ACCENT_COLOR, hint_rect, width=2, border_radius=12)
 
         # Texto a la derecha del indicador
-        self.screen.blit(label, (x + key_radius * 2 + 14, y + (key_radius * 2 - label.get_height()) // 2))
+        text_y = y + (key_radius * 2 - label.get_height()) // 2
+        self.screen.blit(label, (x + key_radius * 2 + 14, text_y))
 
         center = (x + key_radius, y + key_radius)
         pygame.draw.circle(self.screen, (60, 60, 90), center, key_radius)
@@ -185,7 +195,7 @@ class Cinamatic:
                 pygame.Rect(center[0] - key_radius, center[1] - key_radius, key_radius * 2, key_radius * 2),
                 start_angle,
                 end_angle,
-                3,
+                4,
             )
 
         key_label = self.small_font.render("O", True, self.ACCENT_COLOR)
