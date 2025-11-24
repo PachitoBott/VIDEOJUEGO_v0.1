@@ -64,7 +64,6 @@ class Cinematic:
         char_progress = 0.0
         finished_time = 0.0
         hold_timer = 0.0
-        history: list[str] = []
 
         while slide_index < len(self.slides):
             dt = self.clock.tick(self.cfg.FPS) / 1000.0
@@ -88,20 +87,13 @@ class Cinematic:
             else:
                 finished_time += dt
                 if finished_time >= self.SLIDE_PAUSE:
-                    if slide_index < len(self.slides) - 1:
-                        history.append(current)
-                        slide_index += 1
-                        char_progress = 0.0
-                        finished_time = 0.0
-                        continue
-                    else:
-                        # Último slide: muestra el texto completo acumulado y sale.
-                        self._draw_slide(history, current, slide_index, hold_timer)
-                        pygame.display.flip()
-                        return True
+                    slide_index += 1
+                    char_progress = 0.0
+                    finished_time = 0.0
+                    continue
 
             visible_text = current[: int(char_progress)]
-            self._draw_slide(history, visible_text, slide_index, hold_timer)
+            self._draw_slide(visible_text, slide_index, hold_timer)
             pygame.display.flip()
 
         return True
@@ -122,7 +114,7 @@ class Cinematic:
             lines.append(current)
         return lines
 
-    def _draw_slide(self, history: list[str], text: str, slide_index: int, hold_timer: float) -> None:
+    def _draw_slide(self, text: str, slide_index: int, hold_timer: float) -> None:
         self.screen.fill(self.BG_COLOR)
         width, height = self.screen.get_size()
 
@@ -136,15 +128,12 @@ class Cinematic:
         title = self.title_font.render("// SYSTEM BREACH", True, self.ACCENT_COLOR)
         self.screen.blit(title, (inner_rect.left + 24, inner_rect.top + 18))
 
-        paragraphs = history + [text]
+        wrapped = self._wrap_text(text, inner_rect.width - 48)
         y = inner_rect.top + 90
-        for paragraph in paragraphs:
-            wrapped = self._wrap_text(paragraph, inner_rect.width - 48)
-            for line in wrapped:
-                rendered = self.body_font.render(line, True, self.TEXT_COLOR)
-                self.screen.blit(rendered, (inner_rect.left + 24, y))
-                y += rendered.get_height() + 10
-            y += 12
+        for line in wrapped:
+            rendered = self.body_font.render(line, True, self.TEXT_COLOR)
+            self.screen.blit(rendered, (inner_rect.left + 24, y))
+            y += rendered.get_height() + 10
 
         dots = " ".join("●" if i == slide_index else "○" for i in range(len(self.slides)))
         dots_surface = self.small_font.render(dots, True, self.ACCENT_COLOR)
@@ -154,26 +143,17 @@ class Cinematic:
 
     def _draw_skip_hint(self, hold_timer: float) -> None:
         width, height = self.screen.get_size()
-        text = "Oprime O 3s para omitir"
+        text = "Mantén O 3s para omitir"
         label = self.small_font.render(text, True, self.TEXT_COLOR)
         padding = 18
-        key_radius = 14
+        x = width - label.get_width() - padding - 40
+        y = height - label.get_height() - padding
+        self.screen.blit(label, (x + 38, y))
 
-        x = width - padding - key_radius * 2 - label.get_width() - 16
-        y = height - padding - max(label.get_height(), key_radius * 2)
-
-        hint_height = max(label.get_height(), key_radius * 2) + 10
-        hint_width = key_radius * 2 + 16 + label.get_width()
-        hint_rect = pygame.Rect(x - 8, y - 5, hint_width + 16, hint_height + 10)
-        pygame.draw.rect(self.screen, (8, 10, 22), hint_rect, border_radius=10)
-        pygame.draw.rect(self.screen, (32, 34, 60), hint_rect, width=1, border_radius=10)
-
-        # Texto a la derecha del indicador
-        self.screen.blit(label, (x + key_radius * 2 + 14, y + (key_radius * 2 - label.get_height()) // 2))
-
-        center = (x + key_radius, y + key_radius)
-        pygame.draw.circle(self.screen, (60, 60, 90), center, key_radius)
-        pygame.draw.circle(self.screen, self.TEXT_COLOR, center, key_radius, 2)
+        center = (x + 18, y + label.get_height() // 2)
+        radius = 14
+        pygame.draw.circle(self.screen, (60, 60, 90), center, radius)
+        pygame.draw.circle(self.screen, self.TEXT_COLOR, center, radius, 2)
 
         ratio = max(0.0, min(hold_timer / self.SKIP_HOLD_TIME, 1.0))
         if ratio > 0:
@@ -182,7 +162,7 @@ class Cinematic:
             pygame.draw.arc(
                 self.screen,
                 self.ACCENT_COLOR,
-                pygame.Rect(center[0] - key_radius, center[1] - key_radius, key_radius * 2, key_radius * 2),
+                pygame.Rect(center[0] - radius, center[1] - radius, radius * 2, radius * 2),
                 start_angle,
                 end_angle,
                 3,
