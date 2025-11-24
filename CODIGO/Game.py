@@ -168,6 +168,7 @@ class Game:
         # --- Menú de pausa ---
         self.pause_menu_buttons: list[PauseMenuButton] = [
             PauseMenuButton("Reanudar", "resume"),
+            PauseMenuButton("Ayuda", "help"),
             PauseMenuButton("Menú principal", "main_menu"),
             PauseMenuButton("Salir del juego", "quit"),
         ]
