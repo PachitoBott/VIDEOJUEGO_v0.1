@@ -62,9 +62,9 @@ ENEMY_LOOT_TABLE = {
         },
         "3": {
             "weapons": [
-                {"type": "weapon", "id": "pulse_rifle", "weight": 0.9},
-                {"type": "weapon", "id": "arcane_salvo", "weight": 0.7},
-                {"type": "weapon", "id": "ember_carbine", "weight": 0.8},
+                {"type": "weapon", "id": "pulse_rifle", "weight": 1.0},
+                {"type": "weapon", "id": "arcane_salvo", "weight": 1.0},
+                {"type": "weapon", "id": "ember_carbine", "weight": 1.0},
             ],
             "upgrades": [
                 {"type": "upgrade", "id": "cdr_core", "weight": 1.8},
@@ -101,6 +101,6 @@ ENEMY_LOOT_TABLE = {
         "enemy_heal_big_chance": 0.10,
         "enemy_upgrade_chance": 0.10,
         "enemy_bundle_chance": 0.05,
-        "enemy_weapon_rare_chance": 0.015,
+        "enemy_weapon_rare_chance": 0.1,
     },
 }

@@ -168,6 +168,7 @@ class Game:
         # --- Menú de pausa ---
         self.pause_menu_buttons: list[PauseMenuButton] = [
             PauseMenuButton("Reanudar", "resume"),
+            PauseMenuButton("Ayuda", "help"),
             PauseMenuButton("Menú principal", "main_menu"),
             PauseMenuButton("Salir del juego", "quit"),
         ]
@@ -692,6 +693,10 @@ class Game:
                 self._maybe_spawn_enemy_loot(enemy, room)
         defeated_enemies = max(0, initial_enemy_count - len(survivors))
         if defeated_enemies:
+            # Reproducir sonido de eliminación de enemigo
+            if self.enemy_elimination_sound:
+                self.enemy_elimination_sound.play()
+                
             self._run_kills = max(0, self._run_kills) + defeated_enemies
             try:
                 self.stats_manager.record_kill(defeated_enemies)
@@ -1143,8 +1148,8 @@ class Game:
 
         # 4. Feedback
         self._notify_reward(new_pickup.reward_data, getattr(new_pickup, "sprite", None))
-        if self.object_pickup_sound:
-            self.object_pickup_sound.play()
+        if self.gun_pickup_sound:
+            self.gun_pickup_sound.play()
         self.hovered_weapon_pickup = None
 
     def _handle_shop_weapon_purchase(self, reward_data: dict) -> None:
@@ -1190,8 +1195,8 @@ class Game:
         
         # Feedback
         self._notify_reward(reward_data, self._sprite_for_reward(reward_data))
-        if self.object_pickup_sound:
-            self.object_pickup_sound.play()
+        if self.gun_pickup_sound:
+            self.gun_pickup_sound.play()
 
     def _add_player_gold(self, amount: int) -> None:
         amount = int(amount)
@@ -1936,6 +1941,30 @@ class Game:
             if audio_path.exists():
                 self.object_pickup_sound = pygame.mixer.Sound(audio_path.as_posix())
                 self.object_pickup_sound.set_volume(0.15)  # 15% del volumen
+        except (pygame.error, FileNotFoundError):
+            pass
+        
+        # Sonido de recoger armas
+        self.gun_pickup_sound = None
+        try:
+            audio_path = Path("assets/audio/gun_pickup_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "gun_pickup_sfx.mp3"
+            if audio_path.exists():
+                self.gun_pickup_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self.gun_pickup_sound.set_volume(0.2)  # 20% del volumen
+        except (pygame.error, FileNotFoundError):
+            pass
+
+        # Sonido de eliminación de enemigos
+        self.enemy_elimination_sound = None
+        try:
+            audio_path = Path("assets/audio/enemy_elimination_sfx.mp3")
+            if not audio_path.exists():
+                audio_path = Path(__file__).parent / "assets" / "audio" / "enemy_elimination_sfx.mp3"
+            if audio_path.exists():
+                self.enemy_elimination_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self.enemy_elimination_sound.set_volume(0.15)  # 15% del volumen
         except (pygame.error, FileNotFoundError):
             pass
 
