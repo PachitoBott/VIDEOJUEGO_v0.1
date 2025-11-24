@@ -10,7 +10,7 @@ import pygame
 
 from Config import Config
 from StartMenu import StartMenu
-from Cinematic import Cinematic
+from Cinamatic import Cinamatic
 from Tileset import Tileset
 from Player import Player
 from Dungeon import Dungeon
@@ -373,8 +373,8 @@ class Game:
             self.running = False
             return False
         pygame.mouse.set_visible(False)
-        cinematic = Cinematic(self.screen, self.cfg)
-        if not cinematic.run():
+        cinamatic = Cinamatic(self.screen, self.cfg)
+        if not cinamatic.run():
             self.running = False
             return False
         self.selected_skin_path = menu_result.skin_path or self.cfg.PLAYER_SPRITES_PATH
