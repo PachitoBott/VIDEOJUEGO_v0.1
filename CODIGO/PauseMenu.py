@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterable, Sequence, Optional
 
 import pygame
+import random
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,29 @@ class PauseMenu:
     COLOR_NEON_PINK = (255, 0, 128)
     COLOR_TEXT_WHITE = (240, 240, 255)
 
+    TIPS = [
+        "Usa el dash para atravesar proyectiles enemigos sin recibir daño.",
+        "Los barriles rojos explotan al ser golpeados, úsalos a tu favor.",
+        "Recarga tu arma antes de entrar a una nueva sala.",
+        "Algunas armas tienen efectos secundarios ocultos.",
+        "El mercader siempre tiene algo útil, si tienes suficientes microchips.",
+        "No te quedes quieto, el movimiento es vida.",
+        "Los enemigos de élite sueltan mejores recompensas.",
+        "Gestiona tu munición, recargar en medio del combate es peligroso.",
+        "El sonido te puede alertar de enemigos cercanos.",
+        "Explora cada rincón para encontrar cofres ocultos.",
+        "Mejora tu velocidad de movimiento para esquivar mejor.",
+        "Las armas de energía son efectivas contra escudos.",
+        "Usa el entorno para cubrirte del fuego enemigo.",
+        "Prioriza eliminar a los enemigos que disparan a distancia.",
+        "Si tienes poca vida, busca cobertura y espera el momento justo.",
+        "Los jefes tienen patrones de ataque, apréndelos.",
+        "Guarda tus habilidades especiales para momentos críticos.",
+        "El dash tiene un pequeño tiempo de recarga, úsalo sabiamente.",
+        "Recoge todos los microchips que veas, los necesitarás.",
+        "Experimenta con diferentes combinaciones de armas."
+    ]
+
     def __init__(
         self,
         screen: pygame.Surface,
@@ -40,6 +64,7 @@ class PauseMenu:
         self.title = title
         self.buttons: list[PauseMenuButton] = list(buttons) if buttons else [
             PauseMenuButton("Reanudar", "resume"),
+            PauseMenuButton("Ayuda", "help"),
             PauseMenuButton("Menú Principal", "main_menu"),
             PauseMenuButton("Salir del Juego", "quit"),
         ]
@@ -198,6 +223,11 @@ class PauseMenu:
                             # Reproducir sonido al hacer clic
                             if self.click_sound:
                                 self.click_sound.play()
+                            
+                            if button.action == "help":
+                                self._show_help_popup()
+                                continue
+                                
                             return button.action
 
                 if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
@@ -318,3 +348,67 @@ class PauseMenu:
         channel_count = pygame.mixer.get_num_channels()
         for channel_index in range(channel_count):
             pygame.mixer.Channel(channel_index).set_volume(self.volume)
+
+    def _show_help_popup(self) -> None:
+        """Muestra un popup con un consejo aleatorio."""
+        tip = random.choice(self.TIPS)
+        width, height = self.screen.get_size()
+        
+        # Crear superficie para el popup
+        popup_width = 600
+        popup_height = 300
+        popup_rect = pygame.Rect(0, 0, popup_width, popup_height)
+        popup_rect.center = (width // 2, height // 2)
+        
+        waiting = True
+        while waiting:
+            self.clock.tick(60)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    waiting = False
+                if event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                    if self.click_sound:
+                        self.click_sound.play()
+                    waiting = False
+            
+            # Dibujar fondo semitransparente oscuro
+            overlay = pygame.Surface((width, height), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 100))
+            self.screen.blit(overlay, (0, 0))
+            
+            # Dibujar caja del popup
+            pygame.draw.rect(self.screen, (20, 20, 30), popup_rect, border_radius=12)
+            pygame.draw.rect(self.screen, self.COLOR_NEON_BLUE, popup_rect, 3, border_radius=12)
+            
+            # Título
+            title_surf = self.button_font.render("CONSEJO", True, self.COLOR_NEON_PINK)
+            title_rect = title_surf.get_rect(center=(popup_rect.centerx, popup_rect.top + 50))
+            self.screen.blit(title_surf, title_rect)
+            
+            # Texto del consejo (con word wrap simple)
+            words = tip.split(' ')
+            lines = []
+            current_line = []
+            
+            for word in words:
+                test_line = ' '.join(current_line + [word])
+                if self.small_font.size(test_line)[0] < popup_width - 60:
+                    current_line.append(word)
+                else:
+                    lines.append(' '.join(current_line))
+                    current_line = [word]
+            lines.append(' '.join(current_line))
+            
+            y_offset = popup_rect.top + 120
+            for line in lines:
+                line_surf = self.small_font.render(line, True, self.COLOR_TEXT_WHITE)
+                line_rect = line_surf.get_rect(center=(popup_rect.centerx, y_offset))
+                self.screen.blit(line_surf, line_rect)
+                y_offset += 40
+                
+            # Instrucción para cerrar
+            close_surf = self.small_font.render("[ PRESIONA CUALQUIER TECLA ]", True, (150, 150, 150))
+            close_rect = close_surf.get_rect(center=(popup_rect.centerx, popup_rect.bottom - 40))
+            self.screen.blit(close_surf, close_rect)
+            
+            pygame.display.flip()
