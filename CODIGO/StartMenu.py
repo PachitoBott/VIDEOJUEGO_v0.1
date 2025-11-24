@@ -139,7 +139,7 @@ class StartMenu:
         self.click_sound = self._load_sound("boton.mp3")
 
         # 2. Cargar y reproducir Música de Fondo
-        music_file = "Perturbator.mp3"
+        music_file = "music_menu.mp3"
         music_path = self._get_audio_path(music_file)
         
         if music_path and music_path.exists():
