@@ -77,7 +77,7 @@ class Cinamatic:
                     return False
 
             keys = pygame.key.get_pressed()
-            if keys[pygame.K_o]:
+            if keys[pygame.K_SPACE]:
                 hold_timer += dt
             else:
                 hold_timer = 0.0
@@ -159,17 +159,18 @@ class Cinamatic:
     def _draw_skip_hint(self, hold_timer: float) -> None:
         width, height = self.screen.get_size()
         padding = 24
-        key_radius = 18
+        key_radius = 28
 
         # Copia clara y siempre visible
-        text = 'Oprima la tecla "O" 3 segundos para omitir'
+        text = 'Mantén ESPACIO 3 segundos para omitir'
         label = self.small_font.render(text, True, self.TEXT_COLOR)
 
         # Panel estilo "botón" fijo en la esquina inferior derecha
         hint_height = max(label.get_height(), key_radius * 2) + 20
         hint_width = key_radius * 2 + 24 + label.get_width()
         x = width - padding - hint_width
-        y = height - padding - hint_height
+        # Aumentamos el margen inferior para que sea completamente visible
+        y = height - 80 - hint_height
         hint_rect = pygame.Rect(x - 8, y - 6, hint_width + 16, hint_height + 12)
 
         # Panel contrastado para que siempre se lea
@@ -206,7 +207,7 @@ class Cinamatic:
                 6,
             )
 
-        key_label = self.small_font.render("O", True, self.TEXT_COLOR)
+        key_label = self.small_font.render("SPACE", True, self.TEXT_COLOR)
         key_rect = key_label.get_rect(center=center)
         self.screen.blit(key_label, key_rect)
 
