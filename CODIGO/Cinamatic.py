@@ -170,7 +170,7 @@ class Cinamatic:
         hint_width = key_radius * 2 + 24 + label.get_width()
         x = width - padding - hint_width
         # Aumentamos el margen inferior para que sea completamente visible
-        y = height - 80 - hint_height
+        y = height - 150 - hint_height
         hint_rect = pygame.Rect(x - 8, y - 6, hint_width + 16, hint_height + 12)
 
         # Panel contrastado para que siempre se lea
