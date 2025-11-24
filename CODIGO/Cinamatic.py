@@ -158,47 +158,55 @@ class Cinamatic:
 
     def _draw_skip_hint(self, hold_timer: float) -> None:
         width, height = self.screen.get_size()
-        padding = 20
-        key_radius = 16
+        padding = 24
+        key_radius = 18
 
         # Copia clara y siempre visible
-        text = "Mantén O 3s para omitir"
+        text = 'Oprima la tecla "O" 3 segundos para omitir'
         label = self.small_font.render(text, True, self.TEXT_COLOR)
 
-        # Posición fija en la esquina inferior derecha
-        x = width - padding - (key_radius * 2 + 18 + label.get_width())
-        y = height - padding - max(label.get_height(), key_radius * 2) - 6
-
-        hint_height = max(label.get_height(), key_radius * 2) + 12
-        hint_width = key_radius * 2 + 18 + label.get_width()
-        hint_rect = pygame.Rect(x - 10, y - 6, hint_width + 20, hint_height + 12)
+        # Panel estilo "botón" fijo en la esquina inferior derecha
+        hint_height = max(label.get_height(), key_radius * 2) + 20
+        hint_width = key_radius * 2 + 24 + label.get_width()
+        x = width - padding - hint_width
+        y = height - padding - hint_height
+        hint_rect = pygame.Rect(x - 8, y - 6, hint_width + 16, hint_height + 12)
 
         # Panel contrastado para que siempre se lea
-        pygame.draw.rect(self.screen, (10, 12, 26), hint_rect, border_radius=12)
-        pygame.draw.rect(self.screen, self.ACCENT_COLOR, hint_rect, width=2, border_radius=12)
+        pygame.draw.rect(self.screen, (10, 12, 26), hint_rect, border_radius=14)
+        pygame.draw.rect(self.screen, self.ACCENT_COLOR, hint_rect, width=2, border_radius=14)
 
         # Texto a la derecha del indicador
-        text_y = y + (key_radius * 2 - label.get_height()) // 2
-        self.screen.blit(label, (x + key_radius * 2 + 14, text_y))
+        text_y = y + (hint_height - label.get_height()) // 2
+        self.screen.blit(label, (x + key_radius * 2 + 18, text_y))
 
-        center = (x + key_radius, y + key_radius)
-        pygame.draw.circle(self.screen, (60, 60, 90), center, key_radius)
+        center = (x + key_radius, y + hint_height // 2)
+        pygame.draw.circle(self.screen, (45, 48, 70), center, key_radius)
         pygame.draw.circle(self.screen, self.TEXT_COLOR, center, key_radius, 2)
 
         ratio = max(0.0, min(hold_timer / self.SKIP_HOLD_TIME, 1.0))
+        bg_rect = pygame.Rect(center[0] - key_radius - 4, center[1] - key_radius - 4, (key_radius + 4) * 2, (key_radius + 4) * 2)
+        pygame.draw.arc(
+            self.screen,
+            (70, 72, 96),
+            bg_rect,
+            -math.pi / 2,
+            3 * math.pi / 2,
+            6,
+        )
         if ratio > 0:
             start_angle = -math.pi / 2
             end_angle = start_angle + ratio * 2 * math.pi
             pygame.draw.arc(
                 self.screen,
                 self.ACCENT_COLOR,
-                pygame.Rect(center[0] - key_radius, center[1] - key_radius, key_radius * 2, key_radius * 2),
+                bg_rect,
                 start_angle,
                 end_angle,
-                4,
+                6,
             )
 
-        key_label = self.small_font.render("O", True, self.ACCENT_COLOR)
+        key_label = self.small_font.render("O", True, self.TEXT_COLOR)
         key_rect = key_label.get_rect(center=center)
         self.screen.blit(key_label, key_rect)
 
