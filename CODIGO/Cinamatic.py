@@ -106,6 +106,10 @@ class Cinamatic:
             ),
             ("orden7.mp4", None),
         ]
+        
+        # Control para avance con espacio
+        self.space_just_pressed = False
+        self.space_was_pressed = False
 
     def run(self) -> bool:
         slide_index = 0
@@ -113,14 +117,23 @@ class Cinamatic:
         finished_time = 0.0
         hold_timer = 0.0
         history: list[str] = []
+        slide_finished = False
 
         while slide_index < len(self.slides):
             dt = self.clock.tick(self.cfg.FPS) / 1000.0
+            
+            # Detectar eventos
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return False
 
             keys = pygame.key.get_pressed()
+            
+            # Detectar presión única de espacio (no mantener)
+            self.space_just_pressed = keys[pygame.K_SPACE] and not self.space_was_pressed
+            self.space_was_pressed = keys[pygame.K_SPACE]
+            
+            # Timer para skip manteniendo espacio
             if keys[pygame.K_SPACE]:
                 hold_timer += dt
             else:
@@ -131,7 +144,29 @@ class Cinamatic:
 
             current = self.slides[slide_index]
             prev_char_progress = int(char_progress)
-            if char_progress < len(current):
+            
+            # Si se presiona espacio y el slide no ha terminado, completarlo
+            if self.space_just_pressed and not slide_finished:
+                char_progress = len(current)
+                slide_finished = True
+                finished_time = 0.0
+                if self.typing_sound:
+                    pygame.mixer.Channel(0).stop()
+            # Si se presiona espacio y el slide ya terminó, avanzar al siguiente
+            elif self.space_just_pressed and slide_finished:
+                if slide_index < len(self.slides) - 1:
+                    history.append(current)
+                    slide_index += 1
+                    char_progress = 0.0
+                    finished_time = 0.0
+                    slide_finished = False
+                else:
+                    # Último slide: ir a los videos
+                    self._draw_slide(history, current, slide_index, hold_timer)
+                    pygame.display.flip()
+                    return self._play_video_sequence()
+            # Animación normal de escritura
+            elif char_progress < len(current):
                 char_progress += self.TYPEWRITER_SPEED * dt
                 finished_time = 0.0
                 
@@ -140,17 +175,25 @@ class Cinamatic:
                 if new_char_progress > prev_char_progress and self.typing_sound:
                     if not pygame.mixer.Channel(0).get_busy():
                         pygame.mixer.Channel(0).play(self.typing_sound, loops=-1)
+                
+                # Marcar como terminado cuando se completa
+                if char_progress >= len(current):
+                    slide_finished = True
+                    if self.typing_sound:
+                        pygame.mixer.Channel(0).stop()
             else:
                 # Detener sonido cuando termine de escribir
                 if self.typing_sound:
                     pygame.mixer.Channel(0).stop()
                 finished_time += dt
+                # Auto-avance después de SLIDE_PAUSE (comportamiento original)
                 if finished_time >= self.SLIDE_PAUSE:
                     if slide_index < len(self.slides) - 1:
                         history.append(current)
                         slide_index += 1
                         char_progress = 0.0
                         finished_time = 0.0
+                        slide_finished = False
                         continue
                     else:
                         # Último slide: muestra el texto completo acumulado y sale.
