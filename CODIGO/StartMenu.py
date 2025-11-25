@@ -530,16 +530,16 @@ class StartMenu:
             self.screen.blit(overlay, (0, 0))
 
         # 2. Título CYBERQUEST
-        title_text = "CYBERQUEST"
+        title_text = "REDLINE PROTOCOL"
         
         # Sombra del título
         shadow_surf = self.title_font.render(title_text, True, self.COLOR_NEON_PINK)
-        shadow_rect = shadow_surf.get_rect(center=(width // 2 + 4, height // 5 + 4))
+        shadow_rect = shadow_surf.get_rect(center=(width // 2 + 4, height // 4 + 4))
         self.screen.blit(shadow_surf, shadow_rect)
 
         # Título principal
         title_surf = self.title_font.render(title_text, True, self.COLOR_NEON_BLUE)
-        title_rect = title_surf.get_rect(center=(width // 2, height // 5))
+        title_rect = title_surf.get_rect(center=(width // 2, height // 4))
         self.screen.blit(title_surf, title_rect)
 
         # Subtítulo
