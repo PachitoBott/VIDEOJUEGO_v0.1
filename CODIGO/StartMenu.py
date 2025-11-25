@@ -119,6 +119,7 @@ class StartMenu:
                      pass
 
         self.logo = self._load_image(self.menu_cfg.logo_image)
+        self.credits_image = self._load_image("Creditos.png")
 
         self._compute_layout()
         self._start_requested = False
@@ -468,7 +469,11 @@ class StartMenu:
         if action == "credits" or action == "controls":
             if action in self.menu_cfg.sections:
                 self.overlay_key = action
-                self.overlay_lines = self.menu_cfg.sections[action]
+                section_lines = self.menu_cfg.sections[action]
+                if action == "credits":
+                    self.overlay_lines = section_lines[1:] if section_lines else ()
+                else:
+                    self.overlay_lines = section_lines
                 return True
         if action == "statistics":
             self.overlay_key = action
@@ -795,11 +800,15 @@ class StartMenu:
         overlay_rect = pygame.Rect(0, 0, width * 0.8, height * 0.8)
         overlay_rect.center = (width // 2, height // 2)
         
-        pygame.draw.rect(self.screen, (10, 10, 20), overlay_rect)
+        if self.overlay_key == "credits" and self.credits_image:
+            scaled_bg = pygame.transform.smoothscale(self.credits_image, overlay_rect.size)
+            self.screen.blit(scaled_bg, overlay_rect)
+        else:
+            pygame.draw.rect(self.screen, (10, 10, 20), overlay_rect)
         pygame.draw.rect(self.screen, self.COLOR_NEON_BLUE, overlay_rect, 2)
 
         lines = self.overlay_lines or ("",)
-        start_y = overlay_rect.top + 60
+        start_y = overlay_rect.top + (140 if self.overlay_key == "credits" else 60)
         
         for i, line in enumerate(lines):
             surf = self.button_font.render(line, True, self.COLOR_TEXT_WHITE)
