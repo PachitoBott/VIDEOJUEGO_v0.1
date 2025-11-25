@@ -24,7 +24,7 @@ class Cinamatic:
     """Reproduce una breve cinemática con efecto de máquina de escribir."""
 
     TYPEWRITER_SPEED = 42  # caracteres por segundo
-    SLIDE_PAUSE = 2.0      # segundos que permanece el slide tras terminar de escribirse
+    SLIDE_PAUSE = 4.0      # segundos que permanece el slide tras terminar de escribirse (extendido para permitir skip)
     SKIP_HOLD_TIME = 3.0
     TRANSITION_FADE_DURATION = 0.4  # duración de las transiciones en segundos
 
@@ -512,15 +512,17 @@ class Cinamatic:
         self.screen.blit(scaled, rect)
     
     def _draw_overlay_bubble_with_shake(self, text: str, shake_offset: Tuple[int, int]) -> None:
-        """Draw text bubble at bottom-left (near skip button) with shake effect."""
+        """Draw text bubble at left side, perfectly parallel to skip button."""
         if not text:
             return
         
         width, height = self.screen.get_size()
         bubble_width = min(int(width * 0.42), width - 120)
         bubble_x = 42 + shake_offset[0]
-        # Position higher, near skip button (y = height - 200)
-        bubble_y = height - 200 + shake_offset[1]
+        # Position EXACTLY parallel to skip button
+        # Skip button: y = height - 190 - hint_height, where hint_height ≈ 76
+        # So skip button y ≈ height - 266
+        bubble_y = height - 266 + shake_offset[1]
         
         paragraphs: list[str] = []
         for raw_paragraph in text.split("\n"):
