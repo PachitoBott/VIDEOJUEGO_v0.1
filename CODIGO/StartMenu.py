@@ -258,7 +258,7 @@ class StartMenu:
             "green": "Verde",
             "grey": "Gris",
         }
-        body_names = {"flaco": "Flaco", "gordo": "Gordo"}
+        body_names = {"flaco": "CYBER-067", "gordo": "CYBER-021"}
         base = Path("assets") / "player"
         options: list[dict[str, str]] = []
         for body in ("flaco", "gordo"):
@@ -711,7 +711,7 @@ class StartMenu:
             pygame.draw.rect(self.screen, base_color, rect, border_radius=8)
             pygame.draw.rect(self.screen, border_color, rect, 2, border_radius=8)
 
-            label = "FLACO" if body == "flaco" else "GORDO"
+            label = "CYBER-067" if body == "flaco" else "CYBER-021"
             label_surf = self.button_font.render(label, True, self.COLOR_TEXT_WHITE)
             label_rect = label_surf.get_rect(center=(rect.centerx, rect.top + 30))
             self.screen.blit(label_surf, label_rect)
