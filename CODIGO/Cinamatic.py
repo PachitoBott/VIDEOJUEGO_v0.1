@@ -14,10 +14,10 @@ __all__ = ["Cinamatic"]
 
 
 class Cinamatic:
-    """Reproduce una breve cinemática con efecto de máquina de escribir."""
+    """Reproduce una breve cinemática tipo slideshow con efecto de máquina de escribir."""
 
     TYPEWRITER_SPEED = 42  # caracteres por segundo
-    SLIDE_PAUSE = 2.0      # segundos que permanece el slide tras terminar de escribirse
+    SLIDE_PAUSE = 2.0  # segundos que permanece el slide tras terminar de escribirse
     SKIP_HOLD_TIME = 3.0
 
     BG_COLOR = (4, 6, 18)
@@ -42,29 +42,35 @@ class Cinamatic:
         self.typing_sound = None
         self._load_typing_sound()
 
-        self.slides: List[str] = [
+        self.slides = self._build_slides()
+
+        # Control para avance con espacio
+        self.space_just_pressed = False
+        self.space_was_pressed = False
+
+    def _build_slides(self) -> List[Dict[str, object]]:
+        """Genera la lista de slides con imagen y texto asociado."""
+
+        narrative = [
             (
-                "Our defenses were flawless. "
-                "For decades, the system had repelled every intrusion, every probe, every unauthorized signal. "
-                "But all it took was one vulnerability. "
-                "A single unpatched weakness. "
-                "A forgotten line of code."
+                "Night fell over the neon grid while the skyline dimmed. "
+                "From the rooftops we watched the first blackout creeping in."
             ),
             (
-                "The Zero-Day exploit spread faster than our protocols could respond. "
-                "Firewalls collapsed. "
-                "Gateways went dark. "
-                "Malware swarmed every access point like a digital plague."
+                "Inside the command hub, monitors flooded with red warnings. "
+                "Unknown packets bypassed every filter we trusted."
             ),
             (
-                "Entire sectors fell in minutes. "
-                "Surveillance nodes went blind. "
-                "Antivirus modules were overrun. "
-                "And at the center of it all… the MotherBoard woke up."
+                "Technicians rerouted power while I prepped the immersion rig. "
+                "There was no other way to reach the source."
             ),
             (
-                "This is why cybersecurity is everything. "
-                "A world built on data can fall in seconds."
+                "The arcade shell opened like a shrine—old circuitry, new firmware—"
+                "all pointing at a single objective: dive inside."
+            ),
+            (
+                "Fragments of the virus floated like embers, learning and copying "
+                "our own protocols as they spread."
             ),
         ]
 
@@ -128,23 +134,23 @@ class Cinamatic:
         char_progress = 0.0
         finished_time = 0.0
         hold_timer = 0.0
-        history: list[str] = []
         slide_finished = False
 
         while slide_index < len(self.slides):
             dt = self.clock.tick(self.cfg.FPS) / 1000.0
-            
+
             # Detectar eventos
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return False
 
             keys = pygame.key.get_pressed()
-            
+
             # Detectar presión única de espacio (no mantener)
             self.space_just_pressed = keys[pygame.K_SPACE] and not self.space_was_pressed
             self.space_was_pressed = keys[pygame.K_SPACE]
             
+
             # Timer para skip manteniendo espacio
             if keys[pygame.K_SPACE]:
                 hold_timer += dt
@@ -154,12 +160,14 @@ class Cinamatic:
             if hold_timer >= self.SKIP_HOLD_TIME:
                 return True
 
-            current = self.slides[slide_index]
+            current_slide = self.slides[slide_index]
+            current_text: str = current_slide["text"]  # type: ignore[index]
+
             prev_char_progress = int(char_progress)
-            
+
             # Si se presiona espacio y el slide no ha terminado, completarlo
             if self.space_just_pressed and not slide_finished:
-                char_progress = len(current)
+                char_progress = len(current_text)
                 slide_finished = True
                 finished_time = 0.0
                 if self.typing_sound:
@@ -167,7 +175,6 @@ class Cinamatic:
             # Si se presiona espacio y el slide ya terminó, avanzar al siguiente
             elif self.space_just_pressed and slide_finished:
                 if slide_index < len(self.slides) - 1:
-                    history.append(current)
                     slide_index += 1
                     char_progress = 0.0
                     finished_time = 0.0
@@ -178,18 +185,18 @@ class Cinamatic:
                     pygame.display.flip()
                     return self._play_image_sequence()
             # Animación normal de escritura
-            elif char_progress < len(current):
+            elif char_progress < len(current_text):
                 char_progress += self.TYPEWRITER_SPEED * dt
                 finished_time = 0.0
-                
+
                 # Reproducir sonido de escritura si hay caracteres nuevos
                 new_char_progress = int(char_progress)
                 if new_char_progress > prev_char_progress and self.typing_sound:
                     if not pygame.mixer.Channel(0).get_busy():
                         pygame.mixer.Channel(0).play(self.typing_sound, loops=-1)
-                
+
                 # Marcar como terminado cuando se completa
-                if char_progress >= len(current):
+                if char_progress >= len(current_text):
                     slide_finished = True
                     if self.typing_sound:
                         pygame.mixer.Channel(0).stop()
@@ -198,23 +205,21 @@ class Cinamatic:
                 if self.typing_sound:
                     pygame.mixer.Channel(0).stop()
                 finished_time += dt
-                # Auto-avance después de SLIDE_PAUSE (comportamiento original)
+                # Auto-avance después de SLIDE_PAUSE
                 if finished_time >= self.SLIDE_PAUSE:
                     if slide_index < len(self.slides) - 1:
-                        history.append(current)
                         slide_index += 1
                         char_progress = 0.0
                         finished_time = 0.0
                         slide_finished = False
                         continue
                     else:
-                        # Último slide: muestra el texto completo acumulado y sale.
-                        self._draw_slide(history, current, slide_index, hold_timer)
+                        self._draw_slide(current_slide, current_text, slide_index, hold_timer)
                         pygame.display.flip()
                         return self._play_image_sequence()
 
-            visible_text = current[: int(char_progress)]
-            self._draw_slide(history, visible_text, slide_index, hold_timer)
+            visible_text = current_text[: int(char_progress)]
+            self._draw_slide(current_slide, visible_text, slide_index, hold_timer)
             pygame.display.flip()
 
         return self._play_image_sequence()
@@ -235,33 +240,30 @@ class Cinamatic:
             lines.append(current)
         return lines
 
-    def _draw_slide(self, history: list[str], text: str, slide_index: int, hold_timer: float) -> None:
+    def _draw_slide(
+        self, slide: Dict[str, object], text: str, slide_index: int, hold_timer: float
+    ) -> None:
         self.screen.fill(self.BG_COLOR)
         width, height = self.screen.get_size()
 
-        panel_rect = pygame.Rect(0, 0, int(width * 0.85), int(height * 0.7))
-        panel_rect.center = (width // 2, int(height * 0.48))
+        shake_image = self._shake_offset(3.0, 3.6)
+        shake_bubble = self._shake_offset(2.0, 5.2)
 
-        pygame.draw.rect(self.screen, self.PANEL_BORDER, panel_rect, border_radius=8)
-        inner_rect = panel_rect.inflate(-8, -8)
-        pygame.draw.rect(self.screen, self.PANEL_COLOR, inner_rect, border_radius=6)
+        image_surface: pygame.Surface = slide["image"]  # type: ignore[index]
+        image_rect = self._draw_image_frame(image_surface, shake_image)
 
+        # Panel título encima de la imagen
         title = self.title_font.render("// SYSTEM BREACH", True, self.ACCENT_COLOR)
-        self.screen.blit(title, (inner_rect.left + 24, inner_rect.top + 18))
+        title_rect = title.get_rect(midbottom=(image_rect.centerx, image_rect.top - 12))
+        self.screen.blit(title, title_rect)
 
-        paragraphs = history + [text]
-        y = inner_rect.top + 90
-        for paragraph in paragraphs:
-            wrapped = self._wrap_text(paragraph, inner_rect.width - 48)
-            for line in wrapped:
-                rendered = self.body_font.render(line, True, self.TEXT_COLOR)
-                self.screen.blit(rendered, (inner_rect.left + 24, y))
-                y += rendered.get_height() + 10
-            y += 12
+        metrics = self._skip_hint_metrics()
+        self._draw_overlay_bubble(text, metrics["y"], shake_bubble)
 
         dots = " ".join("●" if i == slide_index else "○" for i in range(len(self.slides)))
         dots_surface = self.small_font.render(dots, True, self.ACCENT_COLOR)
-        self.screen.blit(dots_surface, (inner_rect.left + 24, inner_rect.bottom - 48))
+        dots_rect = dots_surface.get_rect(midtop=(width // 2, metrics["y"] - 60))
+        self.screen.blit(dots_surface, dots_rect)
 
         self._draw_skip_hint(hold_timer)
 
@@ -322,11 +324,11 @@ class Cinamatic:
         """Carga el sonido de escritura para el efecto de máquina de escribir."""
         try:
             audio_path = Path("assets/audio/typing_sfx.mp3")
-            
+
             if not audio_path.exists():
                 # Intentar ruta relativa desde CODIGO
                 audio_path = Path(__file__).parent / "assets" / "audio" / "typing_sfx.mp3"
-            
+
             if audio_path.exists():
                 self.typing_sound = pygame.mixer.Sound(audio_path.as_posix())
                 self.typing_sound.set_volume(0.15)  # 15% del volumen
@@ -334,7 +336,7 @@ class Cinamatic:
                 self.typing_sound = None
         except (pygame.error, FileNotFoundError):
             self.typing_sound = None
-            
+
     def _skip_hint_metrics(self) -> Dict[str, object]:
         width, height = self.screen.get_size()
         padding = 24
@@ -456,7 +458,10 @@ class Cinamatic:
 
     def _draw_shaky_frame(self, frame: pygame.Surface) -> None:
         width, height = self.screen.get_size()
-        frame_w, frame_h = frame.get_size()
+        img_w, img_h = image.get_size()
+        scale = min((width * 0.78) / img_w, (height * 0.82) / img_h)
+        new_size = (int(img_w * scale), int(img_h * scale))
+        scaled = pygame.transform.smoothscale(image, new_size)
 
         scale = min(width * 0.9 / frame_w, height * 0.82 / frame_h)
         new_size = (int(frame_w * scale), int(frame_h * scale))
@@ -468,6 +473,7 @@ class Cinamatic:
 
         rect = scaled.get_rect(center=(width // 2 + shake_x, int(height * 0.45) + shake_y))
         self.screen.blit(scaled, rect)
+        return rect
 
     def _draw_story_bubble(self, text: str, baseline_y: int, time_ms: int) -> None:
         if not text:
