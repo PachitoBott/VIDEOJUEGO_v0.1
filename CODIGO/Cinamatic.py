@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 import cv2
 import pygame
+from moviepy.editor import VideoFileClip
 
 from Config import Config
 
@@ -276,17 +277,22 @@ class Cinamatic:
 
         for filename, overlay_text in self.video_sequence:
             path = self.cinematics_dir / filename
-            cap = cv2.VideoCapture(str(path))
-            if not cap.isOpened():
+            if not path.exists():
+                continue
+
+            try:
+                clip = VideoFileClip(str(path))
+            except Exception:
                 continue
 
             overlay_progress = 0.0
 
-            while cap.isOpened():
+            frame_iter = clip.iter_frames(fps=self.cfg.FPS, dtype="uint8")
+            for frame in frame_iter:
                 dt = self.clock.tick(self.cfg.FPS) / 1000.0
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
-                        cap.release()
+                        clip.close()
                         return False
 
                 keys = pygame.key.get_pressed()
@@ -296,12 +302,8 @@ class Cinamatic:
                     hold_timer = 0.0
 
                 if hold_timer >= self.SKIP_HOLD_TIME:
-                    cap.release()
+                    clip.close()
                     return True
-
-                ret, frame = cap.read()
-                if not ret:
-                    break
 
                 frame_surface = self._frame_to_surface(frame)
                 self._draw_video_frame(frame_surface)
@@ -317,14 +319,13 @@ class Cinamatic:
                 self._draw_skip_hint(hold_timer)
                 pygame.display.flip()
 
-            cap.release()
+            clip.close()
 
         return True
 
     def _frame_to_surface(self, frame) -> pygame.Surface:
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        height, width = frame_rgb.shape[:2]
-        surface = pygame.image.frombuffer(frame_rgb.tobytes(), (width, height), "RGB")
+        height, width = frame.shape[:2]
+        surface = pygame.image.frombuffer(frame.tobytes(), (width, height), "RGB")
         return surface.convert()
 
     def _draw_video_frame(self, frame: pygame.Surface) -> None:
