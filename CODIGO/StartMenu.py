@@ -825,7 +825,7 @@ class StartMenu:
                 text_box_width = max(120, image_rect.width - 60)
                 text_box_height = line_height * len(lines) + 32
                 text_box = pygame.Surface((text_box_width, text_box_height), pygame.SRCALPHA)
-                text_box.fill((0, 0, 0, 150))
+                text_box.fill((0, 0, 0, 70))
 
                 for i, line in enumerate(lines):
                     surf = self.button_font.render(line, True, self.COLOR_TEXT_WHITE)
@@ -834,7 +834,9 @@ class StartMenu:
                     )
                     text_box.blit(surf, rect)
 
-                text_box_rect = text_box.get_rect(center=image_rect.center)
+                text_box_rect = text_box.get_rect(
+                    center=(image_rect.centerx, image_rect.centery + image_rect.height * 0.12)
+                )
                 overlay_surface.blit(text_box, text_box_rect)
 
         else:
