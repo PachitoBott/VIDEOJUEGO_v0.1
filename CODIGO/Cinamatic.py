@@ -5,7 +5,9 @@ import math
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import cv2
 import pygame
+from moviepy.editor import VideoFileClip
 
 from Config import Config
 

@@ -332,6 +332,10 @@ class BossEnemy(Enemy):
         self._tracked_room = room
 
     def update(self, dt: float, player, room) -> None:
+        if self.is_dying():
+            super().update(dt, player, room)
+            return
+
         self._prev_anim_pos = (self.x, self.y)
         self._tracked_room = room
         self._player_rect_cache = self._player_rect(player)
