@@ -133,18 +133,6 @@ class Cinamatic:
             self.space_just_pressed = keys[pygame.K_SPACE] and not self.space_was_pressed
             self.space_was_pressed = keys[pygame.K_SPACE]
             
-            # Timer para skip manteniendo espacio
-            if keys[pygame.K_SPACE]:
-                hold_timer += dt
-            else:
-                hold_timer = 0.0
-
-            if hold_timer >= self.SKIP_HOLD_TIME:
-                return True
-
-            current = self.slides[slide_index]
-            prev_char_progress = int(char_progress)
-            
             # Si se presiona espacio y el slide no ha terminado, completarlo
             if self.space_just_pressed and not slide_finished:
                 char_progress = len(current)
