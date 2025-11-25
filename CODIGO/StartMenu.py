@@ -797,25 +797,26 @@ class StartMenu:
     def _draw_overlay(self) -> None:
         width, height = self.screen.get_size()
         
-        overlay_rect = pygame.Rect(0, 0, width * 0.8, height * 0.8)
-        overlay_rect.center = (width // 2, height // 2)
-
-        overlay_surface = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
-        overlay_surface.fill((10, 10, 20, 230))
-
         if self.overlay_key == "credits" and self.credits_image:
-            inset_rect = overlay_surface.get_rect().inflate(-40, -40)
             img_w, img_h = self.credits_image.get_size()
-
-            target_w = inset_rect.width * 0.92
-            target_h = inset_rect.height * 0.92
-            scale = min(target_w / img_w, target_h / img_h, 1.0)
+            max_w = width * 0.78
+            max_h = height * 0.78
+            scale = min(max_w / img_w, max_h / img_h, 1.0)
             if scale < 1.0:
-                scaled_size = (int(img_w * scale), int(img_h * scale))
-                credits_image = pygame.transform.smoothscale(self.credits_image, scaled_size)
+                credits_image = pygame.transform.smoothscale(
+                    self.credits_image, (int(img_w * scale), int(img_h * scale))
+                )
             else:
                 credits_image = self.credits_image
 
+            scaled_w, scaled_h = credits_image.get_size()
+            overlay_rect = pygame.Rect(0, 0, scaled_w + 80, scaled_h + 80)
+            overlay_rect.center = (width // 2, height // 2)
+
+            overlay_surface = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
+            overlay_surface.fill((10, 10, 20, 230))
+
+            inset_rect = overlay_surface.get_rect().inflate(-32, -32)
             image_rect = credits_image.get_rect(center=inset_rect.center)
             overlay_surface.blit(credits_image, image_rect)
 
@@ -835,11 +836,16 @@ class StartMenu:
                     text_box.blit(surf, rect)
 
                 text_box_rect = text_box.get_rect(
-                    center=(image_rect.centerx, image_rect.centery + image_rect.height * 0.12)
+                    center=(image_rect.centerx, image_rect.top + image_rect.height * 0.78)
                 )
                 overlay_surface.blit(text_box, text_box_rect)
-
         else:
+            overlay_rect = pygame.Rect(0, 0, width * 0.8, height * 0.8)
+            overlay_rect.center = (width // 2, height // 2)
+
+            overlay_surface = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
+            overlay_surface.fill((10, 10, 20, 230))
+
             text_start = overlay_rect.top + 60
             lines = self.overlay_lines or ("",)
             for i, line in enumerate(lines):
