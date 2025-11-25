@@ -50,27 +50,24 @@ class Cinamatic:
     def _build_text_slides(self) -> List[str]:
         return [
             (
-                "Our defenses were flawless. "
-                "For decades, the system had repelled every intrusion, every probe, every unauthorized signal. "
-                "But all it took was one vulnerability. "
-                "A single unpatched weakness. "
-                "A forgotten line of code."
+                "Night fell over the neon grid while the skyline dimmed. "
+                "From the rooftops we watched the first blackout creeping in."
             ),
             (
-                "The Zero-Day exploit spread faster than our protocols could respond. "
-                "Firewalls collapsed. "
-                "Gateways went dark. "
-                "Malware swarmed every access point like a digital plague."
+                "Inside the command hub, monitors flooded with red warnings. "
+                "Unknown packets bypassed every filter we trusted."
             ),
             (
-                "Entire sectors fell in minutes. "
-                "Surveillance nodes went blind. "
-                "Antivirus modules were overrun. "
-                "And at the center of it all… the MotherBoard woke up."
+                "Technicians rerouted power while I prepped the immersion rig. "
+                "There was no other way to reach the source."
             ),
             (
-                "This is why cybersecurity is everything. "
-                "A world built on data can fall in seconds."
+                "The arcade shell opened like a shrine—old circuitry, new firmware—"
+                "all pointing at a single objective: dive inside."
+            ),
+            (
+                "Fragments of the virus floated like embers, learning and copying "
+                "our own protocols as they spread."
             ),
         ]
 
@@ -168,7 +165,7 @@ class Cinamatic:
             prev_char_progress = int(char_progress)
 
             if self.space_just_pressed and not slide_finished:
-                char_progress = len(current)
+                char_progress = len(current_text)
                 slide_finished = True
                 finished_time = 0.0
                 if self.typing_sound:
@@ -350,29 +347,24 @@ class Cinamatic:
         self.screen.fill(self.BG_COLOR)
         width, height = self.screen.get_size()
 
-        panel_rect = pygame.Rect(0, 0, int(width * 0.85), int(height * 0.7))
-        panel_rect.center = (width // 2, int(height * 0.48))
+        shake_image = self._shake_offset(3.0, 3.6)
+        shake_bubble = self._shake_offset(2.0, 5.2)
 
-        pygame.draw.rect(self.screen, self.PANEL_BORDER, panel_rect, border_radius=8)
-        inner_rect = panel_rect.inflate(-8, -8)
-        pygame.draw.rect(self.screen, self.PANEL_COLOR, inner_rect, border_radius=6)
+        image_surface: pygame.Surface = slide["image"]  # type: ignore[index]
+        image_rect = self._draw_image_frame(image_surface, shake_image)
 
+        # Panel título encima de la imagen
         title = self.title_font.render("// SYSTEM BREACH", True, self.ACCENT_COLOR)
-        self.screen.blit(title, (inner_rect.left + 24, inner_rect.top + 18))
+        title_rect = title.get_rect(midbottom=(image_rect.centerx, image_rect.top - 12))
+        self.screen.blit(title, title_rect)
 
-        paragraphs = history + [text]
-        y = inner_rect.top + 90
-        for paragraph in paragraphs:
-            wrapped = self._wrap_text(paragraph, inner_rect.width - 48)
-            for line in wrapped:
-                rendered = self.body_font.render(line, True, self.TEXT_COLOR)
-                self.screen.blit(rendered, (inner_rect.left + 24, y))
-                y += rendered.get_height() + 10
-            y += 12
+        metrics = self._skip_hint_metrics()
+        self._draw_overlay_bubble(text, metrics["y"], shake_bubble)
 
         dots = " ".join("●" if i == slide_index else "○" for i in range(len(self.text_slides)))
         dots_surface = self.small_font.render(dots, True, self.ACCENT_COLOR)
-        self.screen.blit(dots_surface, (inner_rect.left + 24, inner_rect.bottom - 48))
+        dots_rect = dots_surface.get_rect(midtop=(width // 2, metrics["y"] - 60))
+        self.screen.blit(dots_surface, dots_rect)
 
         self._draw_skip_hint(hold_timer)
 

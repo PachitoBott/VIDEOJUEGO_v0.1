@@ -37,33 +37,79 @@ class Game:
     MICROCHIP_ICON_DEFAULT_SCALE = 1.5
     MICROCHIP_PICKUP_SIZE = (12, 12)
     MICROCHIP_VALUE_SCALE = 0.65
+    
+    # =============================================================================
+    # CONFIGURACIÓN DE ARMAS EN EL HUD
+    # =============================================================================
+    # Aquí puedes ajustar la posición y escala de cada arma cuando aparece en el HUD
+    # - offset_x: Desplazamiento horizontal (+ derecha, - izquierda)
+    # - offset_y: Desplazamiento vertical (+ abajo, - arriba)
+    # - scale: Escala del sprite (1.0 = tamaño normal, >1.0 más grande, <1.0 más pequeño)
+    WEAPON_HUD_CONFIG = {
+        "short_rifle": {
+            "offset_x": -15,
+            "offset_y": 35,
+            "scale": 1.0,
+        },
+        "dual_pistols": {
+            "offset_x": 10,
+            "offset_y": 57,
+            "scale": 1.0,
+        },
+        "light_rifle": {
+            "offset_x": -20,
+            "offset_y": 20,
+            "scale": 1.0,
+        },
+        "arcane_salvo": {
+            "offset_x": -20,
+            "offset_y": 9,
+            "scale": 1.0,
+        },
+        "pulse_rifle": {
+            "offset_x": -20,
+            "offset_y": 15,
+            "scale": 1.0,
+        },
+        "tesla_gloves": {
+            "offset_x": 14,
+            "offset_y": 60,
+            "scale": 0.65,
+        },
+        "ember_carbine": {
+            "offset_x": -20,
+            "offset_y": 5,
+            "scale": 1.0,
+        },
+    }
+    # =============================================================================
+    
     UPGRADE_NAMES = {
         "spd_up": "Mejora de velocidad (+5%)",
-        "cdr_charm": "Talismán de recarga (-10% CD)",
-        "cdr_core": "Manual de puntería (-12% CD)",
-        "sprint_core": "Botas relámpago (+10% sprint)",
-        "dash_core": "Condensador de fase (-15% dash)",
-        "dash_drive": "Impulso cinético (+duración dash)",
+        "sprint_core": "Sprint infinito",
+        "cdr_charm": "Reducción de cooldowns (menor)",
+        "cdr_core": "Reducción de cooldowns (mayor)",
+        "dash_core": "Dash desbloqueado",
+        "dash_drive": "Dash mejorado (menor cooldown)",
     }
     WEAPON_NAMES = {
-        "short_rifle": "Carabina compacta",
-        "dual_pistols": "Pistolas dobles",
+        "short_rifle": "Rifle corto",
+        "dual_pistols": "Pistolas duales",
         "light_rifle": "Rifle ligero",
-        "tesla_gloves": "Guantes tesla",
-        "ember_carbine": "Carabina incandescente",
-        "arcane_salvo": "Escopeta arcana",
+        "arcane_salvo": "Salva arcana",
         "pulse_rifle": "Rifle de pulsos",
+        "tesla_gloves": "Guantes Tesla",
+        "ember_carbine": "Carabina de ascuas",
     }
     CONSUMABLE_NAMES = {
-        "heal_small": "Cápsula reparadora (+1 golpe)",
-        "heal_battery_full": "Batería verde (vida completa)",
+        "heal_small": "Curación pequeña",
+        "heal_battery_full": "Batería completa",
     }
 
     def __init__(self, cfg: Config) -> None:
         pygame.init()
         self.cfg = cfg
 
-        # ---------- Ventana ----------
         self.screen = pygame.display.set_mode(
             (cfg.SCREEN_W * cfg.SCREEN_SCALE, cfg.SCREEN_H * cfg.SCREEN_SCALE)
         )
@@ -2298,21 +2344,24 @@ class Game:
         if weapon is None or weapon_id is None:
             return pygame.Rect(0, 0, 0, 0)
 
-        icon_surface = self._get_scaled_weapon_icon(weapon_id, self.weapon_icon_scale)
+        # Obtener configuración de esta arma (o usar valores por defecto)
+        weapon_config = self.WEAPON_HUD_CONFIG.get(weapon_id, {
+            "offset_x": 0,
+            "offset_y": 0,
+            "scale": 1.0
+        })
+        
+        # Aplicar escala personalizada del arma además de la escala global
+        weapon_scale = weapon_config.get("scale", 1.0)
+        combined_scale = self.weapon_icon_scale * weapon_scale
+        
+        icon_surface = self._get_scaled_weapon_icon(weapon_id, combined_scale)
         if icon_surface is None:
             return pygame.Rect(0, 0, 0, 0)
 
-        # Ajustes de posición específicos
-        extra_x, extra_y = 0, 0
-        if weapon_id == "short_rifle":
-            extra_x = -15  # Modifica esto para mover horizontalmente
-            extra_y = 35  # Modifica esto para mover verticalmente
-        elif weapon_id == "dual_pistols":
-            extra_x = 10
-            extra_y = 57
-        elif weapon_id == "light_rifle":
-            extra_x = -20
-            extra_y = 20
+        # Aplicar offset específico del arma desde la configuración
+        extra_x = weapon_config.get("offset_x", 0)
+        extra_y = weapon_config.get("offset_y", 0)
 
         base_x = inventory_rect.left + int(self.weapon_icon_offset.x) + extra_x
         base_y = inventory_rect.top + int(self.weapon_icon_offset.y) + extra_y
