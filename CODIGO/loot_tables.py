@@ -4,7 +4,6 @@ ENEMY_LOOT_TABLE = {
     "tiers": {
         "1": {
             "weapons": [
-                {"type": "weapon", "id": "short_rifle", "weight": 1.0},
                 {"type": "weapon", "id": "dual_pistols", "weight": 0.8},
             ],
             "upgrades": [
@@ -101,6 +100,6 @@ ENEMY_LOOT_TABLE = {
         "enemy_heal_big_chance": 0.10,
         "enemy_upgrade_chance": 0.10,
         "enemy_bundle_chance": 0.05,
-        "enemy_weapon_rare_chance": 0.1,
+        "enemy_weapon_rare_chance": 0.04,
     },
 }
