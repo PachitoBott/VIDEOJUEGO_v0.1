@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import math
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -9,6 +10,12 @@ import pygame
 from moviepy.editor import VideoFileClip
 
 from Config import Config
+
+moviepy_spec = importlib.util.find_spec("moviepy.editor")
+if moviepy_spec:
+    from moviepy.editor import VideoFileClip
+else:  # pragma: no cover - entorno sin moviepy
+    VideoFileClip = None
 
 # Nota: Esta es la única implementación activa de la cinemática.
 # Se eliminaron versiones previas (Cinematic, Cinematica) para evitar duplicados.
@@ -273,6 +280,9 @@ class Cinamatic:
         }
 
     def _play_video_sequence(self) -> bool:
+        if VideoFileClip is None:
+            return True
+
         hold_timer = 0.0
 
         for filename, overlay_text in self.video_sequence:
