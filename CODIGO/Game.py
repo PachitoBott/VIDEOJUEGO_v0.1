@@ -710,15 +710,28 @@ class Game:
 
         survivors = []
         for enemy in room.enemies:
-            if getattr(enemy, "is_boss", False) and getattr(enemy, "hp", 1) <= 0:
+            hp = getattr(enemy, "hp", 1)
+            # Permitir que los enemigos (y especialmente los bosses) reproduzcan
+            # su animación de muerte completa antes de ser eliminados.
+            ready_to_remove = hp <= 0
+
+            ready_fn = getattr(enemy, "is_ready_to_remove", None)
+            if callable(ready_fn):
+                ready_to_remove = bool(ready_fn())
+
+            if getattr(enemy, "is_boss", False) and hp <= 0:
                 handler = getattr(room, "on_boss_defeated", None)
-                if callable(handler):
+                already_notified = getattr(enemy, "_boss_defeat_notified", False)
+                if callable(handler) and not already_notified:
                     handler(enemy)
-            if getattr(enemy, "hp", 1) > 0:
+                    enemy._boss_defeat_notified = True
+
+            if not ready_to_remove:
                 survivors.append(enemy)
-            else:
-                self._drop_enemy_microchips(enemy, room)
-                self._maybe_spawn_enemy_loot(enemy, room)
+                continue
+
+            self._drop_enemy_microchips(enemy, room)
+            self._maybe_spawn_enemy_loot(enemy, room)
         defeated_enemies = max(0, initial_enemy_count - len(survivors))
         if defeated_enemies:
             # Reproducir sonido de eliminación de enemigo
