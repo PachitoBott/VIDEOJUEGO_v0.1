@@ -95,6 +95,34 @@ class Game:
         else:
             self.loot_font = pygame.font.SysFont("VT323", 22)
         self.ui_font = pygame.font.SysFont(None, 18)
+        self.hud_font_large = pygame.font.SysFont("VT323", 32)
+        
+        # --- Configuración de texto de munición (AJUSTABLE MANUALMENTE) ---
+        self.ammo_text_font_size = 48  # Tamaño de la fuente (cambia este número para ajustar el tamaño)
+        self.ammo_text_offset_x = 700    # Desplazamiento horizontal desde el centro (positivo = derecha, negativo = izquierda)
+        self.ammo_text_offset_y = 410   # Desplazamiento vertical desde el centro (positivo = abajo, negativo = arriba)
+        # Cargar fuente VT323 para el texto de munición
+        if loot_font_path.exists():
+            self.ammo_font = pygame.font.Font(str(loot_font_path), self.ammo_text_font_size)
+        else:
+            self.ammo_font = pygame.font.SysFont("VT323", self.ammo_text_font_size)
+        
+        # Panel de vida (fondo para las baterías)
+        panel_vidas_path = Path(__file__).resolve().parent.parent / "assets" / "ui" / "panel_vidas.png"
+        try:
+            panel_original = pygame.image.load(panel_vidas_path.as_posix()).convert_alpha()
+            # Escalar el panel a un tamaño razonable (ajusta estos valores si necesitas que sea más grande/pequeño)
+            panel_scale_width = 1000
+            panel_scale_height= 1000
+            self._life_panel_sprite = pygame.transform.smoothscale(panel_original, (panel_scale_width, panel_scale_height))
+        except (pygame.error, FileNotFoundError) as e:
+            self._life_panel_sprite = None
+        
+        # --- Configuración de posición de baterías y panel (AJUSTABLE MANUALMENTE) ---
+        self.batteries_base_x = 40   # Posición X base de las baterías desde el borde
+        self.batteries_base_y = 265   # Posición Y base de las baterías desde el borde
+        self.life_panel_offset_x = -500  # Offset del panel desde las baterías (negativo = izquierda)
+        self.life_panel_offset_y = -370  # Offset del panel desde las baterías (negativo = arriba)
         icon_source, pickup_sprite = self._create_microchip_sprites()
         self._microchip_icon_source = icon_source
         self._chip_pickup_sprite = pickup_sprite
@@ -103,7 +131,7 @@ class Game:
         self._upgrade_pickup_sprite = self._create_upgrade_pickup_sprite()
         self._weapon_pickup_sprite = self._create_weapon_pickup_sprite()
         self._bundle_pickup_sprite = self._create_bundle_pickup_sprite()
-        self.microchip_icon_scale = self.MICROCHIP_ICON_DEFAULT_SCALE * 0.4
+        self.microchip_icon_scale = self.MICROCHIP_ICON_DEFAULT_SCALE * 0.42
 
         self.loot_notifications = LootNotificationManager(self.loot_font)
         self.loot_notifications.set_surface_size(self.screen.get_size())
@@ -117,10 +145,10 @@ class Game:
         # Incrementa la componente X para mover las barras hacia la derecha
         # (disminúyela para moverlas a la izquierda) y modifica Y para
         # desplazarlas verticalmente.
-        self._life_battery_offset = pygame.Vector2(-445, 50)
+        self._life_battery_offset = pygame.Vector2(-380, 50)
         # --- Configuración del HUD de armas ---
-        self.weapon_icon_offset = pygame.Vector2(60, 50)
-        self.weapon_icon_scale = 1.0
+        self.weapon_icon_offset = pygame.Vector2(60, -30)
+        self.weapon_icon_scale = 1.9
         self.weapon_text_margin = 18
         self.weapon_ammo_offset = pygame.Vector2(-35, -110)
         self.weapon_ammo_color = pygame.Color(235, 235, 235)
@@ -129,8 +157,8 @@ class Game:
         self._weapon_icon_cache: dict[tuple[str, float], pygame.Surface] = {}
         self._pickup_icon_cache: dict[str, pygame.Surface] = {}
         
-        self.microchip_icon_offset = pygame.Vector2(193, 42)
-        self.microchip_value_offset = pygame.Vector2(0, -100)
+        self.microchip_icon_offset = pygame.Vector2(102, 108)
+        self.microchip_value_offset = pygame.Vector2(0, -110)                                                                                           
         self.microchip_value_color = pygame.Color(255, 240, 180)
 
         # --- Tienda ---
@@ -248,7 +276,7 @@ class Game:
         self._bind_player_events()
         if hasattr(self.player, "reset_loadout"):
             self.player.reset_loadout()
-        setattr(self.player, "gold", 1000000000)
+        setattr(self.player, "gold", 100)
         try:
             self.player.shop_purchases = set()
         except Exception:
@@ -697,15 +725,28 @@ class Game:
 
         survivors = []
         for enemy in room.enemies:
-            if getattr(enemy, "is_boss", False) and getattr(enemy, "hp", 1) <= 0:
+            hp = getattr(enemy, "hp", 1)
+            # Permitir que los enemigos (y especialmente los bosses) reproduzcan
+            # su animación de muerte completa antes de ser eliminados.
+            ready_to_remove = hp <= 0
+
+            ready_fn = getattr(enemy, "is_ready_to_remove", None)
+            if callable(ready_fn):
+                ready_to_remove = bool(ready_fn())
+
+            if getattr(enemy, "is_boss", False) and hp <= 0:
                 handler = getattr(room, "on_boss_defeated", None)
-                if callable(handler):
+                already_notified = getattr(enemy, "_boss_defeat_notified", False)
+                if callable(handler) and not already_notified:
                     handler(enemy)
-            if getattr(enemy, "hp", 1) > 0:
+                    enemy._boss_defeat_notified = True
+
+            if not ready_to_remove:
                 survivors.append(enemy)
-            else:
-                self._drop_enemy_microchips(enemy, room)
-                self._maybe_spawn_enemy_loot(enemy, room)
+                continue
+
+            self._drop_enemy_microchips(enemy, room)
+            self._maybe_spawn_enemy_loot(enemy, room)
         defeated_enemies = max(0, initial_enemy_count - len(survivors))
         if defeated_enemies:
             # Reproducir sonido de eliminación de enemigo
@@ -1722,10 +1763,20 @@ class Game:
         if header_rect.height:
             text_y = max(text_y, header_rect.bottom + line_gap)
 
+
+        # Usar posición fija para las baterías (independiente del arma)
         battery_origin = (
-            text_x + int(self._life_battery_offset.x),
-            text_y + int(self._life_battery_offset.y),
+            inventory_rect.left + int(self.batteries_base_x),
+            inventory_rect.top + int(self.batteries_base_y),
         )
+        
+        # Dibujar panel de vida (fondo)
+        if self._life_panel_sprite is not None:
+            # Usar offsets configurables para posicionar el panel
+            panel_x = battery_origin[0] + int(self.life_panel_offset_x)
+            panel_y = battery_origin[1] + int(self.life_panel_offset_y)
+            self.screen.blit(self._life_panel_sprite, (panel_x, panel_y))
+        
         batteries_rect = self._blit_life_batteries(self.screen, battery_origin)
         if batteries_rect.height:
             text_y = batteries_rect.bottom + line_gap
@@ -1738,6 +1789,7 @@ class Game:
         self.hud_panels.blit_minimap_panel(self.screen, minimap_surface, minimap_position)
 
         self.hud_panels.blit_corner_panel(self.screen)
+        self.hud_panels.blit_corner_inverse_panel(self.screen)
 
         self.loot_notifications.draw(self.screen)
 
@@ -1913,13 +1965,12 @@ class Game:
         icon_rect = icon_surface.get_rect(topleft=icon_position)
         self.screen.blit(icon_surface, icon_rect.topleft)
 
-        value_surface = self.ui_font.render(str(int(amount)), True, self.microchip_value_color)
+        # Texto de cantidad (40px a la derecha, fuente grande VT323)
+        value_surface = self.hud_font_large.render(str(int(amount)), True, self.microchip_value_color)
         value_rect = value_surface.get_rect()
-        value_rect.midtop = (
-            icon_rect.centerx + int(self.microchip_value_offset.x),
-            icon_rect.bottom + int(self.microchip_value_offset.y),
-        )
-        self.screen.blit(value_surface, value_rect.topleft)
+        value_rect.midleft = (icon_rect.right + 40, icon_rect.centery)
+        self.screen.blit(value_surface, value_rect)
+
 
         return icon_rect.union(value_rect)
 
@@ -2226,7 +2277,7 @@ class Game:
         if weapon_id == "short_rifle":
             scale *= 0.25
         elif weapon_id == "dual_pistols":
-            scale *= 0.25
+            scale *= 0.18
 
         scale = max(0.05, float(scale))
         cache_key = (base_id, round(scale, 4))
@@ -2257,36 +2308,40 @@ class Game:
             extra_x = -15  # Modifica esto para mover horizontalmente
             extra_y = 35  # Modifica esto para mover verticalmente
         elif weapon_id == "dual_pistols":
-            extra_x = -5
-            extra_y = 0
+            extra_x = 10
+            extra_y = 57
+        elif weapon_id == "light_rifle":
+            extra_x = -20
+            extra_y = 20
 
         base_x = inventory_rect.left + int(self.weapon_icon_offset.x) + extra_x
         base_y = inventory_rect.top + int(self.weapon_icon_offset.y) + extra_y
         icon_rect = icon_surface.get_rect(topleft=(base_x, base_y))
         self.screen.blit(icon_surface, icon_rect.topleft)
-
+        
         shots_remaining = getattr(weapon, "shots_in_mag", 0)
         magazine_size = getattr(weapon, "magazine_size", 0)
         ammo_text = f"Balas: {shots_remaining}/{magazine_size}"
         if hasattr(weapon, "is_reloading") and weapon.is_reloading():
             ammo_text = f"Recargando ({shots_remaining}/{magazine_size})"
 
-        ammo_surface = self.ui_font.render(ammo_text, True, self.weapon_ammo_color)
-        if self.weapon_ammo_align_center:
-            ammo_rect = ammo_surface.get_rect()
-            ammo_rect.midtop = (
-                icon_rect.left + icon_rect.width // 2 + int(self.weapon_ammo_offset.x),
-                icon_rect.bottom + int(self.weapon_ammo_offset.y),
-            )
-        else:
-            ammo_rect = ammo_surface.get_rect()
-            ammo_rect.topleft = (
-                icon_rect.left + int(self.weapon_ammo_offset.x),
-                icon_rect.bottom + int(self.weapon_ammo_offset.y),
-            )
-
-        self.screen.blit(ammo_surface, ammo_rect.topleft)
-        return icon_rect.union(ammo_rect)
+        # Dibujar texto de munición en el centro de la pantalla
+        ammo_surface = self.ammo_font.render(ammo_text, True, (255, 255, 255))
+        ammo_rect = ammo_surface.get_rect()
+        screen_w, screen_h = self.screen.get_size()
+        # Posicionar en el centro con offsets configurables
+        ammo_rect.center = (
+            screen_w // 2 + int(self.ammo_text_offset_x),
+            screen_h // 2 + int(self.ammo_text_offset_y)
+        )
+        
+        # Dibujar sombra negra para mejor visibilidad
+        shadow_surface = self.ammo_font.render(ammo_text, True, (0, 0, 0))
+        shadow_rect = shadow_surface.get_rect()
+        shadow_rect.center = (ammo_rect.centerx + 2, ammo_rect.centery + 2)
+        self.screen.blit(shadow_surface, shadow_rect)
+        self.screen.blit(ammo_surface, ammo_rect)
+        return icon_rect
 
     def _create_cursor_surface(self) -> pygame.Surface:
         cursor_path = Path(__file__).resolve().parent.parent / "assets/ui/cursor2.png"
