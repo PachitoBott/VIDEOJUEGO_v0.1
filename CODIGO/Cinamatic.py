@@ -1,20 +1,17 @@
 from __future__ import annotations
 
-import importlib.util
 import math
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import cv2
 import pygame
-from moviepy.editor import VideoFileClip
 
 from Config import Config
 
-moviepy_spec = importlib.util.find_spec("moviepy.editor")
-if moviepy_spec:
+# Intentamos importar moviepy, si no está disponible, VideoFileClip será None
+try:
     from moviepy.editor import VideoFileClip
-else:  # pragma: no cover - entorno sin moviepy
+except (ModuleNotFoundError, ImportError):
     VideoFileClip = None
 
 # Nota: Esta es la única implementación activa de la cinemática.
