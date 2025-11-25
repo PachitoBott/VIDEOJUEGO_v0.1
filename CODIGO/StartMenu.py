@@ -799,20 +799,32 @@ class StartMenu:
         
         overlay_rect = pygame.Rect(0, 0, width * 0.8, height * 0.8)
         overlay_rect.center = (width // 2, height // 2)
-        
+
+        overlay_surface = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
+        overlay_surface.fill((10, 10, 20, 230))
+
+        text_start = overlay_rect.top + 60
         if self.overlay_key == "credits" and self.credits_image:
-            scaled_bg = pygame.transform.smoothscale(self.credits_image, overlay_rect.size)
-            self.screen.blit(scaled_bg, overlay_rect)
-        else:
-            pygame.draw.rect(self.screen, (10, 10, 20), overlay_rect)
+            inset_rect = overlay_surface.get_rect().inflate(-40, -40)
+            img_w, img_h = self.credits_image.get_size()
+            scale = min(inset_rect.width / img_w, inset_rect.height / img_h, 1.0)
+            if scale < 1.0:
+                scaled_size = (int(img_w * scale), int(img_h * scale))
+                credits_image = pygame.transform.smoothscale(self.credits_image, scaled_size)
+            else:
+                credits_image = self.credits_image
+
+            image_rect = credits_image.get_rect(midtop=(overlay_surface.get_width() // 2, inset_rect.top))
+            overlay_surface.blit(credits_image, image_rect)
+            text_start = overlay_rect.top + image_rect.bottom + 20
+
+        self.screen.blit(overlay_surface, overlay_rect)
         pygame.draw.rect(self.screen, self.COLOR_NEON_BLUE, overlay_rect, 2)
 
         lines = self.overlay_lines or ("",)
-        start_y = overlay_rect.top + (140 if self.overlay_key == "credits" else 60)
-        
         for i, line in enumerate(lines):
             surf = self.button_font.render(line, True, self.COLOR_TEXT_WHITE)
-            rect = surf.get_rect(center=(width // 2, start_y + i * 40))
+            rect = surf.get_rect(center=(width // 2, text_start + i * 40))
             self.screen.blit(surf, rect)
 
         exit_hint = self.small_font.render(
