@@ -37,6 +37,10 @@ class Cinamatic:
         self.body_font = self._load_font("VT323-Regular.ttf", 28)
         self.small_font = self._load_font("VT323-Regular.ttf", 22)
 
+        # Cargar sonido de escritura
+        self.typing_sound = None
+        self._load_typing_sound()
+
         self.slides: List[str] = [
             (
                 "Our defenses were flawless. "
@@ -86,10 +90,20 @@ class Cinamatic:
                 return True
 
             current = self.slides[slide_index]
+            prev_char_progress = int(char_progress)
             if char_progress < len(current):
                 char_progress += self.TYPEWRITER_SPEED * dt
                 finished_time = 0.0
+                
+                # Reproducir sonido de escritura si hay caracteres nuevos
+                new_char_progress = int(char_progress)
+                if new_char_progress > prev_char_progress and self.typing_sound:
+                    if not pygame.mixer.Channel(0).get_busy():
+                        pygame.mixer.Channel(0).play(self.typing_sound, loops=-1)
             else:
+                # Detener sonido cuando termine de escribir
+                if self.typing_sound:
+                    pygame.mixer.Channel(0).stop()
                 finished_time += dt
                 if finished_time >= self.SLIDE_PAUSE:
                     if slide_index < len(self.slides) - 1:
@@ -219,3 +233,20 @@ class Cinamatic:
             except Exception:
                 pass
         return pygame.font.SysFont("consolas", int(size * 0.75))
+
+    def _load_typing_sound(self) -> None:
+        """Carga el sonido de escritura para el efecto de máquina de escribir."""
+        try:
+            audio_path = Path("assets/audio/typing_sfx.mp3")
+            
+            if not audio_path.exists():
+                # Intentar ruta relativa desde CODIGO
+                audio_path = Path(__file__).parent / "assets" / "audio" / "typing_sfx.mp3"
+            
+            if audio_path.exists():
+                self.typing_sound = pygame.mixer.Sound(audio_path.as_posix())
+                self.typing_sound.set_volume(0.15)  # 15% del volumen
+            else:
+                self.typing_sound = None
+        except (pygame.error, FileNotFoundError):
+            self.typing_sound = None
