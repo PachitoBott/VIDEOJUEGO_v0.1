@@ -836,7 +836,7 @@ class StartMenu:
                     text_box.blit(surf, rect)
 
                 text_box_rect = text_box.get_rect(
-                    center=(image_rect.centerx, image_rect.top + image_rect.height * 0.78)
+                    center=(image_rect.centerx, image_rect.top + image_rect.height * 0.72)
                 )
                 overlay_surface.blit(text_box, text_box_rect)
         else:
