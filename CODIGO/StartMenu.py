@@ -803,29 +803,50 @@ class StartMenu:
         overlay_surface = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
         overlay_surface.fill((10, 10, 20, 230))
 
-        text_start = overlay_rect.top + 60
         if self.overlay_key == "credits" and self.credits_image:
             inset_rect = overlay_surface.get_rect().inflate(-40, -40)
             img_w, img_h = self.credits_image.get_size()
-            scale = min(inset_rect.width / img_w, inset_rect.height / img_h, 1.0)
+
+            target_w = inset_rect.width * 0.92
+            target_h = inset_rect.height * 0.92
+            scale = min(target_w / img_w, target_h / img_h, 1.0)
             if scale < 1.0:
                 scaled_size = (int(img_w * scale), int(img_h * scale))
                 credits_image = pygame.transform.smoothscale(self.credits_image, scaled_size)
             else:
                 credits_image = self.credits_image
 
-            image_rect = credits_image.get_rect(midtop=(overlay_surface.get_width() // 2, inset_rect.top))
+            image_rect = credits_image.get_rect(center=inset_rect.center)
             overlay_surface.blit(credits_image, image_rect)
-            text_start = overlay_rect.top + image_rect.bottom + 20
+
+            lines = self.overlay_lines or ("",)
+            if lines:
+                line_height = self.button_font.get_linesize()
+                text_box_width = max(120, image_rect.width - 60)
+                text_box_height = line_height * len(lines) + 32
+                text_box = pygame.Surface((text_box_width, text_box_height), pygame.SRCALPHA)
+                text_box.fill((0, 0, 0, 150))
+
+                for i, line in enumerate(lines):
+                    surf = self.button_font.render(line, True, self.COLOR_TEXT_WHITE)
+                    rect = surf.get_rect(
+                        center=(text_box_width // 2, 16 + i * line_height + line_height // 2)
+                    )
+                    text_box.blit(surf, rect)
+
+                text_box_rect = text_box.get_rect(center=image_rect.center)
+                overlay_surface.blit(text_box, text_box_rect)
+
+        else:
+            text_start = overlay_rect.top + 60
+            lines = self.overlay_lines or ("",)
+            for i, line in enumerate(lines):
+                surf = self.button_font.render(line, True, self.COLOR_TEXT_WHITE)
+                rect = surf.get_rect(center=(width // 2, text_start + i * 40))
+                self.screen.blit(surf, rect)
 
         self.screen.blit(overlay_surface, overlay_rect)
         pygame.draw.rect(self.screen, self.COLOR_NEON_BLUE, overlay_rect, 2)
-
-        lines = self.overlay_lines or ("",)
-        for i, line in enumerate(lines):
-            surf = self.button_font.render(line, True, self.COLOR_TEXT_WHITE)
-            rect = surf.get_rect(center=(width // 2, text_start + i * 40))
-            self.screen.blit(surf, rect)
 
         exit_hint = self.small_font.render(
             "[ CLICK / ESC ] PARA VOLVER", True, self.COLOR_NEON_PINK
