@@ -177,6 +177,12 @@ class Game:
         # ---------- Sonidos de pickup ----------
         self._load_pickup_sounds()
 
+        # ---------- Sistema de música de gameplay ----------
+        self.gameplay_music_pool: list[Path] = []
+        self.current_music_volume = 0.03  # Volumen muy bajo no invasivo (3%)
+        self._load_gameplay_music_pool()
+        pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)  # Evento cuando termina la música
+
         # ---------- Estadísticas ----------
         self.stats_manager = StatisticsManager()
         self._run_start_time: float | None = None
@@ -259,6 +265,9 @@ class Game:
 
         if self.debug_start_in_boss_room:
             self._warp_to_boss_room()
+        
+        # Iniciar música de gameplay
+        self._start_gameplay_music()
 
     def _reset_runtime_state(self) -> None:
         self.projectiles.clear()
@@ -344,6 +353,8 @@ class Game:
             if e.type == pygame.QUIT:
                 self._finalize_run_statistics("quit")
                 self.running = False
+            elif e.type == pygame.USEREVENT + 1:  # Música terminó
+                self._play_next_random_music()
             elif e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE:
                     self._show_pause_menu()
@@ -437,6 +448,10 @@ class Game:
         background = self.screen.copy()
         pause_menu = PauseMenu(self.screen, buttons=self.pause_menu_buttons)
         action = pause_menu.run(background=background)
+        
+        # Sincronizar volumen de música con el pause menu
+        self.current_music_volume = pause_menu.volume
+        
         keep_playing = self._handle_pause_action(action)
         if keep_playing and self.running:
             pygame.mouse.set_visible(False)
@@ -1967,6 +1982,49 @@ class Game:
                 self.enemy_elimination_sound.set_volume(0.15)  # 15% del volumen
         except (pygame.error, FileNotFoundError):
             pass
+
+    def _load_gameplay_music_pool(self) -> None:
+        """Carga todos los archivos de música de gameplay en el pool."""
+        audio_dir = Path(__file__).parent / "assets" / "audio"
+        
+        # Buscar todos los archivos que coincidan con el patrón musica_gameplay_*
+        if audio_dir.exists():
+            for music_file in audio_dir.glob("musica_gameplay_*.mp3"):
+                self.gameplay_music_pool.append(music_file)
+        
+        # Shuffle del pool para orden aleatorio inicial
+        if self.gameplay_music_pool:
+            random.shuffle(self.gameplay_music_pool)
+            print(f"[Music] Cargadas {len(self.gameplay_music_pool)} canciones de gameplay")
+        else:
+            print("[Music] No se encontraron canciones de gameplay")
+
+    def _play_next_random_music(self) -> None:
+        """Reproduce la siguiente canción del pool de manera aleatoria."""
+        if not self.gameplay_music_pool:
+            return
+        
+        # Seleccionar una canción aleatoria
+        music_file = random.choice(self.gameplay_music_pool)
+        
+        try:
+            pygame.mixer.music.load(str(music_file))
+            pygame.mixer.music.set_volume(self.current_music_volume)
+            pygame.mixer.music.play()
+            print(f"[Music] Reproduciendo: {music_file.name}")
+        except pygame.error as e:
+            print(f"[Music] Error al reproducir {music_file.name}: {e}")
+
+    def _start_gameplay_music(self) -> None:
+        """Inicia la reproducción de música al comenzar el juego."""
+        if self.gameplay_music_pool:
+            self._play_next_random_music()
+
+    def _update_music_volume(self, volume: float) -> None:
+        """Actualiza el volumen de la música actual."""
+        self.current_music_volume = max(0.0, min(1.0, volume))
+        pygame.mixer.music.set_volume(self.current_music_volume)
+
 
     def _create_microchip_sprites(self) -> tuple[pygame.Surface, pygame.Surface]:
         procedural_icon, pickup_sprite = self._create_procedural_microchip()

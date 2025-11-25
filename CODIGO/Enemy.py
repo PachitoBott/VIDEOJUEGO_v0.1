@@ -341,7 +341,7 @@ class Enemy(Entity):
                 audio_path = Path(__file__).parent / "assets" / "audio" / filename
             if audio_path.exists():
                 self._attack_sound = pygame.mixer.Sound(audio_path.as_posix())
-                self._attack_sound.set_volume(0.10)  # % del volumen
+                self._attack_sound.set_volume(0.25)  # 25% del volumen
             else:
                 self._attack_sound = None
         except (pygame.error, FileNotFoundError):

@@ -187,6 +187,7 @@ class Weapon:
             # Volúmenes personalizados por arma (default: 0.1)
             volume_settings = {
                 "light_rifle": 0.05,
+                "short_rifle": 0.20,
             }
             
             # Determinar archivo de sonido a usar
