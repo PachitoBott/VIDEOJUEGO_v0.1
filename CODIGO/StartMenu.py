@@ -799,8 +799,8 @@ class StartMenu:
         
         if self.overlay_key == "credits" and self.credits_image:
             img_w, img_h = self.credits_image.get_size()
-            max_w = width * 0.9
-            max_h = height * 0.9
+            max_w = width * 0.92
+            max_h = height * 0.92
             scale = min(max_w / img_w, max_h / img_h, 1.0)
             if scale < 1.0:
                 credits_image = pygame.transform.smoothscale(
@@ -810,13 +810,20 @@ class StartMenu:
                 credits_image = self.credits_image
 
             scaled_w, scaled_h = credits_image.get_size()
-            overlay_rect = pygame.Rect(0, 0, scaled_w + 60, scaled_h + 60)
+            padding = 44
+            overlay_rect = pygame.Rect(
+                0,
+                0,
+                min(int(width * 0.96), scaled_w + padding * 2),
+                min(int(height * 0.96), scaled_h + padding * 2),
+            )
             overlay_rect.center = (width // 2, height // 2)
 
             overlay_surface = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
             overlay_surface.fill((10, 10, 20, 230))
 
-            inset_rect = overlay_surface.get_rect().inflate(-32, -32)
+            inset_margin = max(24, padding - 12)
+            inset_rect = overlay_surface.get_rect().inflate(-inset_margin * 2, -inset_margin * 2)
             image_rect = credits_image.get_rect(center=inset_rect.center)
             overlay_surface.blit(credits_image, image_rect)
 
@@ -836,7 +843,7 @@ class StartMenu:
                     text_box.blit(surf, rect)
 
                 text_box_rect = text_box.get_rect(
-                    center=(image_rect.centerx, image_rect.top + image_rect.height * 0.64)
+                    center=(image_rect.centerx, image_rect.top + image_rect.height * 0.6)
                 )
                 overlay_surface.blit(text_box, text_box_rect)
         else:
