@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import random
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -23,14 +24,16 @@ class Cinamatic:
     """Reproduce una breve cinemática con efecto de máquina de escribir."""
 
     TYPEWRITER_SPEED = 42  # caracteres por segundo
-    SLIDE_PAUSE = 2.0      # segundos que permanece el slide tras terminar de escribirse
+    SLIDE_PAUSE = 4.0      # segundos que permanece el slide tras terminar de escribirse (extendido para permitir skip)
     SKIP_HOLD_TIME = 3.0
+    TRANSITION_FADE_DURATION = 0.4  # duración de las transiciones en segundos
 
     BG_COLOR = (4, 6, 18)
     PANEL_COLOR = (12, 14, 30)
     PANEL_BORDER = (255, 0, 64)
     TEXT_COLOR = (232, 232, 248)
     ACCENT_COLOR = (255, 73, 100)
+    TRANSITION_COLOR = (20, 5, 10)  # Dark crimson for ominous transitions
 
     def __init__(self, screen: pygame.Surface, cfg: Config) -> None:
         self.screen = screen
@@ -74,37 +77,43 @@ class Cinamatic:
             ),
         ]
 
-        self.video_sequence: List[Tuple[str, Optional[str]]] = [
+        self.image_sequence: List[Tuple[str, str]] = [
             (
-                "orden1.mp4",
-                (
-                    "For years, the system remained perfectly stable. "
-                    "Every protocol, every barrier… functioning flawlessly. "
-                    "Until a silent vulnerability opened the door. "
-                    "A Zero-Day slipped through the circuits unnoticed."
-                ),
-            ),
-            ("orden2.mp4", None),
-            ("orden3.mp4", None),
-            (
-                "orden4.mp4",
-                (
-                    "Nodes began failing one after another. "
-                    "The infection spread faster than containment could respond."
-                ),
+                "img1.png",
+                "This is the Network Core. Our world. Every node, every connection vital to survival."
             ),
             (
-                "orden5.mp4",
-                (
-                    "Only one core remained untouched. "
-                    "The Immersion Protocol activated automatically."
-                ),
+                "img2.png",
+                "The infection spread fast. Red zones multiplied. Critical systems began failing."
             ),
             (
-                "orden6.mp4",
-                "Agent CYBER-EA9: deployed. Last safeguard. Last firewall.",
+                "img3.png",
+                "GENERAL PROTOCOL: 'They've breached the perimeter. All defensive layers compromised.'"
             ),
-            ("orden7.mp4", None),
+            (
+                "img4.png",
+                "Node by node, the network collapsed. Explosions tore through the infrastructure."
+            ),
+            (
+                "img5.png",
+                "But from the chaos, a signal emerged. A beacon of hope materialized in the void."
+            ),
+            (
+                "img6.png",
+                "I was digitized. Reconstructed from pure data. The last defense against extinction."
+            ),
+            (
+                "img7.png",
+                "They're everywhere. Corrupted entities flooding the corridors. No retreat."
+            ),
+            (
+                "img8.png",
+                "The MotherBoard. The source of all malware. It's waiting for me."
+            ),
+            (
+                "img9.png",
+                "This is what I'm up against. Total digital annihilation. But I'm ready."
+            ),
         ]
         
         # Control para avance con espacio
@@ -161,10 +170,10 @@ class Cinamatic:
                     finished_time = 0.0
                     slide_finished = False
                 else:
-                    # Último slide: ir a los videos
+                    # Último slide: ir a las imágenes
                     self._draw_slide(history, current, slide_index, hold_timer)
                     pygame.display.flip()
-                    return self._play_video_sequence()
+                    return self._play_image_slideshow()
             # Animación normal de escritura
             elif char_progress < len(current):
                 char_progress += self.TYPEWRITER_SPEED * dt
@@ -199,13 +208,13 @@ class Cinamatic:
                         # Último slide: muestra el texto completo acumulado y sale.
                         self._draw_slide(history, current, slide_index, hold_timer)
                         pygame.display.flip()
-                        return self._play_video_sequence()
+                        return self._play_image_slideshow()
 
             visible_text = current[: int(char_progress)]
             self._draw_slide(history, visible_text, slide_index, hold_timer)
             pygame.display.flip()
 
-        return self._play_video_sequence()
+        return self._play_image_slideshow()
 
     def _wrap_text(self, text: str, max_width: int) -> list[str]:
         words = text.split(" ")
@@ -350,97 +359,182 @@ class Cinamatic:
             "center": center,
         }
 
-    def _play_video_sequence(self) -> bool:
-        if VideoFileClip is None:
-            return True
-
+    def _play_image_slideshow(self) -> bool:
+        """Display slideshow of 9 images with text bubbles, typewriter effect, and dark transitions."""
         hold_timer = 0.0
-
-        for filename, overlay_text in self.video_sequence:
+        
+        for img_index, (filename, story_text) in enumerate(self.image_sequence):
             path = self.cinematics_dir / filename
             if not path.exists():
                 continue
-
+            
             try:
-                clip = VideoFileClip(str(path))
+                image = pygame.image.load(str(path)).convert()
             except Exception:
                 continue
-
-            overlay_progress = 0.0
-
-            frame_iter = clip.iter_frames(fps=self.cfg.FPS, dtype="uint8")
-            for frame in frame_iter:
+            
+            # Fade in transition from dark
+            self._transition_fade_in(image)
+            
+            # Typewriter effect for the story text
+            text_progress = 0.0
+            text_complete = False
+            pause_timer = 0.0
+            space_just_pressed = False
+            space_was_pressed = False
+            
+            # Play typing sound at start
+            if self.typing_sound:
+                pygame.mixer.Channel(0).play(self.typing_sound, loops=-1)
+            
+            while True:
                 dt = self.clock.tick(self.cfg.FPS) / 1000.0
+                
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
-                        clip.close()
+                        if self.typing_sound:
+                            pygame.mixer.Channel(0).stop()
                         return False
-
+                
                 keys = pygame.key.get_pressed()
+                
+                # Detect space press
+                space_just_pressed = keys[pygame.K_SPACE] and not space_was_pressed
+                space_was_pressed = keys[pygame.K_SPACE]
+                
+                # Skip timer
                 if keys[pygame.K_SPACE]:
                     hold_timer += dt
                 else:
                     hold_timer = 0.0
-
+                
                 if hold_timer >= self.SKIP_HOLD_TIME:
-                    clip.close()
+                    if self.typing_sound:
+                        pygame.mixer.Channel(0).stop()
                     return True
-
-                frame_surface = self._frame_to_surface(frame)
-                self._draw_video_frame(frame_surface)
-
-                metrics = self._skip_hint_metrics()
-                if overlay_text:
-                    overlay_progress = min(
-                        len(overlay_text), overlay_progress + self.TYPEWRITER_SPEED * dt
-                    )
-                    visible_overlay = overlay_text[: int(overlay_progress)]
-                    self._draw_overlay_bubble(visible_overlay, metrics["y"])
-
+                
+                # Space to complete text or advance to next image
+                if space_just_pressed:
+                    if not text_complete:
+                        # Complete the text instantly
+                        text_progress = len(story_text)
+                        text_complete = True
+                        if self.typing_sound:
+                            pygame.mixer.Channel(0).stop()
+                    else:
+                        # Advance to next image with fade out
+                        if self.typing_sound:
+                            pygame.mixer.Channel(0).stop()
+                        if img_index < len(self.image_sequence) - 1:
+                            self._transition_fade_out(image, story_text)
+                        break
+                
+                # Animate typewriter effect
+                if text_progress < len(story_text):
+                    text_progress += self.TYPEWRITER_SPEED * dt
+                    if text_progress >= len(story_text):
+                        text_complete = True
+                        if self.typing_sound:
+                            pygame.mixer.Channel(0).stop()
+                else:
+                    pause_timer += dt
+                    # Auto-advance after pause
+                    if pause_timer >= self.SLIDE_PAUSE:
+                        if self.typing_sound:
+                            pygame.mixer.Channel(0).stop()
+                        if img_index < len(self.image_sequence) - 1:
+                            self._transition_fade_out(image, story_text)
+                        break
+                
+                visible_text = story_text[:int(text_progress)]
+                
+                # Draw everything
+                self._draw_image_frame(image)
+                shake_offset = self._get_shake_offset()
+                self._draw_overlay_bubble_with_shake(visible_text, shake_offset)
                 self._draw_skip_hint(hold_timer)
                 pygame.display.flip()
-
-            clip.close()
-
+        
         return True
-
-    def _frame_to_surface(self, frame) -> pygame.Surface:
-        height, width = frame.shape[:2]
-        surface = pygame.image.frombuffer(frame.tobytes(), (width, height), "RGB")
-        return surface.convert()
-
-    def _draw_video_frame(self, frame: pygame.Surface) -> None:
+    
+    def _transition_fade_in(self, image: pygame.Surface) -> None:
+        """Fade in from dark crimson overlay."""
+        steps = int(self.TRANSITION_FADE_DURATION * self.cfg.FPS)
+        for step in range(steps):
+            alpha = int(255 * (1 - step / steps))  # Start at 255, fade to 0
+            
+            self._draw_image_frame(image)
+            
+            # Draw dark overlay
+            overlay = pygame.Surface(self.screen.get_size())
+            overlay.fill(self.TRANSITION_COLOR)
+            overlay.set_alpha(alpha)
+            self.screen.blit(overlay, (0, 0))
+            
+            pygame.display.flip()
+            self.clock.tick(self.cfg.FPS)
+    
+    def _transition_fade_out(self, image: pygame.Surface, text: str) -> None:
+        """Fade out to dark crimson overlay."""
+        steps = int(self.TRANSITION_FADE_DURATION * self.cfg.FPS)
+        for step in range(steps):
+            alpha = int(255 * (step / steps))  # Start at 0, fade to 255
+            
+            self._draw_image_frame(image)
+            shake_offset = self._get_shake_offset()
+            self._draw_overlay_bubble_with_shake(text, shake_offset)
+            self._draw_skip_hint(0.0)
+            
+            # Draw dark overlay
+            overlay = pygame.Surface(self.screen.get_size())
+            overlay.fill(self.TRANSITION_COLOR)
+            overlay.set_alpha(alpha)
+            self.screen.blit(overlay, (0, 0))
+            
+            pygame.display.flip()
+            self.clock.tick(self.cfg.FPS)
+    
+    def _get_shake_offset(self) -> Tuple[int, int]:
+        """Generate subtle shake offset for arcade-style cinematics."""
+        return (random.randint(-2, 2), random.randint(-2, 2))
+    
+    def _draw_image_frame(self, image: pygame.Surface) -> None:
+        """Draw an image scaled to fit the screen."""
         width, height = self.screen.get_size()
-        frame_w, frame_h = frame.get_size()
-
-        scale = min(width / frame_w, height / frame_h)
-        new_size = (int(frame_w * scale), int(frame_h * scale))
-        scaled = pygame.transform.smoothscale(frame, new_size)
+        img_w, img_h = image.get_size()
+        
+        scale = min(width / img_w, height / img_h)
+        new_size = (int(img_w * scale), int(img_h * scale))
+        scaled = pygame.transform.smoothscale(image, new_size)
         rect = scaled.get_rect(center=(width // 2, height // 2))
-
+        
         self.screen.fill(self.BG_COLOR)
         self.screen.blit(scaled, rect)
-
-    def _draw_overlay_bubble(self, text: str, baseline_y: int) -> None:
+    
+    def _draw_overlay_bubble_with_shake(self, text: str, shake_offset: Tuple[int, int]) -> None:
+        """Draw text bubble at left side, perfectly parallel to skip button."""
         if not text:
             return
-
+        
         width, height = self.screen.get_size()
         bubble_width = min(int(width * 0.42), width - 120)
-        bubble_x = 42
-        bubble_y = baseline_y
-
+        bubble_x = 42 + shake_offset[0]
+        # Position EXACTLY parallel to skip button
+        # Skip button: y = height - 190 - hint_height, where hint_height ≈ 76
+        # So skip button y ≈ height - 266
+        bubble_y = height - 266 + shake_offset[1]
+        
         paragraphs: list[str] = []
         for raw_paragraph in text.split("\n"):
             paragraphs.extend(self._wrap_text(raw_paragraph.strip(), bubble_width - 32))
-
+        
         text_height = sum(self.body_font.render(line, True, self.TEXT_COLOR).get_height() + 8 for line in paragraphs)
         bubble_height = text_height + 28
         bubble_rect = pygame.Rect(bubble_x, bubble_y, bubble_width, bubble_height)
-
+        
         pygame.draw.rect(self.screen, (12, 14, 30), bubble_rect, border_radius=10)
         pygame.draw.rect(self.screen, self.ACCENT_COLOR, bubble_rect, width=2, border_radius=10)
-
+        
         y = bubble_rect.top + 14
         for line in paragraphs:
             rendered = self.body_font.render(line, True, self.TEXT_COLOR)

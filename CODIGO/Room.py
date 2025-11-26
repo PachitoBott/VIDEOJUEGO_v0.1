@@ -644,6 +644,10 @@ class Room:
         self._door_closed_sound = None
         self._door_open_sound = None
         self._load_door_sounds()
+        
+        # Portal para siguiente run (spawneado tras derrotar boss)
+        self.run_portal: dict | None = None
+        self._portal_animation_timer: float = 0.0
 
 
     # ------------------------------------------------------------------ #
@@ -1200,8 +1204,102 @@ class Room:
         if hasattr(boss, "puddles"):
             boss.puddles.clear()
         self.boss_instance = None
-        if not self.treasure:
-            self.spawn_boss_reward()
+        
+        # Spawn portal para la siguiente run en lugar del tesoro
+        self._spawn_run_portal()
+
+    def _spawn_run_portal(self) -> None:
+        """Spawns el portal para avanzar a la siguiente run en el centro de la sala."""
+        if self.run_portal is not None:
+            return  # Ya existe un portal
+        
+        try:
+            cx_px, cy_px = self.center_px()
+        except AssertionError:
+            return
+        
+        # Crear el portal en el centro de la sala
+        portal_size = (32, 32)
+        self.run_portal = {
+            "rect": pygame.Rect(
+                cx_px - portal_size[0] // 2,
+                cy_px - portal_size[1] // 2,
+                portal_size[0],
+                portal_size[1],
+            ),
+            "interaction_rect": pygame.Rect(
+                cx_px - 40,
+                cy_px - 40,
+                80,
+                80,
+            ),
+            "activated": False,
+        }
+
+    def check_portal_interaction(self, player) -> bool:
+        """Verifica si el jugador puede interactuar con el portal.
+        Retorna True si el jugador está cerca.
+        """
+        if self.run_portal is None:
+            return False
+        
+        if hasattr(player, "rect"):
+            player_rect = player.rect() if callable(player.rect) else player.rect
+        else:
+            player_rect = pygame.Rect(
+                int(player.x), int(player.y), int(player.w), int(player.h)
+            )
+        
+        return self.run_portal["interaction_rect"].colliderect(player_rect)
+
+    def activate_portal(self) -> bool:
+        """Activa el portal. Retorna True si se activó correctamente."""
+        if self.run_portal is None:
+            return False
+        
+        self.run_portal["activated"] = True
+        return True
+
+    def update_portal(self, dt: float) -> None:
+        """Actualiza la animación del portal."""
+        if self.run_portal is None:
+            return
+        
+        self._portal_animation_timer += dt
+
+    def draw_portal(self, surface: pygame.Surface) -> None:
+        """Dibuja el portal con una animación simple."""
+        if self.run_portal is None:
+            return
+        
+        import math
+        
+        rect = self.run_portal["rect"]
+        
+        # Animación de pulsación
+        pulse = math.sin(self._portal_animation_timer * 3.0) * 0.15 + 1.0
+        size_w = int(rect.width * pulse)
+        size_h = int(rect.height * pulse)
+        
+        # Dibujar círculo exterior (aura)
+        aura_radius = int((rect.width / 2) * pulse * 1.3)
+        aura_color = (0, 200, 255, int(100 * pulse))
+        aura_surface = pygame.Surface((aura_radius * 2, aura_radius * 2), pygame.SRCALPHA)
+        pygame.draw.circle(aura_surface, aura_color, (aura_radius, aura_radius), aura_radius)
+        surface.blit(aura_surface, (rect.centerx - aura_radius, rect.centery - aura_radius))
+        
+        # Dibujar círculo principal (portal)
+        portal_radius = int(rect.width / 2 * pulse)
+        portal_color = (0, 255, 255) if not self.run_portal["activated"] else (255, 255, 0)
+        pygame.draw.circle(surface, portal_color, rect.center, portal_radius)
+        pygame.draw.circle(surface, (255, 255, 255), rect.center, portal_radius, 3)
+        
+        # Dibujar anillos giratorios
+        for i in range(3):
+            angle_offset = self._portal_animation_timer * (2.0 + i * 0.5)
+            ring_radius = portal_radius * (0.4 + i * 0.2)
+            ring_thickness = 2
+            pygame.draw.circle(surface, (100, 200, 255), rect.center, int(ring_radius), ring_thickness)
 
     def handle_events(self, events, player, shop_ui, world_surface, ui_font, screen_scale=1):
         """
@@ -1291,6 +1389,17 @@ class Room:
             if player_rect is not None and self.shopkeeper.can_interact(player_rect) and not shop_ui.active:
                 tip = ui_font.render("E - Abrir tienda", True, (255, 255, 255))
                 surface.blit(tip, (self.shopkeeper.rect.x - 12, self.shopkeeper.rect.y - 22))
+        
+        # Dibujar portal para siguiente run si existe
+        if self.run_portal is not None:
+            self.draw_portal(surface)
+            # Mostrar prompt de interacción si el jugador está cerca
+            if self.check_portal_interaction(player):
+                tip = ui_font.render("E - Avanzar a siguiente run", True, (0, 255, 255))
+                portal_rect = self.run_portal["rect"]
+                tip_x = portal_rect.centerx - tip.get_width() // 2
+                tip_y = portal_rect.y - 30
+                surface.blit(tip, (tip_x, tip_y))
 
     def _apply_corruption_to_enemy(self, enemy: Enemy) -> None:
         if getattr(enemy, "_corruption_buffed", False):

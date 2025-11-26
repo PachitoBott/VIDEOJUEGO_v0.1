@@ -265,6 +265,10 @@ class Game:
         self._run_kills: int = 0
         self.selected_skin_path: str | None = getattr(cfg, "PLAYER_SPRITES_PATH", None)
 
+        # ---------- Sistema de Runs ----------
+        self.completed_runs: int = 0
+        self._preserved_player_state: dict | None = None
+
         # --- Interacción de armas ---
         self.hovered_weapon_pickup = None
         self.prompt_font = pygame.font.Font(Path(__file__).resolve().parent / "assets" / "ui" / "VT323-Regular.ttf", 20)
@@ -322,11 +326,18 @@ class Game:
         self._bind_player_events()
         if hasattr(self.player, "reset_loadout"):
             self.player.reset_loadout()
-        setattr(self.player, "gold", 100)
-        try:
-            self.player.shop_purchases = set()
-        except Exception:
-            pass
+        
+        # Restaurar estado preservado si existe (para continuar runs)
+        if self._preserved_player_state:
+            self._restore_player_state(self._preserved_player_state)
+            self._preserved_player_state = None  # Limpiar después de restaurar
+        else:
+            # Inicialización normal (primera run)
+            setattr(self.player, "gold", 100)
+            try:
+                self.player.shop_purchases = set()
+            except Exception:
+                pass
 
         # Reset de runtime
         self._reset_runtime_state()
@@ -393,6 +404,156 @@ class Game:
         self._stats_pending_reason = None
         self._run_gold_spent = 0
 
+    def _preserve_player_state(self) -> dict:
+        """
+        Captura el estado completo del jugador para preservarlo entre runs.
+        Incluye: oro, vida, armas, mejoras, items clave, y todo el progreso.
+        """
+        if not hasattr(self, "player"):
+            return {}
+
+        player = self.player
+        state = {
+            # Recursos
+            "gold": int(getattr(player, "gold", 0)),
+            
+            # Vida y supervivencia
+            "hp": int(getattr(player, "hp", 1)),
+            "max_hp": int(getattr(player, "max_hp", 3)),
+            "lives": int(getattr(player, "lives", 3)),
+            "max_lives": int(getattr(player, "max_lives", 3)),
+            "life_charge_buffer": int(getattr(player, "life_charge_buffer", 0)),
+            
+            # Armas (preservar todas las armas que posee y la equipada)
+            "weapon_id": getattr(player, "weapon_id", None),
+            "owned_weapons": set(getattr(player, "_owned_weapons", set())),
+            
+            # Mejoras y modificadores
+            "upgrade_flags": set(getattr(player, "_upgrade_flags", set())),
+            "cooldown_modifiers": dict(getattr(player, "_cooldown_modifiers", {})),
+            "cooldown_scale_base": float(getattr(player, "cooldown_scale_base", 1.0)),
+            
+            # Items clave
+            "key_items": set(getattr(player, "key_items", set())),
+            
+            # Stats base mejorados
+            "base_speed": float(getattr(player, "base_speed", 120.0)),
+            "base_sprint_multiplier": float(getattr(player, "base_sprint_multiplier", 1.35)),
+            "base_dash_duration": float(getattr(player, "base_dash_duration", 0.18)),
+            "base_dash_cooldown": float(getattr(player, "base_dash_cooldown", 0.75)),
+            "sprint_control_bonus": float(getattr(player, "sprint_control_bonus", 0.0)),
+            "phase_during_dash": bool(getattr(player, "phase_during_dash", False)),
+            "dash_core_bonus_window": float(getattr(player, "dash_core_bonus_window", 0.0)),
+            "dash_core_bonus_iframe": float(getattr(player, "dash_core_bonus_iframe", 0.0)),
+            
+            # Compras de la tienda (para preservar entre runs)
+            "shop_purchases": set(getattr(player, "shop_purchases", set())),
+        }
+        return state
+
+    def _restore_player_state(self, state: dict) -> None:
+        """
+        Restaura el estado completo del jugador desde un diccionario guardado.
+        Se llama después de crear un nuevo jugador en start_new_run.
+        """
+        if not state or not hasattr(self, "player"):
+            return
+
+        player = self.player
+        
+        # Recursos
+        if "gold" in state:
+            player.gold = int(state["gold"])
+        
+        # Vida y supervivencia
+        if "hp" in state:
+            player.hp = int(state["hp"])
+        if "max_hp" in state:
+            player.max_hp = int(state["max_hp"])
+        if "lives" in state:
+            player.lives = int(state["lives"])
+        if "max_lives" in state:
+            player.max_lives = int(state["max_lives"])
+        if "life_charge_buffer" in state:
+            player.life_charge_buffer = int(state["life_charge_buffer"])
+        
+        # Restaurar armas
+        if "owned_weapons" in state:
+            player._owned_weapons = set(state["owned_weapons"])
+        
+        if "weapon_id" in state and state["weapon_id"]:
+            # Restaurar el arma equipada
+            weapon_id = state["weapon_id"]
+            if hasattr(player, "_weapon_factory"):
+                try:
+                    player.weapon = player._weapon_factory.create(weapon_id)
+                    player.weapon_id = weapon_id
+                except Exception as e:
+                    print(f"[WARN] No se pudo restaurar arma {weapon_id}: {e}")
+        
+        # Mejoras y modificadores
+        if "upgrade_flags" in state:
+            player._upgrade_flags = set(state["upgrade_flags"])
+        if "cooldown_modifiers" in state:
+            player._cooldown_modifiers = dict(state["cooldown_modifiers"])
+        if "cooldown_scale_base" in state:
+            player.cooldown_scale_base = float(state["cooldown_scale_base"])
+            # Recalcular cooldown_scale
+            if hasattr(player, "_cooldown_modifiers"):
+                total = 1.0
+                for mod_value in player._cooldown_modifiers.values():
+                    total *= mod_value
+                player.cooldown_scale = player.cooldown_scale_base * total
+        
+        # Items clave
+        if "key_items" in state:
+            player.key_items = set(state["key_items"])
+        
+        # Stats base mejorados
+        if "base_speed" in state:
+            player.base_speed = float(state["base_speed"])
+            player.speed = player.base_speed
+        if "base_sprint_multiplier" in state:
+            player.base_sprint_multiplier = float(state["base_sprint_multiplier"])
+            player.sprint_multiplier = player.base_sprint_multiplier
+        if "base_dash_duration" in state:
+            player.base_dash_duration = float(state["base_dash_duration"])
+            player.dash_duration = player.base_dash_duration
+        if "base_dash_cooldown" in state:
+            player.base_dash_cooldown = float(state["base_dash_cooldown"])
+            player.dash_cooldown = player.base_dash_cooldown
+        if "sprint_control_bonus" in state:
+            player.sprint_control_bonus = float(state["sprint_control_bonus"])
+        if "phase_during_dash" in state:
+            player.phase_during_dash = bool(state["phase_during_dash"])
+        if "dash_core_bonus_window" in state:
+            player.dash_core_bonus_window = float(state["dash_core_bonus_window"])
+        if "dash_core_bonus_iframe" in state:
+            player.dash_core_bonus_iframe = float(state["dash_core_bonus_iframe"])
+        
+        # Compras de la tienda
+        if "shop_purchases" in state:
+            player.shop_purchases = set(state["shop_purchases"])
+
+    def _start_new_run_after_boss(self) -> None:
+        """
+        Inicia una nueva run después de derrotar a un boss.
+        Preserva el estado completo del jugador y genera una nueva seed.
+        """
+        # Incrementar contador de runs
+        self.completed_runs += 1
+        
+        # Preservar estado del jugador
+        self._preserved_player_state = self._preserve_player_state()
+        
+        # Mostrar notificación
+        notification_text = f"RUN {self.completed_runs} COMPLETADA - NUEVA SEED"
+        if hasattr(self, "loot_notifications"):
+            self.loot_notifications.push(notification_text, icon=None)
+        
+        # Generar nueva seed preservando el estado
+        self.start_new_run(seed=None)
+
     # ------------------------------------------------------------------ #
     # Bucle principal
     # ------------------------------------------------------------------ #
@@ -444,6 +605,16 @@ class Game:
                 elif e.key == pygame.K_f:
                     if self.hovered_weapon_pickup:
                         self._swap_weapon(self.hovered_weapon_pickup)
+                elif e.key == pygame.K_e:
+                    # Interacción con portal para siguiente run
+                    room = getattr(self, "dungeon", None)
+                    if room:
+                        current_room = getattr(room, "current_room", None)
+                        if current_room and hasattr(current_room, "check_portal_interaction"):
+                            if current_room.check_portal_interaction(self.player):
+                                if current_room.activate_portal():
+                                    # Iniciar nueva run
+                                    self._start_new_run_after_boss()
         return events
 
     def _open_start_menu(self) -> bool:
@@ -578,6 +749,10 @@ class Game:
         self._update_shop(events)
         self.loot_notifications.update(dt, self.screen)
         self._update_screen_effects(dt)
+        
+        # Actualizar portal si existe
+        if hasattr(room, "update_portal"):
+            room.update_portal(dt)
 
     def _update_screen_effects(self, dt: float) -> None:
         if self.camera_shake > 0.0:
