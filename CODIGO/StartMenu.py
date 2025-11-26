@@ -853,12 +853,14 @@ class StartMenu:
             overlay_surface = pygame.Surface(overlay_rect.size, pygame.SRCALPHA)
             overlay_surface.fill((10, 10, 20, 230))
 
-            text_start = overlay_rect.top + 60
+            text_start = 60
             lines = self.overlay_lines or ("",)
             for i, line in enumerate(lines):
                 surf = self.button_font.render(line, True, self.COLOR_TEXT_WHITE)
-                rect = surf.get_rect(center=(width // 2, text_start + i * 40))
-                self.screen.blit(surf, rect)
+                rect = surf.get_rect(
+                    center=(overlay_rect.width // 2, text_start + i * 40)
+                )
+                overlay_surface.blit(surf, rect)
 
         self.screen.blit(overlay_surface, overlay_rect)
         pygame.draw.rect(self.screen, self.COLOR_NEON_BLUE, overlay_rect, 2)
