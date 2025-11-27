@@ -51,9 +51,8 @@ class StartMenu:
         # --- GESTIÓN DE RUTAS ---
         self.base_dir = Path(__file__).parent.resolve()
         self.ui_assets_dir = self.base_dir / "assets" / "ui"
-        self.audio_assets_dir = self.base_dir / "assets" / "audio"  # Nueva ruta para audio
+        self.audio_assets_dir = self.base_dir / "assets" / "audio"
 
-        # Debug info
         print(f"--- DEBUG START MENU ---")
         print(f"Assets UI: {self.ui_assets_dir}")
         print(f"Assets Audio: {self.audio_assets_dir}")
@@ -70,16 +69,6 @@ class StartMenu:
 
         # --- Inicializar Audio ---
         self._init_audio()
-
-        # --- Volumen ---
-        self.volume: float = (
-            pygame.mixer.music.get_volume() if pygame.mixer.get_init() else 0.01
-        )
-        self.dragging_volume = False
-        self.VOLUME_BAR_SIZE = (360, 10)
-        self.VOLUME_HANDLE_SIZE = (18, 26)
-        self.volume_bar_rect = pygame.Rect(0, 0, *self.VOLUME_BAR_SIZE)
-        self.volume_handle_rect = pygame.Rect(0, 0, *self.VOLUME_HANDLE_SIZE)
 
         # --- Carga de Fuentes ---
         self.title_font = self._get_font("VT323-Regular.ttf", 96)
@@ -124,9 +113,6 @@ class StartMenu:
         self._compute_layout()
         self._start_requested = False
 
-    # ------------------------------------------------------------------
-    # Audio Management
-    # ------------------------------------------------------------------
     def _init_audio(self) -> None:
         """Inicializa el mixer, carga efectos y arranca la música."""
         if not pygame.mixer.get_init():
@@ -136,18 +122,16 @@ class StartMenu:
                 print("No se pudo inicializar el módulo de audio.")
                 return
 
-        # 1. Cargar SFX Botón
         self.click_sound = self._load_sound("boton.mp3")
 
-        # 2. Cargar y reproducir Música de Fondo
         music_file = "music_menu.mp3"
         music_path = self._get_audio_path(music_file)
         
         if music_path and music_path.exists():
             try:
                 pygame.mixer.music.load(str(music_path))
-                pygame.mixer.music.set_volume(0.01)  # Volumen al 1%
-                pygame.mixer.music.play(-1) # -1 significa loop infinito
+                pygame.mixer.music.set_volume(0.01)
+                pygame.mixer.music.play(-1)
                 print(f"Reproduciendo música: {music_file}")
             except Exception as e:
                 print(f"Error reproduciendo música {music_file}: {e}")
@@ -182,9 +166,6 @@ class StartMenu:
         if self.click_sound:
             self.click_sound.play()
 
-    # ------------------------------------------------------------------
-    # Helpers & Path Finding (UI)
-    # ------------------------------------------------------------------
     def _get_path(self, filename: str) -> Path:
         return self.ui_assets_dir / filename
 
@@ -195,9 +176,6 @@ class StartMenu:
                 return pygame.font.Font(str(font_path), size)
             except Exception as e:
                 print(f"Error cargando fuente {font_name}: {e}")
-        else:
-            # Fallback silencioso si no encuentra la fuente exacta
-            pass
         return pygame.font.SysFont("consolas", int(size * 0.7))
 
     def _load_image(self, filename: Optional[str]) -> Optional[pygame.Surface]:
@@ -318,9 +296,6 @@ class StartMenu:
             self.volume_bar_rect.centery,
         )
 
-    # ------------------------------------------------------------------
-    # Main loop
-    # ------------------------------------------------------------------
     def run(self) -> StartMenuResult:
         running = True
         while running:
@@ -358,7 +333,6 @@ class StartMenu:
             pygame.display.flip()
 
         if self._start_requested:
-            # Detener la música del menú con un fadeout de 500ms al iniciar el juego
             pygame.mixer.music.fadeout(500)
             return StartMenuResult(
                 start_game=True,
@@ -367,17 +341,14 @@ class StartMenu:
             )
 
         return StartMenuResult(start_game=False, seed=None, skin_path=None)
+        # CONTINÚA DESPUÉS DE def run()...
 
-    # ------------------------------------------------------------------
-    # Event handling
-    # ------------------------------------------------------------------
     def _handle_menu_event(self, event: pygame.event.Event) -> bool:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 self._start_requested = False
                 return False
             if event.key == pygame.K_RETURN:
-                # Sonido al iniciar con Enter
                 self._play_click()
                 return self._commit_play()
             if event.key == pygame.K_BACKSPACE:
@@ -397,7 +368,6 @@ class StartMenu:
                 self.input_active = False
                 for action, rect in self.button_rects:
                     if rect.collidepoint(event.pos):
-                        # Sonido al hacer click en botón
                         self._play_click()
                         return self._trigger_button(action)
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
@@ -432,6 +402,11 @@ class StartMenu:
             return True
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if hasattr(self, 'confirm_button_rect') and self.confirm_button_rect.collidepoint(event.pos):
+                self._play_click()
+                self.overlay_key = None
+                return True
+            
             if (
                 self.skins_overlay_rect.width
                 and self.skins_overlay_rect.height
@@ -456,9 +431,6 @@ class StartMenu:
             return False
         return True
 
-    # ------------------------------------------------------------------
-    # Actions
-    # ------------------------------------------------------------------
     def _trigger_button(self, action: str) -> bool:
         if action == "play":
             return self._commit_play()
@@ -506,9 +478,6 @@ class StartMenu:
         except ValueError:
             return None
 
-    # ------------------------------------------------------------------
-    # Drawing
-    # ------------------------------------------------------------------
     def _draw_cyber_grid(self) -> None:
         """Dibuja una cuadrícula estilo synthwave si no hay imagen de fondo."""
         self.screen.fill(self.COLOR_DARK_BG)
@@ -522,7 +491,6 @@ class StartMenu:
     def _draw_menu(self, *, dim_background: bool = False) -> None:
         width, height = self.screen.get_size()
 
-        # 1. Fondo
         if self.background:
             background = pygame.transform.smoothscale(self.background, (width, height))
             self.screen.blit(background, (0, 0))
@@ -534,20 +502,16 @@ class StartMenu:
             overlay.fill((0, 0, 0, 160))
             self.screen.blit(overlay, (0, 0))
 
-        # 2. Título CYBERQUEST
         title_text = "REDLINE PROTOCOL"
         
-        # Sombra del título
         shadow_surf = self.title_font.render(title_text, True, self.COLOR_NEON_PINK)
         shadow_rect = shadow_surf.get_rect(center=(width // 2 + 4, height // 4 + 4))
         self.screen.blit(shadow_surf, shadow_rect)
 
-        # Título principal
         title_surf = self.title_font.render(title_text, True, self.COLOR_NEON_BLUE)
         title_rect = title_surf.get_rect(center=(width // 2, height // 4))
         self.screen.blit(title_surf, title_rect)
 
-        # Subtítulo
         if self.menu_cfg.subtitle:
             subtitle_surf = self.subtitle_font.render(
                 self.menu_cfg.subtitle, True, (200, 200, 200)
@@ -557,13 +521,11 @@ class StartMenu:
             )
             self.screen.blit(subtitle_surf, subtitle_rect)
 
-        # Logo opcional
         if self.logo:
             logo_rect = self.logo.get_rect()
             logo_rect.center = (width // 2, title_rect.bottom + 80)
             self.screen.blit(self.logo, logo_rect)
 
-        # 3. Botones
         mouse_pos = pygame.mouse.get_pos()
 
         for button, rect in self.button_rects:
@@ -673,7 +635,7 @@ class StartMenu:
 
     def _draw_skins_overlay(self) -> None:
         width, height = self.screen.get_size()
-        overlay_rect = pygame.Rect(0, 0, int(width * 0.85), int(height * 0.85))
+        overlay_rect = pygame.Rect(0, 0, int(width * 0.85), int(height * 0.88))
         overlay_rect.center = (width // 2, height // 2)
         self.skins_overlay_rect = overlay_rect
 
@@ -688,14 +650,19 @@ class StartMenu:
         self.body_cards = []
         self.color_rects = []
 
-        card_width = overlay_rect.width // 3
-        card_height = 240
+        card_width = int(overlay_rect.width * 0.36)
+        card_height = 340
         start_y = overlay_rect.top + 110
-        gap = 40
+        gap = 70
 
         for idx, body in enumerate(("flaco", "gordo")):
+            if idx == 0:
+                x_pos = overlay_rect.left + overlay_rect.width // 4
+            else:
+                x_pos = overlay_rect.left + 3 * overlay_rect.width // 4
+            
             rect = pygame.Rect(0, 0, card_width, card_height)
-            rect.centerx = overlay_rect.left + (idx + 1) * overlay_rect.width // 3
+            rect.centerx = x_pos
             rect.y = start_y
             self.body_cards.append((body, rect))
 
@@ -708,16 +675,17 @@ class StartMenu:
                 base_color += pygame.Color(15, 15, 15)
 
             border_color = self.COLOR_NEON_PINK if selected else self.COLOR_NEON_BLUE
+            border_width = 3 if selected else 2
             pygame.draw.rect(self.screen, base_color, rect, border_radius=8)
-            pygame.draw.rect(self.screen, border_color, rect, 2, border_radius=8)
+            pygame.draw.rect(self.screen, border_color, rect, border_width, border_radius=8)
 
             label = "CYBER-067" if body == "flaco" else "CYBER-021"
             label_surf = self.button_font.render(label, True, self.COLOR_TEXT_WHITE)
-            label_rect = label_surf.get_rect(center=(rect.centerx, rect.top + 30))
+            label_rect = label_surf.get_rect(center=(rect.centerx, rect.top + 35))
             self.screen.blit(label_surf, label_rect)
 
-            preview_rect = pygame.Rect(0, 0, rect.width - 60, rect.height - 110)
-            preview_rect.center = (rect.centerx, rect.centery + 20)
+            preview_rect = pygame.Rect(0, 0, rect.width - 40, rect.height - 100)
+            preview_rect.center = (rect.centerx, rect.centery + 30)
             self._draw_skin_preview(body, preview_rect)
 
         colors = [
@@ -730,7 +698,7 @@ class StartMenu:
         swatch_gap = 28
         total_width = len(colors) * swatch_size + (len(colors) - 1) * swatch_gap
         start_x = overlay_rect.centerx - total_width // 2
-        swatch_y = start_y + card_height + gap
+        swatch_y = start_y + card_height + 50
 
         for idx, (color_id, rgb) in enumerate(colors):
             rect = pygame.Rect(start_x + idx * (swatch_size + swatch_gap), swatch_y, swatch_size, swatch_size)
@@ -739,16 +707,37 @@ class StartMenu:
             hovered = rect.collidepoint(mouse_pos)
             selected = color_id == self.selected_color
             border_color = self.COLOR_NEON_PINK if selected else self.COLOR_NEON_BLUE
+            border_width = 3 if selected else 2
             shade = pygame.Color(*rgb)
             if hovered:
                 shade = pygame.Color(min(255, shade.r + 20), min(255, shade.g + 20), min(255, shade.b + 20))
 
             pygame.draw.rect(self.screen, shade, rect, border_radius=4)
-            pygame.draw.rect(self.screen, border_color, rect, 3, border_radius=6)
+            pygame.draw.rect(self.screen, border_color, rect, border_width, border_radius=6)
 
-        hint_text = "Elige cuerpo y color (click para confirmar, ESC para volver)"
-        hint_surf = self.small_font.render(hint_text.upper(), True, self.COLOR_NEON_PINK)
-        hint_rect = hint_surf.get_rect(center=(width // 2, overlay_rect.bottom - 40))
+        button_width = 240
+        button_height = 55
+        self.confirm_button_rect = pygame.Rect(0, 0, button_width, button_height)
+        self.confirm_button_rect.center = (width // 2, overlay_rect.bottom - 80)
+        
+        button_hovered = self.confirm_button_rect.collidepoint(mouse_pos)
+        button_bg = (40, 40, 60, 200) if button_hovered else (0, 0, 0, 180)
+        button_border = self.COLOR_NEON_PINK if button_hovered else self.COLOR_NEON_BLUE
+        
+        btn_surf = pygame.Surface((button_width, button_height), pygame.SRCALPHA)
+        pygame.draw.rect(btn_surf, button_bg, btn_surf.get_rect(), border_radius=4)
+        pygame.draw.rect(btn_surf, button_border, btn_surf.get_rect(), 2, border_radius=4)
+        self.screen.blit(btn_surf, self.confirm_button_rect)
+        
+        confirm_text = "CONFIRMAR"
+        confirm_color = self.COLOR_NEON_BLUE if button_hovered else self.COLOR_TEXT_WHITE
+        confirm_surf = self.button_font.render(confirm_text, True, confirm_color)
+        confirm_rect = confirm_surf.get_rect(center=self.confirm_button_rect.center)
+        self.screen.blit(confirm_surf, confirm_rect)
+
+        hint_text = "Elige cuerpo y color (ESC para cancelar)"
+        hint_surf = self.small_font.render(hint_text.upper(), True, (150, 150, 150))
+        hint_rect = hint_surf.get_rect(center=(width // 2, overlay_rect.bottom - 30))
         self.screen.blit(hint_surf, hint_rect)
 
     def _draw_skin_preview(self, body: str, rect: pygame.Rect) -> None:
@@ -770,7 +759,7 @@ class StartMenu:
         self.screen.blit(bg, rect)
 
         frame_rect = frame.get_rect()
-        scale = min((rect.width - 16) / frame_rect.width, (rect.height - 16) / frame_rect.height, 3)
+        scale = min((rect.width - 16) / frame_rect.width, (rect.height - 16) / frame_rect.height, 4.5)
         scaled = pygame.transform.smoothscale(frame, (int(frame_rect.width * scale), int(frame_rect.height * scale)))
         scaled_rect = scaled.get_rect(center=rect.center)
         self.screen.blit(scaled, scaled_rect)
