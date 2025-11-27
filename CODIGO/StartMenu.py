@@ -635,26 +635,34 @@ class StartMenu:
 
     def _draw_skins_overlay(self) -> None:
         width, height = self.screen.get_size()
-        overlay_rect = pygame.Rect(0, 0, int(width * 0.85), int(height * 0.88))
+        
+        # 1. REDUCCIÓN DEL CUADRADO AZUL
+        # Antes: width * 0.85, height * 0.88
+        # Ahora: width * 0.70, height * 0.82 (Más pequeño y centrado)
+        overlay_rect = pygame.Rect(0, 0, int(width * 0.70), int(height * 0.82))
         overlay_rect.center = (width // 2, height // 2)
         self.skins_overlay_rect = overlay_rect
 
+        # Fondo y Borde
         pygame.draw.rect(self.screen, (10, 10, 20), overlay_rect)
         pygame.draw.rect(self.screen, self.COLOR_NEON_BLUE, overlay_rect, 2)
 
+        # Título (Ajustado un poco más arriba)
         title_surf = self.button_font.render("SELECCIONA TU SKIN", True, self.COLOR_TEXT_WHITE)
-        title_rect = title_surf.get_rect(center=(width // 2, overlay_rect.top + 50))
+        title_rect = title_surf.get_rect(center=(width // 2, overlay_rect.top + 45))
         self.screen.blit(title_surf, title_rect)
 
         mouse_pos = pygame.mouse.get_pos()
         self.body_cards = []
         self.color_rects = []
 
-        card_width = int(overlay_rect.width * 0.36)
-        card_height = 340
-        start_y = overlay_rect.top + 110
-        gap = 70
-
+        # Configuración de cartas (Personajes)
+        card_width = int(overlay_rect.width * 0.38)
+        card_height = 300  # Reducido de 340 a 300 para ganar espacio vertical
+        
+        # Inicio vertical de las cartas
+        start_y = overlay_rect.top + 90 
+        
         for idx, body in enumerate(("flaco", "gordo")):
             if idx == 0:
                 x_pos = overlay_rect.left + overlay_rect.width // 4
@@ -681,24 +689,29 @@ class StartMenu:
 
             label = "CYBER-067" if body == "flaco" else "CYBER-021"
             label_surf = self.button_font.render(label, True, self.COLOR_TEXT_WHITE)
-            label_rect = label_surf.get_rect(center=(rect.centerx, rect.top + 35))
+            label_rect = label_surf.get_rect(center=(rect.centerx, rect.top + 30))
             self.screen.blit(label_surf, label_rect)
 
-            preview_rect = pygame.Rect(0, 0, rect.width - 40, rect.height - 100)
-            preview_rect.center = (rect.centerx, rect.centery + 30)
+            preview_rect = pygame.Rect(0, 0, rect.width - 40, rect.height - 80)
+            preview_rect.center = (rect.centerx, rect.centery + 25)
             self._draw_skin_preview(body, preview_rect)
 
+        # 2. SEPARACIÓN Y BAJADA DE COLORES
         colors = [
             ("grey", (140, 140, 140)),
             ("red", (200, 60, 80)),
             ("blue", (60, 120, 255)),
             ("green", (60, 190, 100)),
         ]
-        swatch_size = 70
-        swatch_gap = 28
+        swatch_size = 60 # Reducido de 70 a 60
+        swatch_gap = 24
         total_width = len(colors) * swatch_size + (len(colors) - 1) * swatch_gap
         start_x = overlay_rect.centerx - total_width // 2
-        swatch_y = start_y + card_height + 50
+        
+        # AQUÍ ESTÁ EL CAMBIO CLAVE:
+        # start_y + card_height + 80 (Antes era + 50).
+        # Esto empuja los colores 30 pixeles más abajo, separándolos de las cartas.
+        swatch_y = start_y + card_height + 140
 
         for idx, (color_id, rgb) in enumerate(colors):
             rect = pygame.Rect(start_x + idx * (swatch_size + swatch_gap), swatch_y, swatch_size, swatch_size)
@@ -715,10 +728,12 @@ class StartMenu:
             pygame.draw.rect(self.screen, shade, rect, border_radius=4)
             pygame.draw.rect(self.screen, border_color, rect, border_width, border_radius=6)
 
+        # Botón Confirmar
         button_width = 240
-        button_height = 55
+        button_height = 50
         self.confirm_button_rect = pygame.Rect(0, 0, button_width, button_height)
-        self.confirm_button_rect.center = (width // 2, overlay_rect.bottom - 80)
+        # Posicionado relativo al fondo del cuadro reducido
+        self.confirm_button_rect.center = (width // 2, overlay_rect.bottom - 70)
         
         button_hovered = self.confirm_button_rect.collidepoint(mouse_pos)
         button_bg = (40, 40, 60, 200) if button_hovered else (0, 0, 0, 180)
@@ -735,11 +750,13 @@ class StartMenu:
         confirm_rect = confirm_surf.get_rect(center=self.confirm_button_rect.center)
         self.screen.blit(confirm_surf, confirm_rect)
 
+        # Texto de Ayuda (Ajustado para no cortarse)
         hint_text = "Elige cuerpo y color (ESC para cancelar)"
         hint_surf = self.small_font.render(hint_text.upper(), True, (150, 150, 150))
-        hint_rect = hint_surf.get_rect(center=(width // 2, overlay_rect.bottom - 30))
+        # Subido un poco respecto al borde inferior (-25 en lugar de -30 o más abajo)
+        hint_rect = hint_surf.get_rect(center=(width // 2, overlay_rect.bottom - 25))
         self.screen.blit(hint_surf, hint_rect)
-
+        
     def _draw_skin_preview(self, body: str, rect: pygame.Rect) -> None:
         frames = self._load_preview_animation(body, self.selected_color)
         if not frames:
