@@ -405,6 +405,9 @@ class ShooterEnemy(Enemy):
         self.bullet_speed  = 160.0 * ENEMY_PROJECTILE_SPEED_SCALE
         self.reaction_delay = 0.55
         self._load_attack_sound("shooter_enemy_sfx.mp3")
+        # Reducir volumen del ShooterEnemy a la mitad del valor base (25% -> 12.5%)
+        if self._attack_sound:
+            self._attack_sound.set_volume(0.125)
 
     def update(self, dt, player, room):
         super().update(dt, player, room)

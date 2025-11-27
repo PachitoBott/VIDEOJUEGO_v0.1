@@ -184,10 +184,10 @@ class Weapon:
                 "arcane_salvo": "shotgun_sfx.mp3",
             }
             
-            # Volúmenes personalizados por arma (default: 0.1)
+            # Volúmenes personalizados por arma (default: 0.20)
             volume_settings = {
-                "light_rifle": 0.05,
-                "short_rifle": 0.20,
+                "light_rifle": 0.10,
+                "short_rifle": 0.40,
             }
             
             # Determinar archivo de sonido a usar
@@ -204,15 +204,15 @@ class Weapon:
             
             if audio_path.exists():
                 self._gun_sound = pygame.mixer.Sound(audio_path.as_posix())
-                # Aplicar volumen personalizado o default (10%)
-                volume = volume_settings.get(self.spec.weapon_id, 0.1)
+                # Aplicar volumen personalizado o default (20%)
+                volume = volume_settings.get(self.spec.weapon_id, 0.2)
                 self._gun_sound.set_volume(volume)
             else:
                 # Fallback a sonido por defecto si no existe sonido específico
                 fallback_path = Path(__file__).parent / "assets" / "audio" / "default_gun_sfx.mp3"
                 if fallback_path.exists():
                     self._gun_sound = pygame.mixer.Sound(fallback_path.as_posix())
-                    volume = volume_settings.get(self.spec.weapon_id, 0.1)
+                    volume = volume_settings.get(self.spec.weapon_id, 0.2)
                     self._gun_sound.set_volume(volume)
                 else:
                     self._gun_sound = None
