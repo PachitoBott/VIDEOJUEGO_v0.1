@@ -10,7 +10,7 @@ import pygame
 
 from Config import Config
 from StartMenu import StartMenu
-from Cinamatic import Cinamatic
+from Ciinamatic import Ciinamatic as GameCinamatic
 from Tileset import Tileset
 from Player import Player
 from Dungeon import Dungeon
@@ -629,7 +629,7 @@ class Game:
             self.running = False
             return False
         pygame.mouse.set_visible(False)
-        cinamatic = Cinamatic(self.screen, self.cfg)
+        cinamatic = GameCinamatic(self.screen, self.cfg)
         if not cinamatic.run():
             self.running = False
             return False
