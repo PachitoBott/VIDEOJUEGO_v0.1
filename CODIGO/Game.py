@@ -268,6 +268,7 @@ class Game:
         # ---------- Sistema de Runs ----------
         self.completed_runs: int = 0
         self._preserved_player_state: dict | None = None
+        self._persistent_upgrades_state: dict | None = None
 
         # --- Interacción de armas ---
         self.hovered_weapon_pickup = None
@@ -292,6 +293,9 @@ class Game:
         finalize_reason = self._stats_pending_reason or "restart"
         self._finalize_run_statistics(finalize_reason)
         self._stats_pending_reason = None
+
+        # Guardar mejoras obtenidas antes de reiniciar
+        self._capture_persistent_upgrades()
 
         params = self.cfg.dungeon_params()
         if dungeon_params:
@@ -326,7 +330,7 @@ class Game:
         self._bind_player_events()
         if hasattr(self.player, "reset_loadout"):
             self.player.reset_loadout()
-        
+
         # Restaurar estado preservado si existe (para continuar runs)
         if self._preserved_player_state:
             self._restore_player_state(self._preserved_player_state)
@@ -338,6 +342,9 @@ class Game:
                 self.player.shop_purchases = set()
             except Exception:
                 pass
+
+        # Aplicar mejoras permanentes acumuladas
+        self._apply_persistent_upgrades(self.player)
 
         # Reset de runtime
         self._reset_runtime_state()
@@ -450,6 +457,103 @@ class Game:
             "shop_purchases": set(getattr(player, "shop_purchases", set())),
         }
         return state
+
+    def _capture_persistent_upgrades(self) -> None:
+        """Guarda las mejoras acumuladas para aplicarlas al iniciar nuevas runs."""
+        player = getattr(self, "player", None)
+        if player is None:
+            return
+
+        current_state = {
+            "upgrade_flags": set(getattr(player, "_upgrade_flags", set())),
+            "cooldown_modifiers": dict(getattr(player, "_cooldown_modifiers", {})),
+            "cooldown_scale_base": float(getattr(player, "cooldown_scale_base", 1.0)),
+            "base_speed": float(getattr(player, "base_speed", 120.0)),
+            "base_sprint_multiplier": float(getattr(player, "base_sprint_multiplier", 1.35)),
+            "base_dash_duration": float(getattr(player, "base_dash_duration", 0.18)),
+            "base_dash_cooldown": float(getattr(player, "base_dash_cooldown", 0.75)),
+            "sprint_control_bonus": float(getattr(player, "sprint_control_bonus", 0.0)),
+            "phase_during_dash": bool(getattr(player, "phase_during_dash", False)),
+            "dash_core_bonus_window": float(getattr(player, "dash_core_bonus_window", 0.0)),
+            "dash_core_bonus_iframe": float(getattr(player, "dash_core_bonus_iframe", 0.0)),
+        }
+
+        if not self._persistent_upgrades_state:
+            self._persistent_upgrades_state = current_state
+            return
+
+        merged_state = dict(self._persistent_upgrades_state)
+        merged_state["upgrade_flags"] = set(self._persistent_upgrades_state.get("upgrade_flags", set())) | current_state.get(
+            "upgrade_flags", set()
+        )
+        merged_state["cooldown_modifiers"] = {
+            **self._persistent_upgrades_state.get("cooldown_modifiers", {}),
+            **current_state.get("cooldown_modifiers", {}),
+        }
+
+        def _max_merge(key: str) -> None:
+            merged_state[key] = max(
+                float(self._persistent_upgrades_state.get(key, current_state[key])), float(current_state[key])
+            )
+
+        def _min_merge(key: str) -> None:
+            merged_state[key] = min(
+                float(self._persistent_upgrades_state.get(key, current_state[key])), float(current_state[key])
+            )
+
+        for key in ("cooldown_scale_base", "base_speed", "base_sprint_multiplier", "base_dash_duration"):
+            _max_merge(key)
+
+        # Cooldown menor es mejor
+        _min_merge("base_dash_cooldown")
+
+        for key in ("sprint_control_bonus", "dash_core_bonus_window", "dash_core_bonus_iframe"):
+            _max_merge(key)
+
+        merged_state["phase_during_dash"] = bool(
+            self._persistent_upgrades_state.get("phase_during_dash", False) or current_state.get("phase_during_dash", False)
+        )
+
+        self._persistent_upgrades_state = merged_state
+
+    def _apply_persistent_upgrades(self, player) -> None:
+        """Reaplica las mejoras acumuladas al jugador recién creado."""
+        state = self._persistent_upgrades_state
+        if not state or player is None:
+            return
+
+        player._upgrade_flags = set(state.get("upgrade_flags", set()))
+        player._cooldown_modifiers = dict(state.get("cooldown_modifiers", {}))
+
+        if "cooldown_scale_base" in state:
+            player.cooldown_scale_base = float(state["cooldown_scale_base"])
+        total = 1.0
+        for mod_value in player._cooldown_modifiers.values():
+            total *= mod_value
+        player.cooldown_scale = player.cooldown_scale_base * total
+        if hasattr(player, "refresh_weapon_modifiers"):
+            try:
+                player.refresh_weapon_modifiers()
+            except Exception:
+                pass
+
+        for key in ("base_speed", "base_sprint_multiplier", "base_dash_duration", "base_dash_cooldown"):
+            if key in state:
+                setattr(player, key, float(state[key]))
+
+        if "sprint_control_bonus" in state:
+            player.sprint_control_bonus = float(state["sprint_control_bonus"])
+        if "phase_during_dash" in state:
+            player.phase_during_dash = bool(state["phase_during_dash"])
+        if "dash_core_bonus_window" in state:
+            player.dash_core_bonus_window = float(state["dash_core_bonus_window"])
+        if "dash_core_bonus_iframe" in state:
+            player.dash_core_bonus_iframe = float(state["dash_core_bonus_iframe"])
+
+        player.speed = player.base_speed
+        player.sprint_multiplier = player.base_sprint_multiplier
+        player.dash_duration = player.base_dash_duration
+        player.dash_cooldown = player.base_dash_cooldown
 
     def _restore_player_state(self, state: dict) -> None:
         """
